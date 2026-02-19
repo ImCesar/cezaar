@@ -1,0 +1,10 @@
+{
+  "name": "cesarpowers",
+  "description": "Cesar's development workflow and personal Claude Code skills.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "keywords": ["workflow", "development", "skills"]
+}
