@@ -1,0 +1,43 @@
+{
+  "name": "cezaar",
+  "owner": {
+    "name": "Cesar Avitia"
+  },
+  "metadata": {
+    "description": "Cesar's personal Claude Code plugin marketplace"
+  },
+  "plugins": [
+    {
+      "name": "cesarpowers",
+      "source": "./plugins/cesarpowers",
+      "description": "Cesar's development workflow and personal Claude Code skills.",
+      "version": "1.0.0",
+      "category": "development",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": ["workflow", "development", "skills"]
+    },
+    {
+      "name": "superpowers",
+      "description": "Core skills library for Claude Code: TDD, debugging, collaboration patterns, and proven techniques.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/obra/superpowers.git"
+      },
+      "homepage": "https://github.com/obra/superpowers.git"
+    },
+    {
+      "name": "review-hats",
+      "description": "Multi-perspective code review with specialized AI agents inspired by Thinking Hats.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/ImCesar/review-hats.git"
+      },
+      "homepage": "https://github.com/ImCesar/review-hats.git"
+    }
+  ]
+}
