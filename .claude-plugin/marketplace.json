@@ -38,6 +38,18 @@
         "url": "https://github.com/ImCesar/review-hats.git"
       },
       "homepage": "https://github.com/ImCesar/review-hats.git"
+    },
+    {
+      "name": "gh-dashboard",
+      "source": "./plugins/gh-dashboard",
+      "description": "GitHub project status dashboard for Claude Code.",
+      "version": "1.0.0",
+      "category": "project-management",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": ["github", "dashboard", "project-management", "status"]
     }
   ]
 }
