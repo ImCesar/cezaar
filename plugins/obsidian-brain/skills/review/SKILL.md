@@ -1,5 +1,5 @@
 ---
-name: review
+name: obsidian-brain:review
 description: Generate a performance review from your Obsidian vault data — either a casual narrative summary or a formal structured self-evaluation. Use when the user asks about their performance, wants to prepare for a 1:1 or self-eval, asks "how did I do", or wants to generate a review document for any time period. Triggers on phrases like "review my performance", "how did I do this quarter", "prepare my self-eval", "performance review", or "what did I accomplish".
 ---
 
@@ -20,7 +20,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -125,6 +125,18 @@ Also check for reflection notes directly in `journal/`:
 find "$VAULT/journal" -maxdepth 1 -name "*.md" -type f | sort
 ```
 
+### 4a+. Accomplishments
+
+Scan the accomplishments folder:
+
+```bash
+find "$VAULT/accomplishments" -name "*.md" -type f | sort
+```
+
+Read each accomplishment note whose `created` date falls within the range. These are curated wins — weight them higher than journal entries when building the review. Every accomplishment should appear in the review output.
+
+Also extract `### Wins` sections from daily logs in `journal/daily/` that fall within the range. These are supporting evidence for the accomplishment notes.
+
 ### 4b. Completed projects
 
 Scan project notes:
@@ -176,7 +188,7 @@ If a folder is empty or missing, skip it silently.
 
 If the entire vault has no data in the time range:
 
-> No vault activity found for this period. There's nothing to build a review from — try a broader time range, or make sure you've been using `capture` and `journal` to record your work.
+> No vault activity found for this period. There's nothing to build a review from — try a broader time range, or make sure you've been using `obsidian-brain:capture` and `obsidian-brain:journal` to record your work.
 
 If data is sparse (only a few items), still produce a review but note that coverage is limited. Don't fabricate content to fill gaps.
 
@@ -194,6 +206,12 @@ Follow the format spec closely — it defines structure, tone, sections, evidenc
 ### Build the review
 
 Analyze all gathered data and construct the review:
+
+**Data source priority for claims:**
+1. Accomplishments (highest — user curated these as wins)
+2. Completed projects and archived items
+3. Daily log wins sections
+4. Journal entries and knowledge notes (context and narrative color)
 
 **For casual mode (summary):**
 - Write narrative paragraphs, not bullet points
@@ -305,7 +323,7 @@ Keep suggestions brief and grounded in the review content. Don't over-prescribe.
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `obsidian-brain:init-vault`.
 - **Empty vault** — no data found for the requested period. Suggest a broader range or note that the vault needs more content first.
 - **Unreadable files** — if a specific file can't be read, skip it and continue. Mention skipped files at the end.
 - **Malformed frontmatter** — if a file has broken YAML, skip it for synthesis purposes. Don't halt the review.

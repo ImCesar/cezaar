@@ -1,5 +1,5 @@
 ---
-name: init-vault
+name: obsidian-brain:init-vault
 description: Bootstrap or initialize an Obsidian vault with the obsidian-brain structure. Use when the user wants to set up a new second brain, create an Obsidian vault, initialize obsidian-brain, or says anything about getting started with capturing ideas, todos, or journaling in Obsidian. Also triggers when the user runs any obsidian-brain skill and no vault is configured yet.
 ---
 
@@ -73,6 +73,7 @@ mkdir -p \
   "$VAULT/inbox/research" \
   "$VAULT/projects" \
   "$VAULT/knowledge" \
+  "$VAULT/accomplishments" \
   "$VAULT/journal/daily" \
   "$VAULT/journal/weekly" \
   "$VAULT/reviews/summaries" \
@@ -90,6 +91,14 @@ cp references/templates/*.md "$VAULT/templates/"
 ```
 
 Use the actual resolved path to the skill's `references/templates/` directory — it lives alongside this SKILL.md file within the plugin.
+
+### Place the board view
+
+Copy `board.md` to the vault root so it's easily accessible:
+
+```bash
+cp references/templates/board.md "$VAULT/board.md"
+```
 
 After copying, replace the `{{date}}` placeholder in each template with Obsidian's native template date syntax if the user's Obsidian is configured for it, or leave `{{date}}` as-is (it works with both the Templater plugin and Obsidian's core Templates plugin).
 
@@ -114,7 +123,7 @@ Use the actual vault path and the mode the user chose. Always use an absolute pa
 
 ### If detached mode was chosen
 
-After writing the config, invoke the `detach` skill to copy skill files into the vault. Tell the user you're doing this and why:
+After writing the config, invoke the `obsidian-brain:detach` skill to copy skill files into the vault. Tell the user you're doing this and why:
 
 > Since you chose detached mode, I'll copy the obsidian-brain skills into your vault so it's self-contained.
 
@@ -126,8 +135,9 @@ Tell the user what was set up. Be specific — list what was created so they can
 
 > Your vault is ready at `<path>`. Here's what I set up:
 >
-> - **Folders:** inbox (ideas, todos, questions, research), projects, knowledge, journal (daily, weekly), reviews (summaries, formal), templates, archive
-> - **Templates:** 8 templates copied to `templates/` — for todos, ideas, questions, research, daily/weekly journals, and reviews
+> - **Folders:** inbox (ideas, todos, questions, research), projects, knowledge, accomplishments, journal (daily, weekly), reviews (summaries, formal), templates, archive
+> - **Templates:** 11 templates copied to `templates/` — for todos, ideas, questions, research, daily/weekly journals, daily logs, accomplishments, reviews, and board view
+> - **Board:** board.md at vault root — Dataview-powered kanban view of your inbox
 > - **Config:** `~/.config/obsidian-brain/config.json` pointing to your vault
 > - **Mode:** attached/detached
 >

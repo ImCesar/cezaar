@@ -1,5 +1,5 @@
 ---
-name: triage
+name: obsidian-brain:triage
 description: Process and graduate items from your Obsidian vault inbox. Use when the user wants to review their captures, process their inbox, organize todos into projects, graduate ideas into epics, or move items out of the inbox. Triggers on phrases like "triage my inbox", "what's in my inbox", "process captures", "organize my todos", or "review my ideas".
 ---
 
@@ -21,7 +21,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -44,19 +44,22 @@ Group the results by type based on their parent folder:
 
 Present a summary to the user:
 
-> **Inbox summary:**
-> - 3 todos
-> - 2 ideas
-> - 1 question
-> - 0 research
+> **Board overview:**
+> - 2 in-progress (1 todo, 1 research)
+> - 1 blocked (todo)
+> - 3 backlog (2 todos, 1 idea)
+> - 4 captured (1 todo, 2 ideas, 1 question)
 >
-> 6 items total. Ready to triage?
+> 10 items total. What would you like to do?
+
+Ask the user if they want to:
+- **Triage new captures** — walk through `captured` items (existing flow)
+- **Update the board** — change statuses on existing items
+- **Both** — triage first, then update
 
 If the inbox is empty, tell the user and stop:
 
-> Your inbox is empty — nothing to triage. Use the `capture` skill to add items first.
-
-Ask the user if they want to triage all types or focus on a specific type (e.g., "just todos"). Filter accordingly.
+> Your inbox is empty — nothing to triage. Use the `obsidian-brain:capture` skill to add items first.
 
 ## Step 3: Walk-Through
 
@@ -74,17 +77,43 @@ Present items one at a time. For each item:
 
 3. **Ask for action:**
 
-   > Graduate, archive, or skip?
+   > Move, graduate, archive, or skip?
 
+   - **Move** — change status: start, block, finish, or set to backlog (Step 3a)
    - **Graduate** — move to its permanent home (Step 4)
    - **Archive** — move to `archive/` (Step 5)
-   - **Skip** — leave in inbox, move to next item
+   - **Skip** — leave as-is, move to next item
 
-Accept shorthand: `g`, `a`, `s` or the full word.
+Accept shorthand: `m`, `g`, `a`, `s` or the full word. For move, also accept direct status shortcuts: `start` (→ in-progress), `block` (→ blocked), `finish` (→ done), `backlog` (→ backlog).
 
 ### Batch shortcuts
 
 If the user says "skip the rest" or "archive all remaining," respect that without prompting for each remaining item. Apply the action to all unprocessed items.
+
+## Step 3a: Status Transition (Move)
+
+When the user chooses to move an item, update only the `status` field in frontmatter. The file stays in its current inbox folder.
+
+### Valid transitions
+
+Any status can transition to any other status. Common flows:
+
+- `captured` → `backlog` (triaged, accepted)
+- `backlog` → `in-progress` (started working)
+- `in-progress` → `blocked` (stuck)
+- `blocked` → `in-progress` (unblocked)
+- `in-progress` → `done` (completed)
+- `done` → `archived` (cleaned up)
+
+### Execution
+
+```bash
+sed -i '' 's/^status: .*/status: <new-status>/' "$FILE"
+```
+
+Confirm the change:
+
+> Moved **Fix the login bug** → `in-progress`
 
 ## Step 4: Graduation
 
@@ -204,7 +233,7 @@ Show file names and destinations so the user knows where everything went.
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `obsidian-brain:init-vault`.
 - **Inbox folders missing** — if an inbox subfolder doesn't exist, skip it silently. Don't create it here (that's init-vault's job).
 - **File read error** — report the filename and error, skip to the next item. Don't halt the whole triage.
 - **Move/write permission error** — report the exact error and path. The user needs to fix permissions.

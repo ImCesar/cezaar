@@ -1,5 +1,5 @@
 ---
-name: detach
+name: obsidian-brain:detach
 description: Eject obsidian-brain skills into your Obsidian vault's .claude/ folder for full customization. Use when the user wants to customize their skills, detach from the plugin, eject, or take ownership of their vault's Claude Code configuration. This is a one-way operation — once detached, the vault is fully self-contained and independent.
 ---
 
@@ -23,7 +23,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -128,6 +128,10 @@ This copies all SKILL.md files and all reference files. The expected result (ass
 │   ├── SKILL.md
 │   └── references/
 │       └── classification.md
+├── daily/
+│   └── SKILL.md
+├── help/
+│   └── SKILL.md
 ├── triage/
 │   ├── SKILL.md
 │   └── references/
@@ -136,11 +140,13 @@ This copies all SKILL.md files and all reference files. The expected result (ass
 │   └── SKILL.md
 ├── reflect/
 │   └── SKILL.md
-└── review/
-    ├── SKILL.md
-    └── references/
-        ├── summary-format.md
-        └── formal-format.md
+├── review/
+│   ├── SKILL.md
+│   └── references/
+│       ├── summary-format.md
+│       └── formal-format.md
+└── wins/
+    └── SKILL.md
 ```
 
 The exact contents depend on what skills exist at the time of detaching. Copy whatever is there, minus init-vault and detach.
@@ -153,7 +159,7 @@ List the copied skills to confirm:
 find "<vault>/.claude/plugins/obsidian-brain/skills" -type f | sort
 ```
 
-Make sure at least the core skills (capture, triage, journal, reflect) are present. If the copy looks incomplete, warn the user but continue.
+Make sure at least the core skills (capture, triage, daily, journal, reflect, wins) are present. If the copy looks incomplete, warn the user but continue.
 
 ## Step 5: Update Config
 
