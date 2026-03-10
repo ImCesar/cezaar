@@ -60,6 +60,20 @@ Read the existing file first, then append:
 
 Where `HH:MM` is the current time in 24-hour format. Write below any existing entries — don't overwrite what's already there.
 
+### If a daily-log file exists
+
+If the file exists and has `type: daily-log` in frontmatter (created by the daily skill), append the journal entry under the `## Journal` section at the bottom instead of `## Entries`. If the `## Journal` section doesn't exist, create it at the end of the file.
+
+```markdown
+## Journal
+
+### HH:MM
+
+<user's entry>
+```
+
+This preserves the structured daily log sections while allowing freeform journaling in the same file.
+
 ### If the file doesn't exist
 
 Create it from the `daily-journal.md` template.
