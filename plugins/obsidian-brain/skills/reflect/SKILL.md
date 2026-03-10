@@ -75,6 +75,16 @@ find "$VAULT/archive" -name "*.md" -type f | sort
 
 Read frontmatter of each file. Include items whose `created` date falls within the range. These represent work that was finished or decisions that were made.
 
+### 3b+. Accomplishments
+
+Scan the accomplishments folder:
+
+```bash
+find "$VAULT/accomplishments" -name "*.md" -type f | sort
+```
+
+Include accomplishment notes whose `created` date falls within the range. These represent recognized wins and should be featured prominently in the Accomplishments section of the reflection.
+
 ### 3c. Active projects
 
 Scan projects for recent activity:
