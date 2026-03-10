@@ -112,3 +112,7 @@ When the user chooses to archive an item:
 | Graduate research (project) | type | research | project |
 | Graduate research (project) | status | captured | backlog |
 | Archive any | status | * | archived |
+| Block any | status | * | blocked |
+| Unblock any | status | blocked | in-progress |
+| Start any | status | captured/backlog | in-progress |
+| Finish any | status | * | done |
