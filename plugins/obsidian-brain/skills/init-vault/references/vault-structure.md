@@ -15,6 +15,7 @@ MyVault/
 ├── projects/                  # Active epics and standalone work
 │   └── <epic-name>/           # Sub-folder per epic; standalone todos live at root
 ├── knowledge/                 # Graduated questions and research that proved useful
+├── accomplishments/              # Promoted wins from daily EOD — evidence for reviews
 ├── journal/
 │   ├── daily/                 # One note per day, append-only stream of thought
 │   └── weekly/                # Weekly rollup — patterns, energy, wins, blockers
@@ -35,6 +36,7 @@ MyVault/
 | `inbox/research/` | Active research threads. Findings that prove useful graduate to `knowledge/`. |
 | `projects/` | Active work. Epics get their own sub-folder; standalone todos sit at the root level. |
 | `knowledge/` | Durable reference material — graduated questions, research findings, how-tos. |
+| `accomplishments/` | Wins promoted from daily logs — shipped work, impact, evidence for reviews. |
 | `journal/daily/` | Daily stream-of-consciousness entries. One file per day, append throughout the day. |
 | `journal/weekly/` | Weekly reflections synthesized from daily entries and project progress. |
 | `reviews/summaries/` | Lightweight review snapshots — what happened, what mattered, what's next. |
@@ -67,6 +69,8 @@ parent: <wikilink>    # Optional. Link to the parent epic or project.
 | `project` | Epic or project-level tracking note |
 | `journal` | Daily or weekly journal entries |
 | `review` | Review summaries and formal performance reviews |
+| `accomplishment` | Shipped work, wins, impact evidence |
+| `daily-log` | Structured daily standup log (morning kickoff + EOD wrap) |
 
 ### Valid `status` Values
 
@@ -75,6 +79,7 @@ parent: <wikilink>    # Optional. Link to the parent epic or project.
 | `captured` | Just landed — hasn't been looked at yet |
 | `backlog` | Triaged and accepted, but not started |
 | `in-progress` | Actively being worked on |
+| `blocked` | Stuck — needs attention or is waiting on something |
 | `done` | Completed |
 | `archived` | Moved to archive — no longer active |
 
@@ -97,11 +102,12 @@ These queries work with the [Dataview plugin](https://github.com/blacksmithgu/ob
 ```dataview
 TABLE WITHOUT ID
   file.link AS "Task",
+  type AS "Type",
   status AS "Status",
   parent AS "Project"
-FROM "inbox/todos" OR "projects"
-WHERE type = "todo" AND status != "archived"
-SORT choice(status, "in-progress", 1, "backlog", 2, "captured", 3, "done", 4) ASC
+FROM "inbox"
+WHERE status != "archived"
+SORT choice(status, "in-progress", 1, "blocked", 2, "backlog", 3, "captured", 4, "done", 5) ASC
 ```
 
 ### Inbox Count — How Many Items Need Triage
