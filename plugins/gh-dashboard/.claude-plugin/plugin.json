@@ -1,0 +1,10 @@
+{
+  "name": "gh-dashboard",
+  "description": "GitHub project status dashboard for Claude Code.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "keywords": ["github", "dashboard", "project-management", "status"]
+}
