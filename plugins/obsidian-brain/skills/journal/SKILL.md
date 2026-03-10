@@ -1,5 +1,5 @@
 ---
-name: journal
+name: obsidian-brain:journal
 description: Write a journal entry in your Obsidian vault — daily stream of consciousness or weekly reflection. Use when the user wants to journal, log their day, reflect on the week, write about what happened, or record thoughts that aren't actionable captures. Triggers on phrases like "journal", "log this", "today I...", "this week was...", "I want to write about...", or when the user shares personal reflections.
 ---
 
@@ -21,7 +21,7 @@ You need two values from the config:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -253,7 +253,7 @@ That's it. Don't recap what they wrote — they just wrote it, they know what it
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere that's gone. Tell the user the path is invalid and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere that's gone. Tell the user the path is invalid and suggest re-running `obsidian-brain:init-vault`.
 - **Journal subfolder missing** — create it silently with `mkdir -p` and continue. Don't bother the user about missing folders.
 - **Write permission error** — report the exact error and path. The user needs to fix permissions.
 - **Template missing** — use the fallback minimal template defined above. Don't fail over a missing template.

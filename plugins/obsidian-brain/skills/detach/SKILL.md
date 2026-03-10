@@ -1,5 +1,5 @@
 ---
-name: detach
+name: obsidian-brain:detach
 description: Eject obsidian-brain skills into your Obsidian vault's .claude/ folder for full customization. Use when the user wants to customize their skills, detach from the plugin, eject, or take ownership of their vault's Claude Code configuration. This is a one-way operation — once detached, the vault is fully self-contained and independent.
 ---
 
@@ -23,7 +23,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 

@@ -1,5 +1,5 @@
 ---
-name: reflect
+name: obsidian-brain:reflect
 description: Synthesize recent journal entries, completed work, and captures into themes and insights. Use when the user wants to reflect on a time period, identify patterns in their work, or generate insights from their vault activity. Triggers on phrases like "reflect on this week", "what patterns do you see", "summarize my month", "what have I been focused on", or any request to look back and synthesize.
 ---
 
@@ -20,7 +20,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -109,7 +109,7 @@ These don't go into the reflection as accomplishments, but they provide context 
 
 If any folder is empty or missing, skip it silently. If the entire vault has no data in the time range, tell the user:
 
-> No vault activity found for this period. There's nothing to reflect on yet — try a broader time range or make sure you've been using `capture` and `journal` to record your work.
+> No vault activity found for this period. There's nothing to reflect on yet — try a broader time range or make sure you've been using `obsidian-brain:capture` and `obsidian-brain:journal` to record your work.
 
 If data is sparse (only 1-2 items), still produce a reflection but note that the period had light activity.
 
@@ -263,7 +263,7 @@ Keep suggestions brief and grounded in the data. Don't over-prescribe.
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `obsidian-brain:init-vault`.
 - **Empty vault** — no data found for the requested period. Suggest a broader range or note that the vault needs more content first.
 - **Unreadable files** — if a specific file can't be read, skip it and continue. Mention skipped files at the end.
 - **Malformed frontmatter** — if a file has broken YAML, skip it for synthesis purposes. Don't halt the reflection.

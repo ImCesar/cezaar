@@ -1,5 +1,5 @@
 ---
-name: triage
+name: obsidian-brain:triage
 description: Process and graduate items from your Obsidian vault inbox. Use when the user wants to review their captures, process their inbox, organize todos into projects, graduate ideas into epics, or move items out of the inbox. Triggers on phrases like "triage my inbox", "what's in my inbox", "process captures", "organize my todos", or "review my ideas".
 ---
 
@@ -21,7 +21,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -54,7 +54,7 @@ Present a summary to the user:
 
 If the inbox is empty, tell the user and stop:
 
-> Your inbox is empty — nothing to triage. Use the `capture` skill to add items first.
+> Your inbox is empty — nothing to triage. Use the `obsidian-brain:capture` skill to add items first.
 
 Ask the user if they want to triage all types or focus on a specific type (e.g., "just todos"). Filter accordingly.
 
@@ -204,7 +204,7 @@ Show file names and destinations so the user knows where everything went.
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `obsidian-brain:init-vault`.
 - **Inbox folders missing** — if an inbox subfolder doesn't exist, skip it silently. Don't create it here (that's init-vault's job).
 - **File read error** — report the filename and error, skip to the next item. Don't halt the whole triage.
 - **Move/write permission error** — report the exact error and path. The user needs to fix permissions.

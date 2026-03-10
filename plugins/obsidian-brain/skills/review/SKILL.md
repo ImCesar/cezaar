@@ -1,5 +1,5 @@
 ---
-name: review
+name: obsidian-brain:review
 description: Generate a performance review from your Obsidian vault data — either a casual narrative summary or a formal structured self-evaluation. Use when the user asks about their performance, wants to prepare for a 1:1 or self-eval, asks "how did I do", or wants to generate a review document for any time period. Triggers on phrases like "review my performance", "how did I do this quarter", "prepare my self-eval", "performance review", or "what did I accomplish".
 ---
 
@@ -20,7 +20,7 @@ You need:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -176,7 +176,7 @@ If a folder is empty or missing, skip it silently.
 
 If the entire vault has no data in the time range:
 
-> No vault activity found for this period. There's nothing to build a review from — try a broader time range, or make sure you've been using `capture` and `journal` to record your work.
+> No vault activity found for this period. There's nothing to build a review from — try a broader time range, or make sure you've been using `obsidian-brain:capture` and `obsidian-brain:journal` to record your work.
 
 If data is sparse (only a few items), still produce a review but note that coverage is limited. Don't fabricate content to fill gaps.
 
@@ -305,7 +305,7 @@ Keep suggestions brief and grounded in the review content. Don't over-prescribe.
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere invalid. Tell the user and suggest re-running `obsidian-brain:init-vault`.
 - **Empty vault** — no data found for the requested period. Suggest a broader range or note that the vault needs more content first.
 - **Unreadable files** — if a specific file can't be read, skip it and continue. Mention skipped files at the end.
 - **Malformed frontmatter** — if a file has broken YAML, skip it for synthesis purposes. Don't halt the review.

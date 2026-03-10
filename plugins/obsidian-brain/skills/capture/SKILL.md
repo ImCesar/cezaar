@@ -1,5 +1,5 @@
 ---
-name: capture
+name: obsidian-brain:capture
 description: Capture ideas, todos, questions, research spikes, or anything else into your Obsidian vault. This is the DEFAULT skill when the user's intent is ambiguous — if someone says something that sounds like it should be saved, remembered, tracked, or looked into later, use this skill. Triggers on phrases like "I need to...", "remind me to...", "what if we...", "look into...", "I was thinking about...", or any freeform thought that should be preserved.
 ---
 
@@ -21,7 +21,7 @@ You need two values from the config:
 
 **If the config file doesn't exist or is invalid,** stop and tell the user:
 
-> It looks like obsidian-brain isn't set up yet. Run the `init-vault` skill first to configure your vault.
+> It looks like obsidian-brain isn't set up yet. Run the `obsidian-brain:init-vault` skill first to configure your vault.
 
 Do not proceed without a valid config.
 
@@ -203,7 +203,7 @@ If the classification was a judgment call, add a one-liner:
 
 ## Error Handling
 
-- **Vault directory doesn't exist** — the vault_path from config points somewhere that's gone. Tell the user the path is invalid and suggest re-running `init-vault`.
+- **Vault directory doesn't exist** — the vault_path from config points somewhere that's gone. Tell the user the path is invalid and suggest re-running `obsidian-brain:init-vault`.
 - **Inbox subfolder missing** — create it silently with `mkdir -p` and continue. Don't bother the user about missing folders.
 - **File already exists** — append a short numeric suffix: `2026-03-09-fix-the-login-bug-2.md`. Don't overwrite.
 - **Write permission error** — report the exact error and path. The user needs to fix permissions.

@@ -1,5 +1,5 @@
 ---
-name: init-vault
+name: obsidian-brain:init-vault
 description: Bootstrap or initialize an Obsidian vault with the obsidian-brain structure. Use when the user wants to set up a new second brain, create an Obsidian vault, initialize obsidian-brain, or says anything about getting started with capturing ideas, todos, or journaling in Obsidian. Also triggers when the user runs any obsidian-brain skill and no vault is configured yet.
 ---
 
@@ -114,7 +114,7 @@ Use the actual vault path and the mode the user chose. Always use an absolute pa
 
 ### If detached mode was chosen
 
-After writing the config, invoke the `detach` skill to copy skill files into the vault. Tell the user you're doing this and why:
+After writing the config, invoke the `obsidian-brain:detach` skill to copy skill files into the vault. Tell the user you're doing this and why:
 
 > Since you chose detached mode, I'll copy the obsidian-brain skills into your vault so it's self-contained.
 
