@@ -4,7 +4,7 @@ Scaffold and interact with an opinionated Obsidian vault from Claude Code.
 
 ## Overview
 
-obsidian-brain lets you capture ideas, track todos, journal, reflect, and generate performance reviews — all without leaving the terminal.
+obsidian-brain lets you capture ideas, track todos on a kanban board, journal, reflect, and generate performance reviews — all without leaving the terminal.
 
 ## Attached vs. Detached
 
@@ -19,10 +19,24 @@ You start attached by default. Run the `detach` skill anytime to eject. This is 
 
 | Skill | Description |
 |-------|-------------|
-| `init-vault` | Bootstrap a new vault or connect to an existing one |
-| `capture` | Auto-classify and save ideas, todos, questions, and research spikes |
-| `triage` | Process inbox items — graduate to projects, knowledge, or archive |
-| `journal` | Daily stream-of-consciousness and weekly reflections |
-| `reflect` | Synthesize recent activity into themes and insights |
-| `review` | Generate casual or formal performance reviews from vault data |
-| `detach` | Eject skills into the vault for full customization |
+| `obsidian-brain:init-vault` | Bootstrap a new vault or connect to an existing one |
+| `obsidian-brain:capture` | Auto-classify and save ideas, todos, questions, and research spikes |
+| `obsidian-brain:triage` | Move items across the board, graduate to projects, or archive |
+| `obsidian-brain:daily` | Morning kickoff and end-of-day wrap with accomplishment tracking |
+| `obsidian-brain:journal` | Daily stream-of-consciousness and weekly reflections |
+| `obsidian-brain:reflect` | Synthesize recent activity into themes and insights |
+| `obsidian-brain:review` | Generate casual or formal performance reviews from vault data |
+| `obsidian-brain:wins` | Surface accomplishments over a time range |
+| `obsidian-brain:detach` | Eject skills into the vault for full customization |
+| `obsidian-brain:help` | Show available skills and getting started guide |
+
+## Kanban Workflow
+
+Every capture lands in your inbox with `status: captured`. Use `triage` to move items through the board:
+
+```
+captured → backlog → in-progress → done → archived
+                   ↕ blocked
+```
+
+Open `board.md` at your vault root to see all items grouped by status, powered by [Dataview](https://github.com/blacksmithgu/obsidian-dataview).
