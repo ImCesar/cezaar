@@ -125,6 +125,18 @@ Also check for reflection notes directly in `journal/`:
 find "$VAULT/journal" -maxdepth 1 -name "*.md" -type f | sort
 ```
 
+### 4a+. Accomplishments
+
+Scan the accomplishments folder:
+
+```bash
+find "$VAULT/accomplishments" -name "*.md" -type f | sort
+```
+
+Read each accomplishment note whose `created` date falls within the range. These are curated wins — weight them higher than journal entries when building the review. Every accomplishment should appear in the review output.
+
+Also extract `### Wins` sections from daily logs in `journal/daily/` that fall within the range. These are supporting evidence for the accomplishment notes.
+
 ### 4b. Completed projects
 
 Scan project notes:
@@ -194,6 +206,12 @@ Follow the format spec closely — it defines structure, tone, sections, evidenc
 ### Build the review
 
 Analyze all gathered data and construct the review:
+
+**Data source priority for claims:**
+1. Accomplishments (highest — user curated these as wins)
+2. Completed projects and archived items
+3. Daily log wins sections
+4. Journal entries and knowledge notes (context and narrative color)
 
 **For casual mode (summary):**
 - Write narrative paragraphs, not bullet points
