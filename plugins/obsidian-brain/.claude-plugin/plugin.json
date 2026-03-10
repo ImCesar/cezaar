@@ -1,0 +1,10 @@
+{
+  "name": "obsidian-brain",
+  "description": "Scaffold and interact with an opinionated Obsidian vault — capture ideas, track todos, journal, reflect, and generate performance reviews, all from Claude Code.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "keywords": ["obsidian", "productivity", "capture", "journal", "review", "second-brain"]
+}
