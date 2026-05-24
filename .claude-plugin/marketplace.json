@@ -62,6 +62,18 @@
       },
       "repository": "https://github.com/ImCesar/cezaar",
       "keywords": ["obsidian", "productivity", "capture", "journal", "review"]
+    },
+    {
+      "name": "crucible",
+      "source": "./plugins/crucible",
+      "description": "Convene a panel of well-researched thinking systems to pressure-test an idea and produce a structured artifact.",
+      "version": "1.0.0",
+      "category": "development",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": ["thinking", "brainstorming", "problem-solving", "decision-making", "multi-agent", "solution-design"]
     }
   ]
 }

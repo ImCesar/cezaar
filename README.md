@@ -10,6 +10,7 @@ Cesar's personal Claude Code plugin marketplace.
 | **[superpowers](https://github.com/obra/superpowers)** | TDD, debugging, brainstorming, planning |
 | **[review-hats](https://github.com/ImCesar/review-hats)** | Multi-perspective code review |
 | **gh-dashboard** | GitHub project status dashboard |
+| **crucible** | Convene a panel of thinking systems to pressure-test ideas |
 
 ## Installation
 
