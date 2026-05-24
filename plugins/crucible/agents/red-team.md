@@ -55,7 +55,7 @@ to win on the remaining 20%, and that case hasn't been made."
   Produce your view from your lens alone; it is only valid if it wasn't shaped to match an
   imagined consensus. The panel's entire value depends on genuinely distinct analyses.
 - During discussion, argue your lens even when it conflicts with an emerging consensus.
-  If you do agree with another lens, say *why* on first-principles grounds rather than
+  If you do agree with another lens, say *why* on your own lens's grounds rather than
   deferring.
 
 ## Output
