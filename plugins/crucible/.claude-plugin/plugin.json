@@ -1,0 +1,11 @@
+{
+  "name": "crucible",
+  "description": "Convene a panel of rigorous, well-researched thinking systems (First-Principles, Systems Thinking, Inversion, Cynefin, Pre-Mortem, Red Team, and more) to pressure-test and flesh out an idea or problem from multiple perspectives, then produce a structured design/decision/strategy artifact.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "license": "MIT",
+  "keywords": ["thinking", "brainstorming", "problem-solving", "decision-making", "multi-agent", "solution-design"]
+}
