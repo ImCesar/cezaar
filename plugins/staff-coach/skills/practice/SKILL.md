@@ -66,28 +66,29 @@ An incomplete submission is valid input.
 
 ## 4. Examiner handoff
 
-> **Phase-1 stub — temporary.** The examiner agent is added in the next task. Until then, skip
-> grading and build a placeholder verdict of this shape:
->
-> ```json
-> { "problem_type": "<type>", "verdict_summary": "(ungraded)", "dimensions": [] }
-> ```
->
-> Proceed directly to step 5 with this stub as the verdict.
+Assemble the handoff payload defined in `references/probing-protocol.md` (the `Examiner handoff`
+section). Field names in that payload are consumed downstream and must not be renamed.
 
-When the examiner agent exists, you will assemble the handoff payload defined in
-`references/probing-protocol.md` (the `Examiner handoff` section) and pass it over. The field
-names in that payload are consumed by `validate_examiner_output.js` and must not be renamed.
+Dispatch the `examiner` agent with the full payload as its input. When the examiner returns,
+pipe its output through the validator:
+
+```bash
+cd plugins/staff-coach/scripts && echo "$OUTPUT" | node validate_examiner_output.js
+```
+
+If the validator prints `INVALID`, pass the error lines back to a freshly dispatched examiner
+exactly once with a note to correct the listed violations. If the second attempt also fails,
+proceed with the invalid output and note the validation failure in the session record. Do not
+silently drop the grading — a failed validation is still useful signal that something went wrong.
 
 ---
 
 ## 5. Reconciliation
 
-Read `references/reconciliation.md` now. Walk the user through each examiner finding —
-accepted, factually corrected, or disputed — and collect dispositions. The raw verdict is never
-edited; dispositions layer on top of it.
-
-While the verdict is the Phase-1 stub (`"dimensions": []`), this step is a no-op.
+Read `references/reconciliation.md` now. For each finding in the examiner verdict, present it to
+the user and collect one disposition: accepted, factually corrected, or disputed. The raw verdict
+is never edited; dispositions layer on top of it. The coach provides context and the user
+adjudicates, per the reconciliation reference.
 
 ---
 
