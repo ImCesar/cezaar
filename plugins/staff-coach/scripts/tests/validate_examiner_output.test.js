@@ -56,11 +56,3 @@ test('rejects whitespace-only consequence (filter 1)', () => {
   const { ok, errors } = validate(bad);
   assert.ok(!ok); assert.ok(errors.some(e => e.includes('consequence')));
 });
-
-test('rejects meets_staff_bar:true dimension with non-empty findings', () => {
-  const { validate } = require('../validate_examiner_output.js');
-  const bad = clone(VALID);
-  bad.dimensions[1].findings = [bad.dimensions[0].findings[0]]; // add a finding to the abstained dim
-  const { ok, errors } = validate(bad);
-  assert.ok(!ok); assert.ok(errors.some(e => e.includes('meets_staff_bar')));
-});

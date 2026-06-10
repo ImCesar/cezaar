@@ -16,7 +16,6 @@ function validate(data) {
     const findings = d.findings;
     if (!Array.isArray(findings)) { e.push(`${loc}.findings must be an array`); return; }
     if (findings.length > 3) e.push(`${loc}.findings exceeds cap of 3 (filter 3)`);
-    if (d.meets_staff_bar === true && findings.length > 0) e.push(`${loc} meets_staff_bar:true but has findings (ABSTAIN must have empty findings)`);
     findings.forEach((f, fi) => {
       const fl = `${loc}.findings[${fi}]`;
       if (!SEVERITIES.has(f.severity)) e.push(`${fl}.severity invalid`);
