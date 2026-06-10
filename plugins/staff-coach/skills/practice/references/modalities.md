@@ -37,8 +37,9 @@ structural information directly from it — exact nodes, labels, and arrows — 
 than interpreting spatial layout from an image alone. When only an image is provided, the coach
 reads from the visual layout.
 
-Diagram input is supported in v1. (The whiteboard companion that lets the user draw live during the
-session is a separate capability; see `whiteboard.md` when it is available.)
+Diagram input is supported in v1. If the user wants to draw live rather than supply a finished
+diagram — for example by saying "I need a whiteboard" — the coach launches the local Excalidraw
+companion; see `whiteboard.md` for the launch-and-watch flow.
 
 The coach uses the diagram as the problem statement and probes the design decisions it represents —
 the same way it would probe a written doc or a spoken design.
