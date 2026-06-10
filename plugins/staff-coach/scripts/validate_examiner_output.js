@@ -16,12 +16,13 @@ function validate(data) {
     const findings = d.findings;
     if (!Array.isArray(findings)) { e.push(`${loc}.findings must be an array`); return; }
     if (findings.length > 3) e.push(`${loc}.findings exceeds cap of 3 (filter 3)`);
+    if (d.meets_staff_bar === true && findings.length > 0) e.push(`${loc} meets_staff_bar:true but has findings (ABSTAIN must have empty findings)`);
     findings.forEach((f, fi) => {
       const fl = `${loc}.findings[${fi}]`;
       if (!SEVERITIES.has(f.severity)) e.push(`${fl}.severity invalid`);
-      if (!f.consequence) e.push(`${fl}.consequence empty (filter 1)`);
-      if (!f.stronger_design) e.push(`${fl}.stronger_design empty`);
-      if (!f.likelihood_magnitude) e.push(`${fl}.likelihood_magnitude empty`);
+      if (!f.consequence || !String(f.consequence).trim()) e.push(`${fl}.consequence empty (filter 1)`);
+      if (!f.stronger_design || !String(f.stronger_design).trim()) e.push(`${fl}.stronger_design empty`);
+      if (!f.likelihood_magnitude || !String(f.likelihood_magnitude).trim()) e.push(`${fl}.likelihood_magnitude empty`);
       if (f.ledger_checked !== true) e.push(`${fl}.ledger_checked must be true (filter 2)`);
       if (f.survived_self_prosecution !== true) e.push(`${fl}.survived_self_prosecution must be true (filter 4)`);
     });
@@ -35,7 +36,11 @@ if (require.main === module) {
   let raw = '';
   process.stdin.on('data', (c) => (raw += c));
   process.stdin.on('end', () => {
-    const { ok, errors } = validate(JSON.parse(raw));
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (err) {
+      console.log(`INVALID:\nmalformed JSON: ${err.message}`); process.exit(1);
+    }
+    const { ok, errors } = validate(parsed);
     if (ok) { console.log('VALID'); process.exit(0); }
     console.log('INVALID:\n' + errors.join('\n')); process.exit(1);
   });
