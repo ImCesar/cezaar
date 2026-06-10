@@ -68,6 +68,17 @@ progress.
 
 ---
 
+## Disposition values (the machine contract)
+
+When you assemble the session dict, each entry in `dispositions` is
+`{ "finding_id": "<id from the verdict>", "disposition": "<value>", "reason": "<one line, only if disputed>" }`.
+The `disposition` value must be exactly one of these lowercase tokens — `write_session.js` matches them
+literally, so a prose variant like `"disputed on the merits"` would silently fail to register:
+
+- `accepted`
+- `factually-corrected`
+- `disputed`
+
 ## How dispositions affect the store
 
 Once dispositions are assigned, `write_session.js` applies them when updating `progress.json`:

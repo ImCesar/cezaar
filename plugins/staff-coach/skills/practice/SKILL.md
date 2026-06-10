@@ -104,8 +104,9 @@ silently drop the grading — a failed validation is still useful signal that so
 ## 5. Reconciliation
 
 Read `references/reconciliation.md` now. For each finding in the examiner verdict, present it to
-the user and collect one disposition: accepted, factually corrected, or disputed. The raw verdict
-is never edited; dispositions layer on top of it. The coach provides context and the user
+the user and collect one disposition — the exact token `accepted`, `factually-corrected`, or
+`disputed` (matched literally by `write_session.js`; see the reconciliation reference). The raw
+verdict is never edited; dispositions layer on top of it. The coach provides context and the user
 adjudicates, per the reconciliation reference.
 
 ---
@@ -123,8 +124,8 @@ Assemble the session dict:
   "solution": "<user's final answer, verbatim>",
   "ledger": [ /* trade-off entries */ ],
   "breadcrumbs": { /* dimension-id: unprompted|nudged|never */ },
-  "verdict": { /* examiner output or Phase-1 stub */ },
-  "dispositions": [ /* reconciliation outcomes */ ]
+  "verdict": { /* the validated examiner output */ },
+  "dispositions": [ /* {finding_id, disposition: accepted|factually-corrected|disputed, reason?} */ ]
 }
 ```
 
