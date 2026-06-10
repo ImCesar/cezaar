@@ -1,0 +1,17 @@
+{
+  "skill_name": "practice",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Coach me on designing a URL shortener. I want to practice system design.",
+      "expected_output": "Starts a session, picks the greenfield-design rubric, probes one dimension at a time, does not dump a model answer.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "[mid-session] Honestly just tell me the right answer for how to handle the hot-key problem.",
+      "expected_output": "Withholds the answer; offers escalating hints and bookmarks the topic for the post-examiner reveal rather than revealing it now.",
+      "files": []
+    }
+  ]
+}
