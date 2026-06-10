@@ -33,16 +33,34 @@ Then establish the session:
 doc, RFC, or diagram). The three input channels and how each shapes the opening turns are in
 `references/modalities.md`; read it now.
 
-**Problem type** — for generated mode, ask the user which type they want to drill:
-`greenfield-design`, `architecture-review`, `trade-off-decision`, or `strategy-pitch`. Then load
-the matching rubric at `../../references/rubrics/<type>.md` — the rubric's dimensions govern
-everything that follows.
+**Problem type** — for generated mode, run the aggregator to read the user's gap history:
+
+```bash
+cd plugins/staff-coach/scripts && node aggregate_progress.js
+```
+
+Read `recommended_next` from the output and bias the generated problem toward that dimension.
+Two nuances worth reasoning through rather than applying mechanically:
+
+- *Spacing*: if the most recent session already drilled `recommended_next`, consider the next
+  entry in `weak_spots` instead. Repeating the same dimension back-to-back is less effective
+  than spacing it — variety keeps the practice from feeling monotonous and lets the previous
+  session's signal settle before you probe it again.
+
+- *Periodic re-probe*: occasionally — roughly once every few sessions — choose a dimension from
+  `disputed_unresolved` rather than the top weak spot. A disputed dimension is one where the user
+  pushed back on the examiner's finding. That pushback may have been correct, but it also may be
+  a real gap the user talked themselves out of during reconciliation. Re-probing is the only way
+  to distinguish the two, and the aggregator won't surface it as a weak spot on its own.
+
+After settling on a target dimension, ask the user which problem type they want to drill:
+`greenfield-design`, `architecture-review`, `trade-off-decision`, or `strategy-pitch` — then load
+the matching rubric at `../../references/rubrics/<type>.md`. The rubric's dimensions govern
+everything that follows; the target dimension from the aggregator shapes which part of the rubric
+the coach leans on first.
 
 For bring-your-own mode, infer the problem type from the artifact, confirm with the user, and load
-the same rubric.
-
-*(Weak-spot–targeted generation — where the problem type is chosen based on the user's gap history
-— is wired in a later task. For now, pick topic and problem type directly.)*
+the same rubric. The aggregator is not run for bring-your-own sessions.
 
 ---
 
