@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "staff-coach examiner output",
+  "type": "object",
+  "required": ["problem_type", "verdict_summary", "dimensions"],
+  "properties": {
+    "problem_type": {"type": "string"},
+    "verdict_summary": {"type": "string"},
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dimension", "score", "meets_staff_bar", "findings"],
+        "properties": {
+          "dimension": {"type": "string"},
+          "score": {"type": "integer", "minimum": 1, "maximum": 5},
+          "meets_staff_bar": {"type": "boolean"},
+          "findings": {
+            "type": "array", "maxItems": 3,
+            "items": {
+              "type": "object",
+              "required": ["id","severity","consequence","stronger_design","likelihood_magnitude","ledger_checked","survived_self_prosecution"],
+              "properties": {
+                "id": {"type": "string"},
+                "severity": {"enum": ["minor","major","critical"]},
+                "consequence": {"type": "string", "minLength": 1},
+                "stronger_design": {"type": "string", "minLength": 1},
+                "likelihood_magnitude": {"type": "string", "minLength": 1},
+                "ledger_checked": {"const": true},
+                "survived_self_prosecution": {"const": true},
+                "missed_answer_reveal": {"type": ["string","null"]}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

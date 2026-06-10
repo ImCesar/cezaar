@@ -74,6 +74,18 @@
       },
       "repository": "https://github.com/ImCesar/cezaar",
       "keywords": ["thinking", "brainstorming", "problem-solving", "decision-making", "multi-agent", "solution-design"]
+    },
+    {
+      "name": "staff-coach",
+      "source": "./plugins/staff-coach",
+      "description": "Staff-level engineering practice: a Socratic coach that withholds answers and an independent examiner that grades your design and tracks progress.",
+      "version": "0.1.0",
+      "category": "development",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": ["staff-engineer", "system-design", "architecture", "learning", "coaching"]
     }
   ]
 }
