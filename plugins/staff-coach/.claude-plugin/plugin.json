@@ -1,0 +1,11 @@
+{
+  "name": "staff-coach",
+  "version": "0.1.0",
+  "description": "Staff-level engineering practice: a Socratic coach that withholds answers and probes one dimension at a time, plus an independent examiner that grades your design against a rubric and tracks your progress over time.",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "license": "MIT",
+  "keywords": ["staff-eng", "architecture", "system-design", "coaching", "socratic", "practice", "learning"]
+}
