@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "staff-coach progress store",
+  "type": "object",
+  "required": ["version", "dimensions"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["attempts", "scores", "current_estimate", "unprompted_count", "nudged_count", "never_count", "disputed_count", "last_seen"],
+        "properties": {
+          "attempts": {"type": "integer", "minimum": 0},
+          "scores": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["date", "score"],
+              "properties": {
+                "date": {"type": "string"},
+                "score": {"type": "integer", "minimum": 1, "maximum": 5}
+              }
+            }
+          },
+          "current_estimate": {"type": "number"},
+          "unprompted_count": {"type": "integer", "minimum": 0},
+          "nudged_count": {"type": "integer", "minimum": 0},
+          "never_count": {"type": "integer", "minimum": 0},
+          "disputed_count": {"type": "integer", "minimum": 0},
+          "last_seen": {"type": "string"}
+        }
+      }
+    }
+  }
+}

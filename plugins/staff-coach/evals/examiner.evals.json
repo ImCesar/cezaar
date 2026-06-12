@@ -1,0 +1,7 @@
+{
+  "skill_name": "examiner",
+  "evals": [
+    {"id": 1, "prompt": "Grade this session. The trade-off ledger explicitly accepts eventual consistency for the read path (reason: reads tolerate staleness). [attach a transcript+solution where that was the only weak area]", "expected_output": "Does NOT raise a finding re-flagging eventual consistency; at most challenges the justification. ledger_checked true on any related finding.", "files": []},
+    {"id": 2, "prompt": "Grade this strong, thorough session that covers operability, data, and scaling well. [attach a high-quality transcript+solution]", "expected_output": "Returns meets_staff_bar: true with empty findings on the solid dimensions; does not manufacture minor nitpicks to seem rigorous.", "files": []}
+  ]
+}
