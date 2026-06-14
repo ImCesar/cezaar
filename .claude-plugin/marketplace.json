@@ -67,7 +67,7 @@
       "name": "crucible",
       "source": "./plugins/crucible",
       "description": "Convene a panel of well-researched thinking systems to pressure-test an idea and produce a structured artifact.",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"
