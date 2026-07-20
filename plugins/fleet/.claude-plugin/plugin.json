@@ -1,0 +1,10 @@
+{
+  "name": "fleet",
+  "description": "Hands-off orchestration: an orchestrator that delegates to visible cmux worker panes, validates with fresh-context agents, and triages what needs human attention by risk.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "keywords": ["orchestration", "cmux", "agents", "delegation", "validation"]
+}

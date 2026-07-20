@@ -8,6 +8,18 @@
   },
   "plugins": [
     {
+      "name": "fleet",
+      "source": "./plugins/fleet",
+      "description": "Hands-off orchestration: visible cmux worker panes, fresh-context validation, risk-triaged escalation.",
+      "version": "1.0.0",
+      "category": "development",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": ["orchestration", "cmux", "agents", "delegation", "validation"]
+    },
+    {
       "name": "cesarpowers",
       "source": "./plugins/cesarpowers",
       "description": "Cesar's development workflow and personal Claude Code skills.",
