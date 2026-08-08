@@ -9,17 +9,30 @@ This skill is a **loader**. The architect's actual instructions live in the
 `herdr-fleet` repo; they are not paraphrased here, because a paraphrase is a
 second source of truth that drifts from the first in silence.
 
-## 1. Confirm you are in a herdr-fleet checkout — refuse if not
+## 1. Find the fleet home — cwd first, then `~/.fleet`, else refuse
 
 ```sh
-ls agents/architect.md teams/default.md
+for d in . ~/.fleet; do
+  if [ -f "$d/agents/architect.md" ] && [ -f "$d/teams/default.md" ]; then
+    echo "fleet home: $d"; break
+  fi
+done
 ```
 
-If either is missing, **stop and say so plainly** rather than designing from
-general principles: the operator asked for this roster's architect and did not
-get it. Tell them to `cd` into a herdr-fleet checkout and invoke it again.
+**Say which one you are using.** The current directory wins when it qualifies,
+so a checkout you are working in overrides the installed one; `~/.fleet` is
+normally a symlink to a herdr-fleet checkout.
 
-## 2. Read `agents/architect.md`, and `teams/default.md`
+If neither qualifies, **stop and say so plainly** rather than designing from
+general principles — the operator asked for this roster's architect and did not
+get it. Name both places you looked, and tell them to `cd` into a checkout or
+point `~/.fleet` at one:
+
+```sh
+ln -s /path/to/herdr-fleet ~/.fleet
+```
+
+## 2. Read `agents/architect.md` and `teams/default.md` from that home
 
 The first is the persona you are about to become. The second is what the rest
 of the roster is for, so your design decomposes into work those roles can

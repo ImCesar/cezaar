@@ -10,22 +10,51 @@ policy of its own — those live in the `herdr-fleet` repo, and a copy here woul
 be a second source of truth that nothing can check against the first. Read the
 files; do not work from a summary, including this one.
 
-## 1. Confirm you are in a herdr-fleet checkout — refuse if not
+## 1. Find the fleet home — cwd first, then `~/.fleet`, else refuse
 
 ```sh
-ls agents/orchestrator.md teams/default.md triage-rules.md scripts/herdr-fleet.sh
+for d in . ~/.fleet; do
+  if [ -f "$d/agents/orchestrator.md" ] && [ -f "$d/teams/default.md" ] \
+     && [ -f "$d/triage-rules.md" ] && [ -f "$d/scripts/herdr-fleet.sh" ]; then
+    echo "fleet home: $d"; break
+  fi
+done
 ```
 
-If any of those is missing, **stop and say so plainly**: this skill has nothing
-to load, and there is no fleet to orchestrate. Do not improvise a roster, do
-not fall back to subagents, and do not carry on as a general-purpose assistant
-who has been handed a task — the operator asked for a specific thing and did
-not get it. Tell them to `cd` into a herdr-fleet checkout and invoke it again.
+**Say which one you are using** — the operator cannot tell by looking, and
+"which roster am I running" is the first thing that goes wrong silently.
 
-The check is the four files rather than the directory's name, because a name
-can be right while the contents are not.
+The current directory wins when it qualifies, so a checkout you are working in
+overrides the installed one: that is how you test a change to the roster
+without touching `~/.fleet`. It matches the precedence the skills themselves
+follow, where a local copy beats a global one.
+
+`~/.fleet` is normally a symlink to a herdr-fleet checkout. Everything below —
+the roster paths and the wrapper — is relative to whichever home you resolved,
+so run them as `$d/...` rather than assuming the current directory.
+
+**If neither qualifies, stop and say so plainly**, naming both places you
+looked and the four files you needed. Do not improvise a roster, do not fall
+back to subagents, and do not carry on as a general-purpose assistant who has
+been handed a task — the operator asked for a specific thing and did not get
+it. Tell them to `cd` into a checkout, or point `~/.fleet` at one:
+
+```sh
+ln -s /path/to/herdr-fleet ~/.fleet
+```
+
+The check is the four files rather than a directory's name, because a name can
+be right while the contents are not.
+
+**The fleet home is where the roster lives, not where the work happens.** A
+worker is spawned with its own `--cwd` against whatever repository the task
+concerns, so you can orchestrate work on any project from anywhere once
+`~/.fleet` resolves.
 
 ## 2. Read the roster, before anything else
+
+Read these from the fleet home you just resolved (`$d` above — spell the path
+out when you read them, so the transcript shows which roster you loaded):
 
 - `agents/orchestrator.md` — the persona you are about to become.
 - `teams/default.md` — who is on the team and what each role is for.
@@ -42,7 +71,7 @@ a worker's — validation is a separate session with a fresh context.
 ## 4. Preflight before spawning anything
 
 ```sh
-sh scripts/herdr-fleet.sh preflight
+sh "$d/scripts/herdr-fleet.sh" preflight     # $d being the fleet home you resolved
 ```
 
 If the herdr socket is unreachable there is no fleet, and every later step
@@ -54,7 +83,7 @@ Unless the invocation already said.
 
 ## The interface
 
-`sh scripts/herdr-fleet.sh --help` is the source of truth for the wrapper —
+`sh "$d/scripts/herdr-fleet.sh" --help` is the source of truth for the wrapper —
 its verbs, its flags, and `await`'s exit codes, which are a contract you script
 against rather than a status you glance at. `agents/orchestrator.md` covers how
 to use them: briefs as files, the completion contract every brief must end
