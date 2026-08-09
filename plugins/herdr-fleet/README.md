@@ -22,17 +22,17 @@ Read this before installing — the plugin on its own does nothing.
 
 | You need | Why |
 |---|---|
-| A **herdr-fleet checkout** on disk | The roster the skills load. Without one, both skills refuse (see [Fleet home](#the-fleet-home)). |
+| Nothing, for the roster | The fleet ships **inside this plugin**. On the first invocation with no fleet home on disk, the skill offers to copy it to `~/.fleet` and continues (see [Fleet home](#the-fleet-home)). A herdr-fleet checkout is the advanced path, not a prerequisite. |
 | **herdr** on `PATH`, and a running server | Every worker is a Herdr pane. Verified against herdr 0.8.0, server protocol 19. |
 | **claude** on `PATH` | Workers are Claude Code sessions. |
 | **python3** | The wrapper and the permission installer. No Node, no jq. |
 | POSIX `sh` | Both scripts are `sh`. Windows needs Git Bash or a port; that is not claimed to work. |
 
-**The roster repository is not currently published to a public host.** If you
-installed this plugin from the marketplace and do not already have a
-herdr-fleet checkout, ask the plugin's author for access — the skills will
-refuse cleanly until you have one, and they will tell you exactly which files
-they wanted.
+**You do not need a checkout, and there is nothing to ask anyone for.** The
+roster repository is not published to a public host, which is exactly why the
+fleet travels inside this plugin: the first invocation on a machine with no
+fleet home offers to install it and carries on. A checkout is for people who
+want to track the upstream roster — an advanced path, and an optional one.
 
 ---
 
@@ -53,22 +53,40 @@ claude --plugin-dir /path/to/cezaar/plugins/herdr-fleet
 ### The fleet home
 
 Both skills resolve a fleet home before doing anything: **the current directory
-first, then `~/.fleet`.** Point `~/.fleet` at your checkout once:
+first, then `~/.fleet`.**
+
+**If you have neither, the first invocation installs one.** This plugin ships
+the whole fleet — the six personas, the roster, the triage rules, the wrapper
+and the permission installer — in its `fleet/` directory. When no fleet home
+resolves, the skill tells you what it is copying and where, copies `fleet/` to
+`~/.fleet`, and carries on. Nothing to clone, nothing to fetch.
+
+**Expect one permission prompt, and it is not a bug.** The plugin's own
+directory and your home directory both sit outside the working directory, so
+the copy asks. Measured: a session with a broad `Read(~/.claude/**)` grant
+reads the bundled files without asking, and a session without one is denied
+until you approve. The skill says what the prompt is for before it appears.
+A first run is honest about creating a directory in your home; it is not
+silent.
+
+From then on **`~/.fleet` is yours** — edits there are live, and updating or
+reinstalling this plugin will not touch it. The bundled copy is a *seed*, read
+once and never again.
+
+Already have a checkout? Point at it instead, and skip the seed entirely:
 
 ```sh
 ln -s /path/to/herdr-fleet ~/.fleet
 ```
 
-Use a symlink, not a copy — a copy is a second roster with nothing to compare
-it against. The current directory winning is deliberate: a checkout you are
-editing overrides the installed one, so a change to a persona can be tried
-before it is installed.
+A symlink rather than a copy, so there is one roster and not two. The current
+directory winning is deliberate: a checkout you are editing overrides the
+installed one, so a change to a persona can be tried before it is installed.
 
 Each skill **says which home it resolved**, because "which roster answered" is
-otherwise invisible. If neither place qualifies, it refuses and names both
-places it looked and the files it wanted — that refusal is the design working,
-not a failure. It is what stops the session from quietly becoming a
-general-purpose assistant holding your task.
+otherwise invisible — and it will not copy over an existing `~/.fleet` that
+does not qualify. A half-populated fleet home belongs to someone; the skill
+reports what is there and what was missing rather than overwriting it.
 
 ---
 

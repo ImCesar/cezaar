@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(herdr status:*)",
+      "Bash(herdr agent:*)",
+      "Bash(herdr pane:*)",
+      "Bash(herdr tab:*)",
+      "Bash(herdr workspace:*)",
+      "Bash(scripts/herdr-fleet.sh:*)"
+    ],
+    "additionalDirectories": []
+  }
+}
