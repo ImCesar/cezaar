@@ -1,10 +1,16 @@
 {
   "name": "herdr-fleet",
   "description": "Hands-off orchestration on Herdr: an orchestrator that spawns Claude workers into Herdr panes, drives them through a file-based brief/report contract, and triages what needs human attention by risk. Loads its roster from a herdr-fleet checkout.",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": {
     "name": "Cesar Avitia"
   },
   "repository": "https://github.com/ImCesar/cezaar",
-  "keywords": ["orchestration", "herdr", "agents", "delegation", "validation"]
+  "keywords": [
+    "orchestration",
+    "herdr",
+    "agents",
+    "delegation",
+    "validation"
+  ]
 }

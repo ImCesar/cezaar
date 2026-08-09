@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "Bash(perl -0pi:*)",
+      "Bash(sed -i:*)"
+    ]
+  }
+}

@@ -6,11 +6,17 @@ description: Use when you want work handled end-to-end by a fleet of Claude work
 # Run as the Herdr Fleet Orchestrator
 
 This skill is a **loader**. It holds no roster, no delegation protocol and no
-policy of its own — those live in the `herdr-fleet` repo, and a copy here would
-be a second source of truth that nothing can check against the first. Read the
-files; do not work from a summary, including this one.
+policy of its own — those live in a fleet home on disk. Read the files; do not
+work from a summary, including this one.
 
-## 1. Find the fleet home — cwd first, then `~/.fleet`, else refuse
+The plugin does ship a `fleet/` directory, and that is not a second source of
+truth: it is a **seed**, never read in place. It is copied to `~/.fleet` once,
+on a machine that has no fleet home, and from then on the copy is the home and
+the seed is inert. What keeps the two honest is a drift check in the
+`herdr-fleet` repo plus the `SEED_SOURCE` stamp beside the seed, which names
+the commit and content hash it was cut from.
+
+## 1. Find the fleet home — cwd first, then `~/.fleet`, else install the bundled one
 
 ```sh
 for d in . ~/.fleet; do
@@ -33,15 +39,39 @@ follow, where a local copy beats a global one.
 the roster paths and the wrapper — is relative to whichever home you resolved,
 so run them as `$d/...` rather than assuming the current directory.
 
-**If neither qualifies, stop and say so plainly**, naming both places you
-looked and the four files you needed. Do not improvise a roster, do not fall
-back to subagents, and do not carry on as a general-purpose assistant who has
-been handed a task — the operator asked for a specific thing and did not get
-it. Tell them to `cd` into a checkout, or point `~/.fleet` at one:
+**If neither qualifies, this plugin ships a working fleet — install it rather
+than refusing.** Do not improvise a roster, do not fall back to subagents, and
+do not carry on as a general-purpose assistant who has been handed a task: those
+are the failures refusing was protecting against, and they are still failures
+when the fix is one copy away.
+
+The seed is the `fleet/` directory of this plugin. You are reading
+`<plugin>/skills/herdr-orchestrate/SKILL.md`, so the seed is `<plugin>/fleet` —
+you know that absolute path, so use it rather than guessing at cache locations.
+
+Say what you are about to do *before* you do it — what is being copied, where it
+is going, and that it becomes theirs to edit — then:
 
 ```sh
-ln -s /path/to/herdr-fleet ~/.fleet
+cp -R "<plugin>/fleet" ~/.fleet
 ```
+
+**Expect a permission prompt, and say what it is for first.** Both the plugin
+directory and `~` sit outside the working directory; on a machine without a
+broad read grant this copy is the one moment the operator has to approve
+something. That prompt is the design working — it is their home directory —
+but an unexplained prompt is not, so explain it before it appears.
+
+**Never overwrite.** If `~/.fleet` already exists and did not qualify above,
+stop and report what is there and which of the four files were missing. A
+half-populated or differently-shaped fleet home belongs to someone, and copying
+over it destroys work nobody asked you to touch.
+
+After the copy, resolve the home again and continue as `~/.fleet`. Tell them it
+is theirs now: edits there are live, and re-installing or updating this plugin
+will not touch it. An operator who would rather point at their own checkout can
+replace it with a symlink — `ln -s /path/to/herdr-fleet ~/.fleet` — which is
+the advanced path, not the required one.
 
 The check is the four files rather than a directory's name, because a name can
 be right while the contents are not.
