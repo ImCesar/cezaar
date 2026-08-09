@@ -28,11 +28,11 @@ Read this before installing — the plugin on its own does nothing.
 | **python3** | The wrapper and the permission installer. No Node, no jq. |
 | POSIX `sh` | Both scripts are `sh`. Windows needs Git Bash or a port; that is not claimed to work. |
 
-**The roster repository is not currently published to a public host.** If you
-installed this plugin from the marketplace and do not already have a
-herdr-fleet checkout, ask the plugin's author for access — the skills will
-refuse cleanly until you have one, and they will tell you exactly which files
-they wanted.
+**You do not need a checkout, and there is nothing to ask anyone for.** The
+roster repository is not published to a public host, which is exactly why the
+fleet travels inside this plugin: the first invocation on a machine with no
+fleet home offers to install it and carries on. A checkout is for people who
+want to track the upstream roster — an advanced path, and an optional one.
 
 ---
 
