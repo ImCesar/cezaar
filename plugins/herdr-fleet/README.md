@@ -230,13 +230,23 @@ tree changes nothing about what a session runs — also measured, in both
 directions. To publish a change to the skills:
 
 ```sh
-claude plugin marketplace update cezaar    # refresh the marketplace clone
-claude plugin update herdr-fleet           # re-cache the plugin (restart to apply)
+claude plugin marketplace update cezaar      # refresh the marketplace clone
+claude plugin update herdr-fleet@cezaar      # re-cache the plugin (restart to apply)
 ```
 
-Note that this applies only to the two skill files. The roster in the fleet
-home is read live at every invocation, so persona and policy edits take effect
-immediately with no update step.
+Two things about that second command, both measured. **The plugin id has to be
+qualified** — bare `claude plugin update herdr-fleet` fails with `Plugin
+"herdr-fleet" not found`. And **the update is decided by the version, not by
+the commit**: against a freshly refreshed marketplace it answered *"herdr-fleet
+is already at the latest version (0.1.0)"* and re-cached nothing. So a change
+to a skill file that does not also bump `version` — in both
+`.claude-plugin/plugin.json` and this marketplace's entry for it — is liable to
+sit unpublished on every installed copy while the marketplace clone looks
+current. `claude plugin tag` validates that those two version strings agree.
+
+Note that all of this applies only to the two skill files. The roster in the
+fleet home is read live at every invocation, so persona and policy edits take
+effect immediately with no update step.
 
 **`--timeout` is milliseconds on `spawn` and `prompt`, and seconds on `await`.**
 The first two pass through to Herdr; the last is the wrapper's own.
