@@ -325,18 +325,39 @@ case "$cmd" in
     # Only the installer knew the fleet home before; spawn knows it too, so it
     # composes it in. Both spellings, because a symlinked fleet home resolves
     # to a different string and a grant is matched against the one used.
-    worker_settings=""
+    # TWO INDEPENDENT GRANTS IN ONE FILE, AND ONLY ONE IS CONDITIONAL.
+    #   directories  so the worker can READ ITS MEMORY at $FLEET_HOME/memory/,
+    #                outside its cwd and therefore denied by default. A denied
+    #                read is indistinguishable from an empty one, so the worker
+    #                concludes it has no memory, forever. Never withheld.
+    #   allow        restore-and-rewrite, withheld from a tree the worker does
+    #                not own -- reviewer.md's first rule.
+    # Composed ALWAYS, never conditioned on either input: gating the whole file
+    # on own_worktree took memory down with the sharp tools (Mordecai), and
+    # gating it on the template's existence would take memory down with a
+    # missing file (Mordecai again, one level up). A missing template means an
+    # empty allow list, not an absent settings file.
+    if own_worktree "$cwd"; then
+      _sharp=1
+    else
+      _sharp=0
+      note "$cwd is not a worktree of its own -- worker $id gets no mutation grants (memory is still granted)"
+    fi
     _tmpl="$here/../install/worker-permissions.json"
-    if [ -f "$_tmpl" ]; then
-      if own_worktree "$cwd"; then
-        mkdir -p "$STATE/permissions"
-        worker_settings="$STATE/permissions/$id.json"
-        need_python
-        python3 -c '
+    [ -f "$_tmpl" ] || note "no $_tmpl -- worker $id gets memory but no command grants"
+    mkdir -p "$STATE/permissions"
+    worker_settings="$STATE/permissions/$id.json"
+    need_python
+    python3 -c '
 import json, os, sys
-tmpl, out, home = sys.argv[1], sys.argv[2], sys.argv[3]
-data = json.load(open(tmpl, encoding="utf-8"))
+tmpl, out, home, sharp = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1"
+try:
+    data = json.load(open(tmpl, encoding="utf-8"))
+except (OSError, ValueError):
+    data = {}
 perms = data.setdefault("permissions", {})
+if not sharp or not isinstance(perms.get("allow"), list):
+    perms["allow"] = [] if not sharp else perms.get("allow") or []
 dirs = perms.setdefault("additionalDirectories", [])
 for spelling in (home, os.path.realpath(home)):
     if spelling not in dirs:
@@ -344,12 +365,8 @@ for spelling in (home, os.path.realpath(home)):
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(data, fh, indent=2)
     fh.write("\n")
-' "$_tmpl" "$worker_settings" "$FLEET_HOME" \
-          || die "could not compose worker permissions for $id"
-      else
-        note "$cwd is not a worktree of its own -- worker $id gets no mutation grants"
-      fi
-    fi
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" \
+      || die "could not compose worker permissions for $id"
 
     # DELEGATION STATE lives in the worker's own cwd, so every path inside a
     # brief can be relative to it -- an absolute path into another tree crosses
