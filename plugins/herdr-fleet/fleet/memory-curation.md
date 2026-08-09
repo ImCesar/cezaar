@@ -6,6 +6,24 @@ line in a shared surface is paid for by every worker on every spawn, and a
 builder can never act on any of this. The worker protocol you also carry tells
 you how to write your own log; this tells you what you owe everyone else's.
 
+## Exactly one persona per team may carry the flag
+
+`curates_memory: true` is a claim on a single-writer surface, so a team names
+**exactly one** persona that carries it -- no more, and not zero.
+
+- **Two carriers is two sessions editing one index.** They would promote,
+  merge and prune the same file with no knowledge of each other, and the
+  loser's edits vanish silently. This is the same collision the worker/index
+  split exists to prevent, reintroduced one level up.
+- **Zero carriers is a run whose lessons are never promoted.** Nothing breaks
+  and nothing says so: logs keep accumulating, the index quietly goes stale,
+  and the failure is invisible until someone asks why an obvious lesson was
+  never learned.
+
+A check refuses a team that declares anything other than one, but the rule is
+here because a check is a poor way to *learn* a constraint -- it should confirm
+what you were told, never be the first place you meet it.
+
 **One index, one writer, and that writer is you.** `MEMORY.md` for each persona
 is yours alone. Workers append to their own `decisions.md` and never touch an
 index -- parallel workers of the same persona would clobber it, which is the
@@ -38,6 +56,31 @@ fires is a tax charged forever.
 - **When the index stops being scannable, prune. Do not append.** Growing it is
   always the easier move and always the wrong one; an index nobody reads to the
   end is worse than a shorter one that is read.
+
+### What a promoted line looks like
+
+The rules above describe the parts; here they are assembled, because a curator
+arriving fresh should pattern-match a line rather than compose one from four
+bullets. Both examples are promotions of log entries in the form the worker
+protocol asks for:
+
+    - rule | `git rev-parse --git-dir` answers absolute and `--git-common-dir`
+      relative from a subdirectory, so comparing them as strings calls a main
+      checkout a linked worktree -- resolve both with `cd` + `pwd -P`.
+      [builder, 2026-03-14] memory/builder/decisions.md
+
+    - fact | the release job reads credentials from the CI secret store, not
+      from the repo's own config. checked: 2026-03-14.
+      [researcher, 2026-03-14] memory/researcher/decisions.md
+
+Read across one of them: **class**, then the **invariant** in the worker's own
+sentence, then a `checked:` date if it is a `fact`, then **who wrote it and
+when it was promoted**, then the log it came from as a **plain path**. The
+wrapping is presentation -- it is one entry, not four lines.
+
+Notice what is *not* there: the incident. Neither line says which run hit it or
+what the reader was doing at the time. That stays in the log, one plain path
+away, and the index carries only the thing that is true next time.
 
 ## Deleting
 

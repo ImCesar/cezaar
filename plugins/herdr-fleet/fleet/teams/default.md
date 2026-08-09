@@ -36,9 +36,19 @@ file — for the same reason the point of contact is derived above: a rule
 written in two places is a rule that drifts, and the copy nobody edits is the
 one that silently becomes wrong.
 
+**Exactly one member of this roster carries `curates_memory: true`** -- here,
+`curator`. That persona is the only writer of the per-persona memory indexes,
+and the flag is what the wrapper composes the curation duties on. Declaring it
+on a second member would put two sessions in one index with the loser's edits
+lost; declaring it on none leaves every lesson from a run sitting unpromoted in
+the logs, silently. A check refuses both, but the constraint belongs to whoever
+is assembling a team, which is why it is written here as well as in
+`memory-curation.md`. Reassigning it is fine -- moving the flag to another
+persona moves the duty with it.
+
 **Reviewer appears once in this roster but is spawned twice** — validate, then
-judge, as two separate sessions. Noted here only because six entries would
-otherwise read as six concurrent roles; the reason and the procedure are in
+judge, as two separate sessions. Noted here only because seven entries would
+otherwise read as seven concurrent roles; the reason and the procedure are in
 `agents/reviewer.md`.
 
 Roster names are presentation only. A themed team is a second file in this

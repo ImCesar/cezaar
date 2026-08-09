@@ -1,10 +1,10 @@
 # Provenance of this bundled fleet. Regenerating it is part of any change to
 # the herdr-fleet roster -- run that repo's checks/reseed.sh, and check with
 # checks/check_seed_drift.py, which fails when a paired checkout disagrees.
-herdr_fleet_commit: 33103e55a72756ae09c95e7a3b2090ead841c99a
+herdr_fleet_commit: 717e9ce495acb07523a2225e913222ab4c59fb6e
 #   ^ the commit whose SEEDED paths these bytes match -- not necessarily the only
 #     such commit, since a revision differing only elsewhere matches equally.
-content_sha256:     7e532cf1028bb202045cdef8edd816fe98ec3e610eafaa4dc7adbba36c9f8738
+content_sha256:     097d28ce5e2fbe05287ffea9bbde73f53ed562eb887ff1da0b997d818f105ccf
 
 # Reproduce content_sha256 from this directory, on any machine:
 #   find . -type f ! -name SEED_SOURCE -print0 | LC_ALL=C sort -z \
