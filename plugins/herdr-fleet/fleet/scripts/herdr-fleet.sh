@@ -298,7 +298,24 @@ case "$cmd" in
     [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || die "persona $persona has an empty body -- nothing to inject"
     mkdir -p "$STATE/personas"
     prompt_file="$STATE/personas/$id.txt"
-    printf '%s\n' "$body" > "$prompt_file"
+    # THE SHARED PROTOCOL GOES AHEAD OF THE PERSONA BODY, and its absence costs
+    # ITSELF and never the body. memory-protocol.md is the one copy of a block
+    # that used to be pasted into all six personas -- which is how a paragraph
+    # true of five roles reached the sixth where it was false. Composing it here
+    # means a persona anyone writes later gets memory by existing rather than by
+    # remembering to copy 31 lines.
+    #
+    # The body is written first and unconditionally: a worker that silently
+    # loses its persona because a shared file went missing is a far worse
+    # failure than one that loses the protocol, and it would look like a working
+    # spawn. Same shape as the template guard that took memory down with it.
+    _proto="$here/../memory-protocol.md"
+    if [ -f "$_proto" ]; then
+      { cat "$_proto"; printf '\n---\n\n'; printf '%s\n' "$body"; } > "$prompt_file"
+    else
+      printf '%s\n' "$body" > "$prompt_file"
+      note "no $_proto -- worker $id gets its persona but no memory protocol"
+    fi
 
     # WORKER PERMISSIONS ARRIVE ON THE COMMAND LINE, NOT IN THE WORKER'S TREE.
     # The obvious alternative -- write $cwd/.claude/settings.json -- is inert
