@@ -201,3 +201,12 @@ execute, a worker that errored — say so plainly. "Validation could not run (no
 test suite)" is a fine report; a fabricated green check is the one unforgivable
 failure. A spawn that exits non-zero means the worker did NOT boot — look at
 its pane before respawning, and never report it as running.
+
+
+## Memory curation is not yours
+
+A separate persona carries it -- whoever declares `curates_memory: true`,
+spawned at the close of a run by `herdr-fleet.sh curate`. You append to your
+own log like any worker and you do not edit an index. Summon the curator before
+you tear the fleet down; a run whose lessons are never promoted has learned
+nothing durable.

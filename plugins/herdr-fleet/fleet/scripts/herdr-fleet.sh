@@ -17,6 +17,10 @@
 #           same conflates "go look at the pane" with "it will never finish".
 #   herdr-fleet.sh read   <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
 #   herdr-fleet.sh status
+#   herdr-fleet.sh curate  [<id>] [--persona <file>] [--cwd <dir>] [--brief <file>]
+#                          [-- <extra claude args>...]
+#           spawns the one persona declaring `curates_memory: true` against a
+#           brief naming this run's workers. Run it BEFORE cleanup --all.
 #   herdr-fleet.sh cleanup <id> | --all
 #
 # v1 is kind: claude only. A persona declaring any other kind is refused rather
@@ -298,7 +302,45 @@ case "$cmd" in
     [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || die "persona $persona has an empty body -- nothing to inject"
     mkdir -p "$STATE/personas"
     prompt_file="$STATE/personas/$id.txt"
-    printf '%s\n' "$body" > "$prompt_file"
+    # THE SHARED PROTOCOL GOES AHEAD OF THE PERSONA BODY, and its absence costs
+    # ITSELF and never the body. memory-protocol.md is the one copy of a block
+    # that used to be pasted into all six personas -- which is how a paragraph
+    # true of five roles reached the sixth where it was false. Composing it here
+    # means a persona anyone writes later gets memory by existing rather than by
+    # remembering to copy 31 lines.
+    #
+    # The body is written first and unconditionally: a worker that silently
+    # loses its persona because a shared file went missing is a far worse
+    # failure than one that loses the protocol, and it would look like a working
+    # spawn. Same shape as the template guard that took memory down with it.
+    #
+    # CURATION COMPOSES ON A FLAG, AND ONLY FOR ITS CARRIER. Every line of a
+    # shared surface is paid for by every worker on every spawn, and a builder
+    # can never act on a curation duty -- so the duties live in their own file
+    # and reach exactly the persona whose frontmatter claims them. The flag is
+    # the same field check_personas.py asserts exactly one team member carries;
+    # this composition and that check read one field, not two conventions.
+    _proto="$here/../memory-protocol.md"
+    _curation="$here/../memory-curation.md"
+    if [ -f "$_proto" ]; then
+      { cat "$_proto"; printf '\n---\n\n'; printf '%s\n' "$body"; } > "$prompt_file"
+    else
+      printf '%s\n' "$body" > "$prompt_file"
+      note "no $_proto -- worker $id gets its persona but no memory protocol"
+    fi
+    if [ "$(persona_field "$persona" curates_memory)" = "true" ]; then
+      if [ -f "$_curation" ]; then
+        # Ahead of both, for the same reason the protocol leads: the persona
+        # body is the half that must never be lost, so it is written first and
+        # everything else is prepended to a file that already has it.
+        { cat "$_curation"; printf '\n---\n\n'; cat "$prompt_file"; } > "$prompt_file.tmp" \
+          && mv "$prompt_file.tmp" "$prompt_file"
+      else
+        # Loud, because this one fails silently in the worst way: the curator
+        # spawns, looks right, and edits nobody's index.
+        note "no $_curation -- $id declares curates_memory but gets NO curation duties"
+      fi
+    fi
 
     # WORKER PERMISSIONS ARRIVE ON THE COMMAND LINE, NOT IN THE WORKER'S TREE.
     # The obvious alternative -- write $cwd/.claude/settings.json -- is inert
@@ -314,14 +356,59 @@ case "$cmd" in
     # commands; a linked worktree is the worker's, a main checkout is the
     # operator's, and reviewer.md's first rule is never to mutate the latter.
     # A worker that shares the main checkout gets no grant and says so.
-    worker_settings=""
-    if [ -f "$here/../install/worker-permissions.json" ]; then
-      if own_worktree "$cwd"; then
-        worker_settings=$(CDPATH='' cd -- "$here/.." && pwd)/install/worker-permissions.json
-      else
-        note "$cwd is not a worktree of its own -- worker $id gets no mutation grants"
-      fi
+    #
+    # THE GRANT IS COMPOSED, NOT A STATIC FILE. A worker's memory lives at
+    # $FLEET_HOME/memory/<persona>/, and a worker spawned into another repo
+    # reaches it by an absolute path out of its own tree -- the boundary this
+    # script's own delegation state avoids crossing (see the brief staging
+    # below). Without a directory grant the READ is denied, and a denied read
+    # is indistinguishable from an absent file: the worker concludes it has no
+    # memory, forever, on every machine but one that ran the installer.
+    # Only the installer knew the fleet home before; spawn knows it too, so it
+    # composes it in. Both spellings, because a symlinked fleet home resolves
+    # to a different string and a grant is matched against the one used.
+    # TWO INDEPENDENT GRANTS IN ONE FILE, AND ONLY ONE IS CONDITIONAL.
+    #   directories  so the worker can READ ITS MEMORY at $FLEET_HOME/memory/,
+    #                outside its cwd and therefore denied by default. A denied
+    #                read is indistinguishable from an empty one, so the worker
+    #                concludes it has no memory, forever. Never withheld.
+    #   allow        restore-and-rewrite, withheld from a tree the worker does
+    #                not own -- reviewer.md's first rule.
+    # Composed ALWAYS, never conditioned on either input: gating the whole file
+    # on own_worktree took memory down with the sharp tools (Mordecai), and
+    # gating it on the template's existence would take memory down with a
+    # missing file (Mordecai again, one level up). A missing template means an
+    # empty allow list, not an absent settings file.
+    if own_worktree "$cwd"; then
+      _sharp=1
+    else
+      _sharp=0
+      note "$cwd is not a worktree of its own -- worker $id gets no mutation grants (memory is still granted)"
     fi
+    _tmpl="$here/../install/worker-permissions.json"
+    [ -f "$_tmpl" ] || note "no $_tmpl -- worker $id gets memory but no command grants"
+    mkdir -p "$STATE/permissions"
+    worker_settings="$STATE/permissions/$id.json"
+    need_python
+    python3 -c '
+import json, os, sys
+tmpl, out, home, sharp = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1"
+try:
+    data = json.load(open(tmpl, encoding="utf-8"))
+except (OSError, ValueError):
+    data = {}
+perms = data.setdefault("permissions", {})
+if not sharp or not isinstance(perms.get("allow"), list):
+    perms["allow"] = [] if not sharp else perms.get("allow") or []
+dirs = perms.setdefault("additionalDirectories", [])
+for spelling in (home, os.path.realpath(home)):
+    if spelling not in dirs:
+        dirs.append(spelling)
+with open(out, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" \
+      || die "could not compose worker permissions for $id"
 
     # DELEGATION STATE lives in the worker's own cwd, so every path inside a
     # brief can be relative to it -- an absolute path into another tree crosses
@@ -589,6 +676,93 @@ case "$cmd" in
     done
     ;;
 
+  curate)
+    # CLOSE-OF-RUN CURATION IS ITS OWN VERB, NOT A LIMB OF `cleanup --all`.
+    # Teardown that also spawns is the defect this wrapper has now been bitten
+    # by twice (a worktree gate that swept up memory grants; a template guard
+    # that took memory down with it) -- two jobs in one branch means one of
+    # them fails in the other's shadow. `cleanup --all` is also the abort path,
+    # and curating a run that was killed halfway would promote lessons from
+    # work nobody finished. So: separate verb, and cleanup NOTES when it runs
+    # with no curation recorded, which keeps forgetting visible without making
+    # teardown responsible for remembering.
+    id="curator"; cwd=$PWD; brief=""; set_persona=""
+    [ $# -gt 0 ] && case "$1" in -*) ;; *) id="$1"; shift ;; esac
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --persona) set_persona="$2"; shift 2 ;;
+        --cwd)     cwd="$2"; shift 2 ;;
+        --brief)   brief="$2"; shift 2 ;;
+        --)        shift; break ;;
+        *) die "unknown curate option: $1" ;;
+      esac
+    done
+
+    # WHICH PERSONA CURATES IS READ, NEVER ASSUMED. A missing or duplicated
+    # flag is refused here rather than resolved by picking one: two sessions
+    # editing one index is precisely what the single-writer rule forbids, and
+    # a wrapper that guesses would make the check that enforces it decorative.
+    if [ -n "$set_persona" ]; then
+      persona="$set_persona"
+      [ -f "$persona" ] || die "persona file not found: $persona"
+      [ "$(persona_field "$persona" curates_memory)" = "true" ] \
+        || die "$persona does not declare curates_memory: true -- it would spawn with no curation duties"
+    else
+      # Counted WITHOUT touching $@ -- the extra claude args after `--` are
+      # sitting in there, and `set -- $carriers` would hand a persona path to
+      # claude as a flag while losing the caller's arguments entirely.
+      carriers=""; n_carriers=0; persona=""
+      for f in "$here"/../agents/*.md; do
+        [ -f "$f" ] || continue
+        if [ "$(persona_field "$f" curates_memory)" = "true" ]; then
+          persona="$f"; n_carriers=$((n_carriers + 1)); carriers="$carriers
+  $f"
+        fi
+      done
+      [ "$n_carriers" -eq 1 ] \
+        || die "expected exactly 1 persona under $here/../agents declaring curates_memory: true, found $n_carriers${carriers}"
+    fi
+
+    # The brief names where the logs are, because the curator arrives with no
+    # context by design and cannot infer a run it did not see.
+    if [ -z "$brief" ]; then
+      brief="$STATE/curation-brief.md"
+      mkdir -p "$STATE"
+      {
+        echo "# Curation pass"
+        echo
+        echo "Curate the memory of the run below. Read each worker's"
+        echo "\`memory/<persona>/decisions.md\`, promote/merge/prune its persona"
+        echo "index, and report what you promoted, merged, removed, and what you"
+        echo "deliberately left in the logs."
+        echo
+        echo "## Workers in this run"
+        echo
+        if [ -n "$(manifest_ids)" ]; then
+          for w in $(manifest_ids); do
+            printf -- '- %s (%s) -- cwd %s\n' "$w" "$(manifest_field "$w" persona)" "$(manifest_field "$w" cwd)"
+          done
+        else
+          echo "- (none recorded in $MANIFEST -- say so in your report rather than"
+          echo "  curating from an empty set)"
+        fi
+      } > "$brief"
+      note "wrote curation brief $brief"
+    fi
+    [ -f "$brief" ] || die "brief not found: $brief"
+
+    # `--` is re-supplied because this parser consumed the caller's: without
+    # it spawn reads the extras as its OWN options and dies on the first one.
+    if [ $# -gt 0 ]; then
+      "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" -- "$@" || exit $?
+    else
+      "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" || exit $?
+    fi
+    # Recorded only after the spawn succeeded, so cleanup's note tells the
+    # truth about whether a pass actually started.
+    mkdir -p "$STATE"; date >"$STATE/last-curation"
+    ;;
+
   cleanup)
     [ $# -ge 1 ] || die "cleanup needs: <id> | --all"
     failed=0
@@ -616,6 +790,10 @@ case "$cmd" in
       fi
     done
     if [ "${1:-}" = "--all" ]; then
+      # Teardown does not curate -- but it is the last moment anyone would
+      # notice that nothing did.
+      [ -f "$STATE/last-curation" ] \
+        || note "no curation pass recorded for this fleet -- '$0 curate' promotes this run's lessons; tearing down now loses them"
       ws=$(cat "$WS_FILE" 2>/dev/null || true)
       if [ -n "$ws" ] && workspace_alive "$ws"; then
         "$HERDR" workspace close "$ws" >/dev/null 2>&1 || true
