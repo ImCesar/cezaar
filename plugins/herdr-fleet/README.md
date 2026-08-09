@@ -127,9 +127,13 @@ you edit; the plugin never needs touching.
 ### The roster — `agents/*.md`, `teams/default.md`
 
 Each persona is YAML frontmatter plus a system-prompt body: its `kind`, its
-model, its constraints, and whether it has escalation authority. `teams/*.md`
-names which personas make a team. A themed team is just a second file in that
-directory pointing at the same personas with different display names.
+model, its constraints, and whether it has escalation authority.
+
+**The roster is `teams/default.md`, by that name.** Both skills gate on it and
+read it literally — a second file in `teams/` is checked by `make check` and
+loaded by nothing, so treat that directory as one live file rather than a set
+to choose from. To re-theme the fleet, edit the `display_name` of each member
+in `default.md`, or swap a different roster into that filename.
 
 ### The autonomy dial — `triage-rules.md`
 
@@ -175,21 +179,32 @@ orchestrator can run the wrapper and read the fleet home. The installer merges
 them in without disturbing anything else:
 
 ```sh
-sh install/install-permissions.sh --dry-run              # show what would change
-sh install/install-permissions.sh                        # <fleet-home>/.claude/settings.json
-sh install/install-permissions.sh --user                 # ~/.claude/settings.json
-sh install/install-permissions.sh --fleet-home ~/.fleet --user
+sh install/install-permissions.sh --fleet-home ~/.fleet --user --dry-run   # what would change
+sh install/install-permissions.sh --fleet-home ~/.fleet --user             # do it
 ```
+
+**Pass `--fleet-home ~/.fleet` even when you are standing in the checkout.** It
+defaults to *the repository the script lives in*, and a grant is matched against
+the path a session uses rather than the path that resolves to — so running it
+from your checkout grants only the resolved path, while both skills look for the
+literal string `~/.fleet`. Measured, same settings file, two working
+directories:
+
+```
+cwd = ~/repos/herdr-fleet                 -> grants /Users/cesar/repos/herdr-fleet   (only)
+cwd = ~/repos/herdr-fleet --fleet-home ~/.fleet
+                                          -> grants /Users/cesar/.fleet
+                                             and   /Users/cesar/repos/herdr-fleet
+```
+
+Drop `--user` to write `<fleet-home>/.claude/settings.json` instead of
+`~/.claude/settings.json`.
 
 It writes exactly two paths — `permissions.allow` and
 `permissions.additionalDirectories` — appending and de-duplicating rather than
 replacing, backs up what was there, and refuses rather than guessing when the
 file is not what it expects. If your `settings.json` is a symlink into a
 dotfiles repo, it writes *through* the link and leaves the symlink in place.
-
-`--fleet-home` matters more than it looks: a grant is matched against the path
-a session *uses*, not the path that resolves to, so when your fleet home is a
-symlink both spellings are granted.
 
 ### The one thing no configuration can override
 
