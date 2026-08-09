@@ -314,10 +314,38 @@ case "$cmd" in
     # commands; a linked worktree is the worker's, a main checkout is the
     # operator's, and reviewer.md's first rule is never to mutate the latter.
     # A worker that shares the main checkout gets no grant and says so.
+    #
+    # THE GRANT IS COMPOSED, NOT A STATIC FILE. A worker's memory lives at
+    # $FLEET_HOME/memory/<persona>/, and a worker spawned into another repo
+    # reaches it by an absolute path out of its own tree -- the boundary this
+    # script's own delegation state avoids crossing (see the brief staging
+    # below). Without a directory grant the READ is denied, and a denied read
+    # is indistinguishable from an absent file: the worker concludes it has no
+    # memory, forever, on every machine but one that ran the installer.
+    # Only the installer knew the fleet home before; spawn knows it too, so it
+    # composes it in. Both spellings, because a symlinked fleet home resolves
+    # to a different string and a grant is matched against the one used.
     worker_settings=""
-    if [ -f "$here/../install/worker-permissions.json" ]; then
+    _tmpl="$here/../install/worker-permissions.json"
+    if [ -f "$_tmpl" ]; then
       if own_worktree "$cwd"; then
-        worker_settings=$(CDPATH='' cd -- "$here/.." && pwd)/install/worker-permissions.json
+        mkdir -p "$STATE/permissions"
+        worker_settings="$STATE/permissions/$id.json"
+        need_python
+        python3 -c '
+import json, os, sys
+tmpl, out, home = sys.argv[1], sys.argv[2], sys.argv[3]
+data = json.load(open(tmpl, encoding="utf-8"))
+perms = data.setdefault("permissions", {})
+dirs = perms.setdefault("additionalDirectories", [])
+for spelling in (home, os.path.realpath(home)):
+    if spelling not in dirs:
+        dirs.append(spelling)
+with open(out, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2)
+    fh.write("\n")
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" \
+          || die "could not compose worker permissions for $id"
       else
         note "$cwd is not a worktree of its own -- worker $id gets no mutation grants"
       fi

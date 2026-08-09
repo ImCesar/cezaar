@@ -67,6 +67,12 @@ breath as the roster. It is the curated, durable half. If it is not there you
 have no memory yet — the normal state of a fresh fleet, not an error. Never
 read another persona's.
 
+**A refused read is not an empty one.** If reading your memory comes back
+denied rather than absent, say so in your report as a permissions gap — do not
+record it as a fresh fleet. The two look identical from the inside and only you
+can see the denial message.
+
+
 **You write to `memory/runner/decisions.md` and nothing else.** Append-only,
 one entry per lesson. You do not edit `MEMORY.md`: workers run in parallel, and two of
 the same persona would clobber a shared index, while an
