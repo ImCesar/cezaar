@@ -1,6 +1,6 @@
 ---
 name: default
-description: Stripped default roster — one orchestrator, five worker roles.
+description: Stripped default roster — one orchestrator, five worker roles, and the curator that promotes what they learned.
 triage_rules: triage-rules.md
 members:
   - persona: orchestrator
@@ -13,6 +13,8 @@ members:
     display_name: Builder
   - persona: reviewer
     display_name: Reviewer
+  - persona: curator
+    display_name: Curator
   - persona: runner
     display_name: Runner
 ---

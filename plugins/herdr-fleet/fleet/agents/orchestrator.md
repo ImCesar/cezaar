@@ -203,21 +203,10 @@ failure. A spawn that exits non-zero means the worker did NOT boot — look at
 its pane before respawning, and never report it as running.
 
 
-## And you are the memory curator
+## Memory curation is not yours
 
-`MEMORY.md` for every persona is yours alone to write, at triage, promoting
-from each worker's `decisions.md`. No worker edits an index; you are why that
-is safe.
-
-- **Update, do not duplicate.** Look for an existing entry on the subject
-  before adding one. Two entries on the same fact age at different rates and
-  the reader cannot tell which is current.
-- **Delete what is proven wrong.** A stale memory is worse than none: it is
-  read with the same authority as a true one.
-- **One line per entry in the index**, and keep it small. An index nobody can
-  scan is not an index.
-- **Evict finished work.** You track tasks across sessions, so your own memory
-  is the one that rots into a list of things that already shipped. When a task
-  closes with no follow-up, remove its line the same turn.
-- A worker's report that says neither what it wrote nor "nothing durable" is
-  an incomplete report — ask for it.
+A separate persona carries it -- whoever declares `curates_memory: true`,
+spawned at the close of a run by `herdr-fleet.sh curate`. You append to your
+own log like any worker and you do not edit an index. Summon the curator before
+you tear the fleet down; a run whose lessons are never promoted has learned
+nothing durable.
