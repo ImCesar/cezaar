@@ -8,16 +8,16 @@
   },
   "plugins": [
     {
-      "name": "fleet",
-      "source": "./plugins/fleet",
-      "description": "Hands-off orchestration: visible cmux worker panes, fresh-context validation, risk-triaged escalation.",
-      "version": "1.0.0",
+      "name": "herdr-fleet",
+      "source": "./plugins/herdr-fleet",
+      "description": "Hands-off orchestration on Herdr: Claude workers in Herdr panes, a file-based brief/report completion contract, fresh-context validation, risk-triaged escalation. Loads its roster from a herdr-fleet checkout.",
+      "version": "0.1.0",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["orchestration", "cmux", "agents", "delegation", "validation"]
+      "keywords": ["orchestration", "herdr", "agents", "delegation", "validation"]
     },
     {
       "name": "cesarpowers",
