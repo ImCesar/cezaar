@@ -1,7 +1,9 @@
 # Memory — the protocol every persona gets
 
-This file is appended to every worker's system prompt by `spawn`, ahead of
-nothing and after the persona body. It is here rather than copied into each
+`spawn` puts this file at the TOP of every worker's system prompt, with the
+persona body after it, separated by a rule. If the file is missing the persona
+body is still delivered on its own -- the protocol is the half that can be
+lost, never the persona. It is here rather than copied into each
 persona because it was copied into each persona first, and that produced two
 defects in one night: a paragraph true of five roles pasted into the sixth
 where it was false, and an invariant quoted six times that the repo's own check
