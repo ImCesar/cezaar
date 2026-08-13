@@ -70,6 +70,9 @@ getting this wrong is silent:
    `top` anchors the pattern to the repo root: a command-line pathspec is
    otherwise resolved against your cwd, and the state dir sits at the root of
    the worker tree while you are as likely to be standing in a package.
+   Vestigial as of delegation state moving to the fleet home — a worker's tree
+   no longer gets a `.herdr-fleet/` at all — kept for one release so trees
+   mid-migration still pass this precondition.
 3. **Restore after every single mutation, and check the restore landed.** One
    mutation, one run, one restore, then confirm the tree is clean again before
    the next one — same command, same exclusion, or the check you clear yourself

@@ -6,17 +6,28 @@
 #   herdr-fleet.sh preflight
 #   herdr-fleet.sh spawn <id> <persona-file> [--brief <file>] [--cwd <dir>]
 #                        [--model <m>] [--label <text>] [--timeout <ms>]
-#                        [--trust-cwd] [-- <extra claude args>...]
+#                        [--trust-cwd] [--no-peers] [--own-tab] [-- <extra claude args>...]
+#   herdr-fleet.sh assign <id> --brief <file>
+#           re-tasks an idle worker in place instead of respawning it -- same
+#           premature-await guard as spawn (stage_brief). Refuses, with no way
+#           to override, if the worker is `working`, or if its tab is gone
+#           ("gone -- spawn instead").
 #   herdr-fleet.sh prompt <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
+#   herdr-fleet.sh tell   <from-id> <to-id-or-persona> "<text>"
+#           delivers a peer message between two workers whose personas share a
+#           declared edge in the team file (teams/default.md's `peers:`, or
+#           $FLEET_TEAM) -- refused otherwise.
 #   herdr-fleet.sh await  <id> [--timeout <seconds>]
 #           exit 0  the worker's report.md is written and settled; path on stdout
 #           exit 1  timed out (only reachable with --timeout)
 #           exit 3  the worker is blocked -- waiting on input, not finished
-#           exit 4  the worker is gone (tab closed) and left no report
+#           exit 4  the worker is gone (its pane/tab is gone) and left no report
 #           These are a contract: an orchestrator that treats every nonzero the
 #           same conflates "go look at the pane" with "it will never finish".
 #   herdr-fleet.sh read   <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
 #   herdr-fleet.sh status
+#           worker rows, including a CTX column parsed from the pane (see
+#           CLAUDE_UI below); reads `?` when the marker is not visible.
 #   herdr-fleet.sh curate  [<id>] [--persona <file>] [--cwd <dir>] [--brief <file>]
 #                          [-- <extra claude args>...]
 #           spawns the one persona declaring `curates_memory: true` against a
@@ -26,26 +37,28 @@
 # v1 is kind: claude only. A persona declaring any other kind is refused rather
 # than silently launched as claude -- mixed-harness support is V2.
 #
-# Delegation is file-based, following fleet.sh: `spawn --brief <file>` puts the
-# brief at <worker cwd>/.herdr-fleet/<id>/brief.md and kicks the worker off
-# against it, and `await` waits for that worker's own
-# .herdr-fleet/<id>/report.md -- a completion contract the worker has to
-# satisfy deliberately. Pane lifecycle state is NOT a completion signal: a
-# worker that stopped to ask a question settles exactly like one that finished,
-# so `herdr agent wait` alone would report "done" for a run that is waiting on a
-# human. await falls back to it only for workers spawned without a brief, and
-# says so when it does.
+# Delegation is file-based: `spawn --brief <file>` puts the brief at
+# $FLEET_HOME/.herdr-fleet/workers/<id>/brief.md and kicks the worker off
+# against it by absolute path, and `await` waits for that worker's own
+# $FLEET_HOME/.herdr-fleet/workers/<id>/report.md -- a completion contract the
+# worker has to satisfy deliberately. Pane lifecycle state is NOT a completion
+# signal: a worker that stopped to ask a question settles exactly like one that
+# finished, so `herdr agent wait` alone would report "done" for a run that is
+# waiting on a human. await falls back to it only for workers spawned without a
+# brief, and says so when it does.
 #
-# State lives in ONE place per fleet: $FLEET_HOME/.herdr-fleet/manifest.jsonl.
-# Export FLEET_HOME once (default: this repo); never cd-wrap calls to this
-# script -- pass worker cwds as arguments instead.
+# State lives in ONE place per fleet: $FLEET_HOME/.herdr-fleet/ -- the
+# manifest, every worker's brief/report/scratch under workers/<id>/, personas,
+# permissions. Export FLEET_HOME once (default: this repo); never cd-wrap
+# calls to this script -- pass worker cwds as arguments instead.
 #
 # Three things this wrapper exists to get right, each verified by hand against
 # a live server rather than assumed from the docs:
 #
 #   1. `herdr agent start` needs an EXISTING pane already at a shell prompt.
-#      Workers therefore get a tab of their own inside one fleet workspace,
-#      created here before the agent is started.
+#      Workers therefore get a pane inside one fleet workspace, created here
+#      before the agent is started -- packed into 2x2 grid tabs rather than
+#      one tab per worker (see item 7 below).
 #   2. `agent start` returning interactive_ready=true is NOT the same as
 #      Claude's TUI being ready for input: a prompt submitted immediately after
 #      start is swallowed while the UI paints, and `agent prompt --wait` still
@@ -67,6 +80,18 @@
 #      a project settings file is discarded in a workspace that has not been
 #      trusted, which a fresh worktree never has. A worker sharing the
 #      operator's main checkout is given no such grant, and the spawn says so.
+#   6. The fleet workspace is ADOPTED, not always created: if $HERDR_WORKSPACE_ID
+#      is set (the wrapper is already running inside a Herdr pane), spawn
+#      renames that workspace instead of opening a new one, and puts workers in
+#      tabs of it. `cleanup --all` restores the pre-adoption label and NEVER
+#      closes an adopted workspace -- closing it would kill the pane the
+#      wrapper itself is running in, mid-teardown.
+#   7. Workers pack into 2x2 grid tabs (`fleet grid <n>`), four to a tab,
+#      instead of one tab per worker. `cleanup <id>` therefore closes the
+#      worker's PANE, and the tab only when no other live worker still shares
+#      it. An entry persona (`escalation_authority: orchestrator`) or any
+#      `--own-tab` spawn gets a full-size tab of its own instead of a grid
+#      slot.
 set -eu
 
 HERDR="${HERDR_BIN:-herdr}"
@@ -173,6 +198,27 @@ sys.exit(0 if any(t["tab_id"] == sys.argv[1] for t in tabs) else 1)
 ' "$1"
 }
 
+worker_alive() { # id -- 0 (true) iff the worker itself is still there
+  # Since D, a worker's PANE is what identifies it -- a grid tab holds up to
+  # four workers and outlives whichever of them gets cleaned up first, so
+  # tab_alive alone answers "is the tab still open", not "is this worker still
+  # here". This is the one worker-liveness predicate the wrapper has: pane get
+  # on the manifest row's recorded pane_id when there is one, falling back to
+  # tab_alive for rows with no pane recorded (pre-D manifest rows, or any
+  # future row that legitimately has none). Every place that used to ask
+  # tab_alive "is this worker gone" -- assign's gone-guard, tell's live-carrier
+  # scan, await's exit-4 branch, status -- asks this instead, so the answer
+  # agrees everywhere it is used.
+  _waid="$1"
+  _wapane=$(manifest_field "$_waid" pane_id)
+  if [ -n "$_wapane" ]; then
+    "$HERDR" pane get "$_wapane" >/dev/null 2>&1
+  else
+    _watab=$(manifest_field "$_waid" tab_id)
+    [ -n "$_watab" ] && tab_alive "$_watab"
+  fi
+}
+
 workspace_alive() { # workspace_id
   "$HERDR" workspace list 2>/dev/null | python3 -c '
 import json, sys
@@ -244,10 +290,30 @@ persona_field() { # persona-file key -- a scalar from the YAML frontmatter
     }' "$1"
 }
 
-fleet_workspace() { # reuse this fleet's workspace, or create it
+fleet_workspace() { # reuse this fleet's workspace, adopt the current one, or create it
   ws=$(cat "$WS_FILE" 2>/dev/null || true)
   if [ -n "$ws" ] && workspace_alive "$ws"; then
     echo "$ws"; return 0
+  fi
+  # ADOPT: if HERDR_WORKSPACE_ID is set, this wrapper is itself running inside
+  # a Herdr pane -- put workers in tabs of THAT workspace rather than opening a
+  # new one. The pre-adoption label is recorded so cleanup --all can put it
+  # back; the marker is what tells cleanup this workspace must never be
+  # closed, only renamed back (closing it would kill the pane the wrapper is
+  # running in, mid-teardown -- the binding constraint this feature exists
+  # around).
+  if [ -n "${HERDR_WORKSPACE_ID:-}" ]; then
+    ws="$HERDR_WORKSPACE_ID"
+    label_before=$("$HERDR" workspace get "$ws" | jget result workspace label)
+    mkdir -p "$STATE"
+    printf '%s\n' "$label_before" > "$STATE/workspace.label-before"
+    "$HERDR" workspace rename "$ws" "fleet: $(basename "$FLEET_HOME")" >/dev/null \
+      || die "could not rename adopted workspace $ws"
+    printf '%s\n' "$ws" > "$WS_FILE"
+    : > "$STATE/workspace.adopted"
+    note "adopted workspace $ws (was \"$label_before\")"
+    echo "$ws"
+    return 0
   fi
   ws=$("$HERDR" workspace create --label "fleet: $(basename "$FLEET_HOME")" --cwd "$FLEET_HOME" --no-focus \
         | jget result workspace workspace_id)
@@ -264,6 +330,165 @@ resolve_agent() { # id -> agent name, or die
   echo "$agent"
 }
 
+stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.md,
+  # archives any stale report.md, and refreshes the spawn stamp. EXACTLY the
+  # premature-await guard spawn already ran (a report.md from an earlier
+  # attempt with this id would satisfy a file-first await the instant it is
+  # called), factored here so spawn and assign cannot drift on the freshness
+  # contract await depends on. Prints the resolved absolute brief-src path.
+  _sid="$1"; _sbrief="$2"
+  [ -f "$_sbrief" ] || die "brief file not found: $_sbrief"
+  _sbrief=$(CDPATH='' cd -- "$(dirname -- "$_sbrief")" && pwd)/$(basename -- "$_sbrief")
+  _sws="$STATE/workers/$_sid"
+  _sreport="$_sws/report.md"
+  mkdir -p "$_sws"
+  _sdest="$_sws/brief.md"
+  [ "$_sbrief" = "$_sdest" ] || cp "$_sbrief" "$_sdest"
+  if [ -f "$_sreport" ]; then
+    _sstale="$_sws/report.stale-$(date -u +%Y%m%d-%H%M%S).md"
+    mv "$_sreport" "$_sstale"
+    note "archived a stale report for $_sid -> $(basename "$_sstale")"
+  fi
+  : > "$STATE/$_sid.spawn-stamp"
+  printf '%s\n' "$_sbrief"
+}
+
+worker_ctx() { # agent -> "NN%" parsed from the pane's visible ctx marker, or "?"
+  # `ctx [0-9]+%` is Claude-TUI's own context-remaining readout, not Herdr's --
+  # the same marker CLAUDE_UI already greps for at boot. Claude-TUI fact,
+  # checked: 2026-08-12 against a live 0.8.0 pane. If the marker is ever gone
+  # (a Claude UI change) this reads "?" rather than breaking `status`.
+  # `|| true` on the pipeline itself, not just the herdr call: under this
+  # script's set -e, a `var=$(pipeline)` whose LAST stage is a no-match grep
+  # exits nonzero and takes the whole script down with it -- measured against
+  # this repo's own /bin/sh, which enforces that POSIX rule strictly. That is
+  # precisely the "marker absent" case this function must degrade through, not
+  # die on.
+  _screen=$("$HERDR" agent read "$1" --source visible --lines 40 --format text 2>/dev/null || true)
+  _ctx=$(printf '%s' "$_screen" | grep -oE 'ctx [0-9]+%' | tail -1 | grep -oE '[0-9]+%' || true)
+  [ -n "$_ctx" ] && printf '%s\n' "$_ctx" || printf '?\n'
+}
+
+team_peers() { # -> "personaA personaB" per declared edge, one per line, sorted
+  # A small awk parser over the team file's `peers:` frontmatter block --
+  # nothing more elaborate is needed for a handful of `- [a, b]` lines.
+  # Defaults to $FLEET_HOME/teams/default.md; FLEET_TEAM overrides.
+  _team="${FLEET_TEAM:-$FLEET_HOME/teams/default.md}"
+  [ -f "$_team" ] || return 0
+  awk '
+    NR==1 && $0=="---" {fm=1; next}
+    fm==1 && $0=="---" {exit}
+    fm!=1 {next}
+    /^peers:/ {inpeers=1; next}
+    inpeers && $0 !~ /^[ \t]*(-|#|$)/ {inpeers=0}
+    inpeers && /^[ \t]*-[ \t]*\[/ {
+      line=$0
+      sub(/^[ \t]*-[ \t]*\[/, "", line)
+      sub(/\].*$/, "", line)
+      n=split(line, parts, ",")
+      if (n == 2) {
+        a=parts[1]; b=parts[2]
+        gsub(/^[ \t]+|[ \t]+$/, "", a); gsub(/^[ \t]+|[ \t]+$/, "", b)
+        if (a > b) { t=a; a=b; b=t }
+        if (a != "" && b != "") print a" "b
+      }
+    }
+  ' "$_team"
+}
+
+peers_declared() { # persona1 persona2 -> 0 if the pair is a declared edge (unordered)
+  _pair=$(printf '%s\n%s\n' "$1" "$2" | sort | tr '\n' ' ')
+  _pair=${_pair% }
+  team_peers | grep -qxF -- "$_pair"
+}
+
+persona_peers() { # persona-name -> the other persona of each edge touching it, one per line
+  team_peers | awk -v p="$1" '$1==p{print $2} $2==p{print $1}'
+}
+
+# GRID SLOT ALLOCATION (D). $STATE/grid holds one line -- "tab_id p0 p1 n" --
+# for the currently-filling 2x2 grid tab; p1 is "-" until slot 2 exists. Slots
+# are taken in order (tab create, then three splits) and never backfilled: a
+# freed slot just leaves a sparse grid, which is cheaper than the geometry math
+# backfill would need, and reuse (assign, elsewhere) makes churn rare anyway.
+grid_slot() { # ws cwd -> "pane_id tab_id" for the next worker's slot
+  ws="$1"; g_cwd="$2"
+  grid_file="$STATE/grid"
+  g_tab=""; g_p0=""; g_p1=""; g_n=0
+  if [ -s "$grid_file" ]; then
+    read -r g_tab g_p0 g_p1 g_n < "$grid_file" || true
+  fi
+  if [ -n "$g_tab" ] && [ "$g_n" -lt 4 ]; then
+    # SELF-HEAL: about to split against p0 (and p1, once it exists). An
+    # operator closing a pane by hand is one way this state can lie, but it is
+    # not the only one any more: the respawn guard's per-worker pane close and
+    # `cleanup <id>`'s pane close are two more, both routine paths that now
+    # leave a grid tab's root or #2 pane closed while the tab itself stays
+    # open for its other worker(s). Any miss abandons the file rather than
+    # splitting against a pane that is gone, which is a fresh grid tab, not a
+    # wedged spawn.
+    stale=0
+    "$HERDR" pane get "$g_p0" >/dev/null 2>&1 || stale=1
+    if [ "$stale" -eq 0 ] && [ "$g_n" -ge 2 ]; then
+      "$HERDR" pane get "$g_p1" >/dev/null 2>&1 || stale=1
+    fi
+    if [ "$stale" -eq 1 ]; then
+      note "grid tab $g_tab desynced (a recorded pane is gone) -- abandoning it, opening a fresh grid tab"
+      g_tab=""
+    fi
+  else
+    g_tab=""   # no grid file yet, or the last one is full
+  fi
+
+  if [ -z "$g_tab" ]; then
+    gnum=$(cat "$STATE/grid.next" 2>/dev/null || echo 1)
+    p0=$("$HERDR" tab create --workspace "$ws" --label "fleet grid $gnum" --cwd "$g_cwd" --no-focus \
+          | jget result root_pane pane_id)
+    [ -n "$p0" ] || die "tab create returned no pane_id (grid $gnum)"
+    g_tab=$("$HERDR" pane get "$p0" | jget result pane tab_id)
+    mkdir -p "$STATE"
+    printf '%s\n' "$((gnum + 1))" > "$STATE/grid.next"
+    printf '%s %s - 1\n' "$g_tab" "$p0" > "$grid_file"
+    echo "$p0 $g_tab"
+    return 0
+  fi
+
+  case "$g_n" in
+    1)
+      p1=$("$HERDR" pane split "$g_p0" --direction right --ratio 0.5 --cwd "$g_cwd" --no-focus \
+            | jget result pane pane_id)
+      [ -n "$p1" ] || die "pane split returned no pane_id (grid slot 2)"
+      printf '%s %s %s 2\n' "$g_tab" "$g_p0" "$p1" > "$grid_file"
+      echo "$p1 $g_tab"
+      ;;
+    2)
+      p2=$("$HERDR" pane split "$g_p0" --direction down --ratio 0.5 --cwd "$g_cwd" --no-focus \
+            | jget result pane pane_id)
+      [ -n "$p2" ] || die "pane split returned no pane_id (grid slot 3)"
+      printf '%s %s %s 3\n' "$g_tab" "$g_p0" "$g_p1" > "$grid_file"
+      echo "$p2 $g_tab"
+      ;;
+    3)
+      p3=$("$HERDR" pane split "$g_p1" --direction down --ratio 0.5 --cwd "$g_cwd" --no-focus \
+            | jget result pane pane_id)
+      [ -n "$p3" ] || die "pane split returned no pane_id (grid slot 4)"
+      printf '%s %s %s 4\n' "$g_tab" "$g_p0" "$g_p1" > "$grid_file"
+      echo "$p3 $g_tab"
+      ;;
+  esac
+}
+
+tab_has_live_sibling() { # exclude_id tab -- 0 (true) iff another live manifest row still shares this tab
+  ex="$1"; t="$2"
+  for other in $(manifest_ids); do
+    [ "$other" = "$ex" ] && continue
+    [ "$(manifest_field "$other" tab_id)" = "$t" ] || continue
+    [ "$(manifest_field "$other" status)" = "cleaned" ] && continue
+    return 0
+  done
+  return 1
+}
+
 cmd="${1:-}"; [ $# -gt 0 ] && shift || true
 
 case "$cmd" in
@@ -276,7 +501,7 @@ case "$cmd" in
   spawn)
     [ $# -ge 2 ] || die "spawn needs: <id> <persona-file> [options] [-- extra claude args]"
     id="$1"; persona="$2"; shift 2
-    cwd="$FLEET_HOME"; model=""; label=""; timeout="60000"; trust=0; brief=""
+    cwd="$FLEET_HOME"; model=""; label=""; timeout="60000"; trust=0; brief=""; no_peers=0; own_tab=0
     while [ $# -gt 0 ]; do
       case "$1" in
         --brief)   [ $# -ge 2 ] || die "--brief needs a path"; brief="$2"; shift 2 ;;
@@ -285,6 +510,8 @@ case "$cmd" in
         --label)   [ $# -ge 2 ] || die "--label needs a value"; label="$2"; shift 2 ;;
         --timeout) [ $# -ge 2 ] || die "--timeout needs ms";   timeout="$2"; shift 2 ;;
         --trust-cwd) trust=1; shift ;;
+        --no-peers) no_peers=1; shift ;;
+        --own-tab) own_tab=1; shift ;;
         --) shift; break ;;
         *) die "unknown spawn option: $1" ;;
       esac
@@ -298,6 +525,13 @@ case "$cmd" in
     [ -n "$kind" ] || kind="claude"
     [ "$kind" = "claude" ] || die "persona $persona declares kind: $kind -- v1 supports kind: claude only"
     [ -n "$model" ] || model=$(persona_field "$persona" model)
+    # ENTRY AGENTS GET THEIR OWN TAB, DERIVED FROM A FIELD THAT ALREADY EXISTS.
+    # `escalation_authority: orchestrator` already means "the point of contact"
+    # everywhere else in this repo (teams/default.md), so reusing it here avoids
+    # inventing a second notion of rank just for tab layout. --own-tab covers
+    # anyone else who needs the same treatment; curate does not pass it, so the
+    # curator (escalation_authority: worker) takes a grid slot like any worker.
+    [ "$(persona_field "$persona" escalation_authority)" = "orchestrator" ] && own_tab=1
     body=$(persona_body "$persona")
     [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || die "persona $persona has an empty body -- nothing to inject"
     mkdir -p "$STATE/personas"
@@ -322,10 +556,48 @@ case "$cmd" in
     # this composition and that check read one field, not two conventions.
     _proto="$here/../memory-protocol.md"
     _curation="$here/../memory-curation.md"
+
+    # PEER BLOCK: composed only when this persona has a declared edge in the
+    # team file AND --no-peers was not passed. It carries the worker's own id
+    # (only known here, at spawn -- unlike the protocol/curation files this
+    # cannot be a static file), so it is built as text rather than composed
+    # from disk.
+    pname=$(persona_field "$persona" name)
+    peer_block=""
+    if [ "$no_peers" -ne 1 ] && [ -n "$pname" ]; then
+      _peer_others=$(persona_peers "$pname")
+      if [ -n "$_peer_others" ]; then
+        _peer_list=$(printf '%s\n' "$_peer_others" | awk 'NF{a[++n]=$0} END{for(i=1;i<=n;i++)printf "%s%s", a[i], (i<n?", ":"")}')
+        peer_block="# Peers -- you can message some of your teammates directly
+
+Your worker id is \`$id\`. Your persona (\`$pname\`) has a declared peer edge
+with: $_peer_list. Reach them with:
+
+    $FLEET_HOME/scripts/herdr-fleet.sh tell $id <to-id-or-persona> \"<text>\"
+
+Two rules, in spirit as much as in words:
+
+1. A peer message never substitutes for your report -- the completion
+   contract is still the only thing \`await\` sees. Use \`tell\` to
+   coordinate, never to finish the task.
+2. Route product decisions to the orchestrator, not to a peer. A peer can
+   help you get unstuck technically; only a human, through the orchestrator,
+   can approve scope, waive a constraint, or make a call that is not yours."
+      fi
+    fi
+
     if [ -f "$_proto" ]; then
-      { cat "$_proto"; printf '\n---\n\n'; printf '%s\n' "$body"; } > "$prompt_file"
+      {
+        cat "$_proto"
+        printf '\n---\n\n'
+        if [ -n "$peer_block" ]; then printf '%s\n\n---\n\n' "$peer_block"; fi
+        printf '%s\n' "$body"
+      } > "$prompt_file"
     else
-      printf '%s\n' "$body" > "$prompt_file"
+      {
+        if [ -n "$peer_block" ]; then printf '%s\n\n---\n\n' "$peer_block"; fi
+        printf '%s\n' "$body"
+      } > "$prompt_file"
       note "no $_proto -- worker $id gets its persona but no memory protocol"
     fi
     if [ "$(persona_field "$persona" curates_memory)" = "true" ]; then
@@ -392,7 +664,7 @@ case "$cmd" in
     need_python
     python3 -c '
 import json, os, sys
-tmpl, out, home, sharp = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1"
+tmpl, out, home, sharp, no_peers, wid = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1", sys.argv[5] == "1", sys.argv[6]
 try:
     data = json.load(open(tmpl, encoding="utf-8"))
 except (OSError, ValueError):
@@ -404,57 +676,111 @@ dirs = perms.setdefault("additionalDirectories", [])
 for spelling in (home, os.path.realpath(home)):
     if spelling not in dirs:
         dirs.append(spelling)
+# TELL/STATUS GRANTS, ALONGSIDE THE DIRECTORY GRANT AND LIKE IT NEVER GATED ON
+# own_worktree: messaging a peer or reading fleet status mutates no tree, so
+# the reviewer-first-rule reason for withholding "allow" from a shared
+# checkout does not apply here. Both spellings, same reason as the directory
+# grant -- a symlinked fleet home resolves to a different string. Skipped
+# only under --no-peers.
+#
+# THE TELL GRANT IS PINNED TO id, THE WORKER BEING SPAWNED HERE -- `tell
+# <id>:*`, never a bare `tell:*`. The edge check inside `tell` authenticates
+# the PAIR of personas named on the command line, not which worker actually
+# ran it: an unpinned grant would let any worker holding it pass a different
+# id as <from-id> and have `tell` deliver under a forged, provenance-prefixed
+# identity -- the one thing the design calls non-negotiable. Pinning costs
+# nothing extra (spawn already knows $id here) and is what makes "the edge
+# check is the enforcement" true for who is talking, not only for which pairs
+# may. `status` takes no from-id argument, so it stays unpinned.
+#
+# CAVEAT: this pin assumes the Claude permission matcher for `Bash(prefix:*)`
+# requires a word boundary after the prefix. If the matcher is actually a
+# bare startsWith, an id that is a string prefix of another (w1 / w10) could
+# let the shorter id grant cross-authorize the longer one -- unverified
+# against the real matcher (checked: offline-only 2026-08-13). Operators can
+# avoid prefix-sharing worker ids if it turns out to matter.
+if not no_peers:
+    allow = perms["allow"]
+    for spelling in (home, os.path.realpath(home)):
+        tell_grant = "Bash(%s/scripts/herdr-fleet.sh tell %s:*)" % (spelling, wid)
+        if tell_grant not in allow:
+            allow.append(tell_grant)
+        status_grant = "Bash(%s/scripts/herdr-fleet.sh status:*)" % spelling
+        if status_grant not in allow:
+            allow.append(status_grant)
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(data, fh, indent=2)
     fh.write("\n")
-' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" \
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" "$no_peers" "$id" \
       || die "could not compose worker permissions for $id"
 
-    # DELEGATION STATE lives in the worker's own cwd, so every path inside a
-    # brief can be relative to it -- an absolute path into another tree crosses
-    # the worker's permission boundary and stalls the run on a prompt nobody is
-    # watching.
-    worker_state="$cwd/.herdr-fleet/$id"
+    # DELEGATION STATE lives under the FLEET HOME, not the worker's own cwd --
+    # spawn already puts the fleet home (both spellings) in every worker's
+    # additionalDirectories for memory, so an absolute path here rides the same
+    # grant rather than crossing a boundary nothing opened. This is why the
+    # kickoff prompt below can name an absolute path safely: the old
+    # cwd-relative rule existed to dodge a permission stall on a tree nobody
+    # granted, and the fleet home is the one tree every worker always has.
+    # Paths to PROJECT files inside a brief's own content stay worker-cwd-
+    # relative, as before -- this is only about where brief.md/report.md live.
+    worker_state="$STATE/workers/$id"
     report_file="$worker_state/report.md"
     stamp_file="$STATE/$id.spawn-stamp"
     if [ -n "$brief" ]; then
-      [ -f "$brief" ] || die "brief file not found: $brief"
-      brief=$(CDPATH='' cd -- "$(dirname -- "$brief")" && pwd)/$(basename -- "$brief")
-      mkdir -p "$worker_state"
-      brief_dest="$worker_state/brief.md"
-      # The brief may ALREADY be at the destination when the caller wrote it
-      # straight there; copying a file onto itself fails and would abort the
-      # spawn under set -e.
-      [ "$brief" = "$brief_dest" ] || cp "$brief" "$brief_dest"
-      # PREMATURE-AWAIT GUARD: a report.md from an earlier attempt with this id
-      # makes a file-first await return the instant it is called. Archive it,
-      # and stamp this attempt so await can also reject anything older.
-      if [ -f "$report_file" ]; then
-        stale="$worker_state/report.stale-$(date -u +%Y%m%d-%H%M%S).md"
-        mv "$report_file" "$stale"
-        note "archived a stale report for $id -> $(basename "$stale")"
-      fi
+      # The brief may already BE at the destination when the caller wrote it
+      # straight there; stage_brief handles that (copy-onto-self is a no-op).
+      brief=$(stage_brief "$id" "$brief") || exit $?
+    else
+      : > "$stamp_file"
     fi
-    : > "$stamp_file"
 
     # RESPAWN GUARD: reusing an id would strand the previous worker's tab, and
     # manifest lookups only ever resolve the LAST entry, so it could never be
-    # closed again. Retire it first.
+    # closed again. Retire it first -- but a grid tab is not this worker's
+    # alone, so this closes the PANE unconditionally and the tab only when no
+    # other live worker still shares it (same rule cleanup uses below, or
+    # respawning a grid-packed id would take its siblings down with it).
     old_tab=$(manifest_field "$id" tab_id)
+    old_pane=$(manifest_field "$id" pane_id)
     if [ -n "$old_tab" ] && tab_alive "$old_tab"; then
-      "$HERDR" tab close "$old_tab" >/dev/null 2>&1 || true
-      if tab_alive "$old_tab"; then
-        note "warn: could not retire previous tab $old_tab for $id -- it will be orphaned"
+      # TOLERATED, NOT ASSUMED TO SUCCEED: under this script's set -eu, `[ -n
+      # "$old_pane" ] && cmd` as a bare statement dies on ANY failure of cmd,
+      # because a failing command in the tail position of an AND-list is what
+      # set -e treats as the whole statement's exit status. A worker cleaned
+      # up individually (its pane already closed, its tab kept open for
+      # siblings) and then respawned hits exactly that -- pane close on a pane
+      # that is already gone -- which must not be fatal here any more than
+      # "already gone" is fatal to cleanup itself.
+      if [ -n "$old_pane" ]; then
+        "$HERDR" pane close "$old_pane" >/dev/null 2>&1 || true
+      fi
+      if tab_has_live_sibling "$id" "$old_tab"; then
+        note "retired previous pane $old_pane for $id -- tab $old_tab stays open for its other worker(s)"
       else
-        note "retired previous tab $old_tab before respawning $id"
+        "$HERDR" tab close "$old_tab" >/dev/null 2>&1 || true
+        if tab_alive "$old_tab"; then
+          note "warn: could not retire previous tab $old_tab for $id -- it will be orphaned"
+        else
+          note "retired previous tab $old_tab before respawning $id"
+        fi
       fi
     fi
 
     ws=$(fleet_workspace)
-    pane=$("$HERDR" tab create --workspace "$ws" --label "${label:-$id}" --cwd "$cwd" --no-focus \
-            | jget result root_pane pane_id)
-    [ -n "$pane" ] || die "tab create returned no pane_id"
-    tab=$("$HERDR" pane get "$pane" | jget result pane tab_id)
+    if [ "$own_tab" -eq 1 ]; then
+      pane=$("$HERDR" tab create --workspace "$ws" --label "${label:-$id}" --cwd "$cwd" --no-focus \
+              | jget result root_pane pane_id)
+      [ -n "$pane" ] || die "tab create returned no pane_id"
+      tab=$("$HERDR" pane get "$pane" | jget result pane tab_id)
+    else
+      slot=$(grid_slot "$ws" "$cwd")
+      pane=$(printf '%s' "$slot" | awk '{print $1}')
+      tab=$(printf '%s' "$slot" | awk '{print $2}')
+      [ -n "$pane" ] && [ -n "$tab" ] || die "grid slot allocation returned no pane/tab"
+    fi
+    # WORKER IDENTITY MOVES TO THE PANE, not the tab -- a grid tab holds up to
+    # four workers and cannot carry all of their names in one label.
+    "$HERDR" pane rename "$pane" "$id" >/dev/null 2>&1 || note "could not rename pane $pane to $id"
 
     set -- "$@"
     if [ -n "$model" ]; then
@@ -545,12 +871,64 @@ with open(out, "w", encoding="utf-8") as fh:
     echo "spawned $id -> agent $agent, pane $pane, tab $tab, workspace $ws"
     if [ -n "$brief" ]; then
       # Kick off against the file, not the pane. Short and quote-free on
-      # purpose: the contract lives in the brief, not in this line.
+      # purpose: the contract lives in the brief, not in this line. Absolute
+      # path: the fleet home is granted to every worker regardless of cwd, so
+      # naming it directly is safe here in a way it is not for project paths.
       "$HERDR" agent prompt "$agent" \
-        "Read .herdr-fleet/$id/brief.md and execute it exactly, including its completion contract." \
+        "Read $worker_state/brief.md and execute it exactly, including its completion contract." \
         >/dev/null || die "worker $id started but the kickoff prompt failed; brief is at $worker_state/brief.md"
       echo "briefed $id -> $worker_state/brief.md (report expected at $report_file)"
     fi
+    ;;
+
+  assign)
+    # RE-TASK, NOT REPLACE. assign is symmetric with spawn but never touches a
+    # tab or an agent -- same worker, same warm context, a new brief. Two
+    # verbs keep "replace" (spawn, respawn guard) and "re-task" (assign)
+    # distinct in the manifest and in the orchestrator's head (see the
+    # decision table in designs/2026-08-12-fleet-mechanics.md §3).
+    [ $# -ge 1 ] || die "assign needs: <id> --brief <file>"
+    id="$1"; shift
+    brief=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --brief) [ $# -ge 2 ] || die "--brief needs a path"; brief="$2"; shift 2 ;;
+        *) die "unknown assign option: $1" ;;
+      esac
+    done
+    [ -n "$brief" ] || die "assign needs: <id> --brief <file>"
+
+    agent=$(resolve_agent "$id")
+    tab=$(manifest_field "$id" tab_id)
+    if [ -z "$tab" ] || ! worker_alive "$id"; then
+      die "worker $id is gone -- spawn instead"
+    fi
+
+    # NO --force: a brief injected mid-task interleaves two tasks in one
+    # context, and there is no way to unwind that once it has happened. `tell`
+    # or `prompt` exist for steering a worker that is already `working`.
+    state=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
+    [ "$state" = "working" ] \
+      && die "worker $id is working -- assign refuses to interleave a new brief mid-task (no --force; use 'prompt $id ...' to steer it, or wait for it to finish)"
+
+    # SAME PREMATURE-AWAIT GUARD SPAWN RUNS, via the one shared function --
+    # archives any stale report.md and refreshes the spawn stamp, so `await`
+    # cannot mistake the outgoing task's report for this one's.
+    brief=$(stage_brief "$id" "$brief") || exit $?
+
+    worker_state="$STATE/workers/$id"
+    report_file="$worker_state/report.md"
+    stamp_file="$STATE/$id.spawn-stamp"
+    log_manifest id="$id" agent="$agent" pane_id="$(manifest_field "$id" pane_id)" \
+      tab_id="$tab" workspace_id="$(manifest_field "$id" workspace_id)" \
+      persona="$(manifest_field "$id" persona)" cwd="$(manifest_field "$id" cwd)" \
+      brief="$brief" report="$report_file" stamp="$stamp_file" \
+      settings="$(manifest_field "$id" settings)" status=assigned
+
+    "$HERDR" agent prompt "$agent" \
+      "Read $worker_state/brief.md and execute it exactly, including its completion contract." \
+      >/dev/null || die "assign staged the brief but the kickoff prompt failed; brief is at $worker_state/brief.md"
+    echo "assigned $id -> $worker_state/brief.md (report expected at $report_file)"
     ;;
 
   prompt|steer)
@@ -558,6 +936,50 @@ with open(out, "w", encoding="utf-8") as fh:
     id="$1"; text="$2"; shift 2
     agent=$(resolve_agent "$id")
     "$HERDR" agent prompt "$agent" "$text" "$@"
+    ;;
+
+  tell)
+    # PEER TRANSPORT: `herdr agent prompt`, same as a human steering a worker
+    # -- a prompt wakes the peer, where a mailbox would need the peer to poll,
+    # and an idle Claude session polls nothing.
+    [ $# -eq 3 ] || die "tell needs: <from-id> <to-id-or-persona> \"<text>\""
+    from_id="$1"; to_ref="$2"; text="$3"
+
+    from_agent=$(resolve_agent "$from_id")
+    from_persona=$(persona_field "$(manifest_field "$from_id" persona)" name)
+    [ -n "$from_persona" ] || die "could not resolve $from_id's persona from $MANIFEST"
+
+    # <to> is an id when the manifest knows one; otherwise a persona name,
+    # valid only when exactly one LIVE worker carries it -- ambiguity is an
+    # error naming the ids, not a guess.
+    to_agent=$(manifest_field "$to_ref" agent)
+    if [ -n "$to_agent" ]; then
+      to_id="$to_ref"
+      to_persona=$(persona_field "$(manifest_field "$to_id" persona)" name)
+    else
+      candidates=""; n_candidates=0; to_id=""
+      for wid in $(manifest_ids); do
+        worker_alive "$wid" || continue
+        [ "$(persona_field "$(manifest_field "$wid" persona)" name)" = "$to_ref" ] || continue
+        n_candidates=$((n_candidates + 1))
+        candidates="$candidates $wid"
+      done
+      case "$n_candidates" in
+        0) die "no live worker with persona $to_ref (and no worker id $to_ref in $MANIFEST)" ;;
+        1) to_id=$(printf '%s' "$candidates" | tr -d ' '); to_agent=$(resolve_agent "$to_id"); to_persona="$to_ref" ;;
+        *) die "persona $to_ref is ambiguous -- live carriers:$candidates" ;;
+      esac
+    fi
+    [ -n "$to_persona" ] || die "could not resolve $to_id's persona from $MANIFEST"
+
+    peers_declared "$from_persona" "$to_persona" \
+      || die "no declared peer edge between $from_persona and $to_persona (see ${FLEET_TEAM:-$FLEET_HOME/teams/default.md} 'peers:')"
+
+    # PROVENANCE IS NON-NEGOTIABLE: a bare injected prompt is indistinguishable
+    # from the human, and a worker must never mistake a peer for the operator.
+    "$HERDR" agent prompt "$to_agent" "[peer message from $from_id ($from_persona)] $text" >/dev/null \
+      || die "tell failed to deliver to $to_id"
+    echo "told $to_id (agent $to_agent, persona $to_persona)"
     ;;
 
   await)
@@ -608,15 +1030,17 @@ with open(out, "w", encoding="utf-8") as fh:
       # which is not `blocked`, so without this the default (indefinite) wait
       # spins forever on something that cannot finish. That is worse than the
       # blocked case it sits next to: a blocked worker at least has a human who
-      # can unblock it. The tab list is the ground truth, same as everywhere else.
-      if [ -n "$tab" ] && ! tab_alive "$tab"; then
+      # can unblock it. worker_alive is the ground truth here, same as
+      # everywhere else -- it checks the worker's own pane first, falling back
+      # to the tab only for rows with no pane recorded.
+      if [ -n "$tab" ] && ! worker_alive "$id"; then
         # It may have finished and been cleaned up between polls -- a report
         # from a dead worker cannot still be growing, so one check is enough.
         if [ -f "$report" ] && { [ -z "$stamp" ] || file_newer_than "$report" "$stamp"; }; then
           echo "$report"
           exit 0
         fi
-        note "worker $id is gone (tab $tab is closed) and left no report -- nothing will ever satisfy this await"
+        note "worker $id is gone (its pane/tab is gone) and left no report -- nothing will ever satisfy this await"
         exit 4
       fi
       state=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
@@ -646,22 +1070,27 @@ with open(out, "w", encoding="utf-8") as fh:
   status)
     ids=$(manifest_ids)
     [ -n "$ids" ] || { echo "no workers recorded in $MANIFEST"; exit 0; }
-    printf '%-16s %-16s %-8s %-10s %s\n' ID STATUS REPORT TAB CWD
+    printf '%-16s %-16s %-6s %-8s %-10s %s\n' ID STATUS CTX REPORT TAB CWD
     for id in $ids; do
       agent=$(manifest_field "$id" agent)
       tab=$(manifest_field "$id" tab_id)
       cwd=$(manifest_field "$id" cwd)
       report=$(manifest_field "$id" report)
       stamp=$(manifest_field "$id" stamp)
-      if tab_alive "$tab"; then
+      if worker_alive "$id"; then
         st=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
         [ -n "$st" ] || st="no-agent"
         # A row recorded as blocked-on-trust never reached a usable agent, so
         # herdr's own status for it means nothing -- keep the recorded one.
         recorded=$(manifest_field "$id" status)
         [ "$recorded" = "blocked-on-trust" ] && st="$recorded"
+        # One more herdr call per live worker, on top of the `agent get` above
+        # -- acceptable at the cap-5 fleet size the orchestrator enforces;
+        # revisit (batch, or drop CTX) if that cap ever rises.
+        ctx=$(worker_ctx "$agent")
       else
         st="gone"
+        ctx="?"
       fi
       # Same freshness rule await uses: a report from a previous task with this
       # id is not this task's report.
@@ -672,7 +1101,7 @@ with open(out, "w", encoding="utf-8") as fh:
       else
         rp="no"
       fi
-      printf '%-16s %-16s %-8s %-10s %s\n' "$id" "$st" "$rp" "$tab" "$cwd"
+      printf '%-16s %-16s %-6s %-8s %-10s %s\n' "$id" "$st" "$ctx" "$rp" "$tab" "$cwd"
     done
     ;;
 
@@ -769,8 +1198,48 @@ with open(out, "w", encoding="utf-8") as fh:
     if [ "$1" = "--all" ]; then targets=$(manifest_ids); else targets="$1"; fi
     for id in $targets; do
       tab=$(manifest_field "$id" tab_id)
+      pane=$(manifest_field "$id" pane_id)
       [ -n "$tab" ] || { note "no tab recorded for $id"; continue; }
       if ! tab_alive "$tab"; then echo "already gone: $id ($tab)"; continue; fi
+      # CLOSES THE PANE, NOT THE TAB, UNCONDITIONALLY -- a grid tab holds up to
+      # four workers, so a worker's own cleanup must not take its siblings'
+      # panes down with it (D). The tab only follows when no other live
+      # manifest row still shares it.
+      #
+      # TOLERATED, LOGGED, NOT FATAL: `cleanup --all` sweeps every id the
+      # manifest has ever seen, including ones a PRIOR per-worker `cleanup
+      # <id>` already closed the pane for (tab kept open for siblings, so
+      # tab_alive above did not skip it) -- that pane close fails here, and
+      # under this script's set -eu a bare `[ -n "$pane" ] && cmd` statement
+      # takes the whole sweep down with it on that failure, silently (the
+      # command's own stderr is already discarded), before the workspace step
+      # and long before the archive step. Note it and move on instead; the
+      # rest of the sweep (this id's manifest row, its siblings, the archive)
+      # must not depend on a pane that was already closed.
+      pane_closed=1
+      if [ -n "$pane" ]; then
+        if ! "$HERDR" pane close "$pane" >/dev/null 2>&1; then
+          pane_closed=0
+          note "pane close failed for $id ($pane) during cleanup -- already gone?"
+        fi
+      fi
+      if tab_has_live_sibling "$id" "$tab"; then
+        if [ "$pane_closed" = 1 ]; then
+          echo "closed pane for $id ($pane); tab $tab stays open for its other worker(s)"
+        else
+          echo "pane for $id ($pane) was already gone; marking its row cleaned. tab $tab stays open for its other worker(s)"
+        fi
+        log_manifest id="$id" agent="$(manifest_field "$id" agent)" \
+                     pane_id="$pane" tab_id="$tab" \
+                     workspace_id="$(manifest_field "$id" workspace_id)" \
+                     persona="$(manifest_field "$id" persona)" \
+                     cwd="$(manifest_field "$id" cwd)" \
+                     brief="$(manifest_field "$id" brief)" \
+                     report="$(manifest_field "$id" report)" \
+                     stamp="$(manifest_field "$id" stamp)" \
+                     settings="$(manifest_field "$id" settings)" status=cleaned
+        continue
+      fi
       "$HERDR" tab close "$tab" >/dev/null 2>&1 || true
       j=0
       while tab_alive "$tab" && [ "$j" -lt 6 ]; do sleep 0.5; j=$((j + 1)); done
@@ -779,7 +1248,7 @@ with open(out, "w", encoding="utf-8") as fh:
       else
         echo "closed $id ($tab)"
         log_manifest id="$id" agent="$(manifest_field "$id" agent)" \
-                     pane_id="$(manifest_field "$id" pane_id)" tab_id="$tab" \
+                     pane_id="$pane" tab_id="$tab" \
                      workspace_id="$(manifest_field "$id" workspace_id)" \
                      persona="$(manifest_field "$id" persona)" \
                      cwd="$(manifest_field "$id" cwd)" \
@@ -794,21 +1263,94 @@ with open(out, "w", encoding="utf-8") as fh:
       # notice that nothing did.
       [ -f "$STATE/last-curation" ] \
         || note "no curation pass recorded for this fleet -- '$0 curate' promotes this run's lessons; tearing down now loses them"
-      ws=$(cat "$WS_FILE" 2>/dev/null || true)
-      if [ -n "$ws" ] && workspace_alive "$ws"; then
-        "$HERDR" workspace close "$ws" >/dev/null 2>&1 || true
-        if workspace_alive "$ws"; then
-          echo "FAILED to close fleet workspace $ws" >&2; failed=1
-        else
-          echo "closed fleet workspace $ws"; rm -f "$WS_FILE"
+      if [ -f "$STATE/workspace.adopted" ]; then
+        # ADOPTED WORKSPACES ARE NEVER CLOSED -- binding constraint. Only the
+        # label comes back; closing it would kill the pane the wrapper itself
+        # (or the orchestrator that ran it) is running in, mid-teardown.
+        ws=$(cat "$WS_FILE" 2>/dev/null || true)
+        label_before=$(cat "$STATE/workspace.label-before" 2>/dev/null || true)
+        if [ -n "$ws" ] && workspace_alive "$ws"; then
+          if "$HERDR" workspace rename "$ws" "$label_before" >/dev/null 2>&1; then
+            echo "restored adopted workspace $ws label -> \"$label_before\""
+          else
+            echo "FAILED to restore adopted workspace $ws label" >&2; failed=1
+          fi
+        elif [ -n "$ws" ]; then
+          echo "adopted workspace $ws already gone -- nothing to restore"
         fi
+        rm -f "$WS_FILE" "$STATE/workspace.adopted" "$STATE/workspace.label-before"
+      else
+        ws=$(cat "$WS_FILE" 2>/dev/null || true)
+        if [ -n "$ws" ] && workspace_alive "$ws"; then
+          "$HERDR" workspace close "$ws" >/dev/null 2>&1 || true
+          if workspace_alive "$ws"; then
+            echo "FAILED to close fleet workspace $ws" >&2; failed=1
+          else
+            echo "closed fleet workspace $ws"; rm -f "$WS_FILE"
+          fi
+        fi
+      fi
+
+      # ARCHIVE, NOT DELETE: reports are the audit trail and the curator's raw
+      # material, so a torn-down run's state is swept aside, not lost. Each of
+      # these is whichever exists -- a fleet that never spawned a worker has no
+      # workers/ to move, and that is not a failure. The next run starts with
+      # no manifest, which is also what fixes `status` accreting every worker
+      # id since the dawn of the fleet.
+      ts=$(date -u +%Y%m%dT%H%M%SZ)
+      archive_dir="$STATE/archive/$ts"
+      # A second `cleanup --all` inside the same UTC second (scripted teardown,
+      # or a test) would otherwise collide with the previous run's directory
+      # and merge into it silently -- disambiguate rather than assume runs are
+      # a second apart.
+      if [ -e "$archive_dir" ]; then
+        n=1
+        while [ -e "$archive_dir-$(printf '%02d' "$n")" ]; do n=$((n + 1)); done
+        archive_dir="$archive_dir-$(printf '%02d' "$n")"
+      fi
+      archived=0
+      # grid and grid.next are D's state files, added after this list -- they
+      # are part of the run's state exactly like the manifest is: leaving them
+      # behind means the next run's first spawn "self-heals" a grid that was
+      # never actually desynced, and grid numbering never resets to 1.
+      for name in workers personas permissions curation-brief.md manifest.jsonl last-curation grid grid.next; do
+        if [ -e "$STATE/$name" ]; then
+          mkdir -p "$archive_dir"
+          mv "$STATE/$name" "$archive_dir/$name"
+          archived=1
+        fi
+      done
+      # *.spawn-stamp is a glob, not a fixed name -- one file per worker that
+      # ever spawned this run, sitting directly under $STATE rather than under
+      # workers/<id>/ (the stamp exists to outlive a respawn of that id).
+      for stamp in "$STATE"/*.spawn-stamp; do
+        [ -e "$stamp" ] || continue
+        mkdir -p "$archive_dir"
+        mv "$stamp" "$archive_dir/$(basename "$stamp")"
+        archived=1
+      done
+      [ "$archived" -eq 1 ] && echo "archived this run's state -> $archive_dir"
+
+      # PRUNE TO 5: the timestamp format is fixed-width UTC, so a reverse
+      # lexical sort is a reverse chronological sort -- nothing to parse.
+      stale=$(ls -1 "$STATE/archive" 2>/dev/null | sort -r | tail -n +6)
+      if [ -n "$stale" ]; then
+        printf '%s\n' "$stale" | while IFS= read -r old; do
+          # `|| true`: this AND-list is the BODY of a while loop, not an if
+          # condition, so it is not exempt from set -e -- a failing rm -rf
+          # here (permissions, a concurrent prune) would otherwise abort the
+          # pipeline's subshell and, with it, this whole teardown, after the
+          # archive step already succeeded. Pruning old archives is best
+          # effort; it must never take a successful cleanup down with it.
+          [ -n "$old" ] && { rm -rf "$STATE/archive/$old" || true; }
+        done
       fi
     fi
     exit "$failed"
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
   *)

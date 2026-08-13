@@ -52,8 +52,10 @@ running the real server rather than reading its docs.
 herdr-fleet.sh preflight
 herdr-fleet.sh spawn   <id> <persona-file> [--brief <file>] [--cwd <dir>]
                        [--model <m>] [--label <text>] [--timeout <ms>]
-                       [--trust-cwd] [-- <extra claude args>...]
+                       [--trust-cwd] [--no-peers] [--own-tab] [-- <extra claude args>...]
+herdr-fleet.sh assign  <id> --brief <file>
 herdr-fleet.sh prompt  <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
+herdr-fleet.sh tell    <from-id> <to-id-or-persona> "<text>"
 herdr-fleet.sh await   <id> [--timeout <seconds>]
 herdr-fleet.sh read    <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
 herdr-fleet.sh status
@@ -63,12 +65,15 @@ herdr-fleet.sh cleanup <id> | --all
 `--timeout` is **milliseconds** on `spawn` and `prompt`, and **seconds** on
 `await`. The first two pass through to Herdr; the last is the wrapper's own.
 
-`spawn` creates the tab, starts the agent with `--kind claude`, and hands the
-persona to `claude` as an appended system prompt written to a file and passed
-by path — Herdr refuses a multi-line agent argument outright. It also waits for
-Claude's own UI before reporting the worker ready, rather than trusting Herdr's
-`interactive_ready`, which fires while the TUI is still painting and silently
-swallows the first prompt sent to it.
+`spawn` takes the next slot in a 2×2 grid tab (`fleet grid <n>`, packing four
+to a tab, overflowing to a new grid tab at 5, 9, …), starts the agent with
+`--kind claude`, and hands the persona to `claude` as an appended system
+prompt written to a file and passed by path — Herdr refuses a multi-line agent
+argument outright. An entry persona (`escalation_authority: orchestrator`) or
+any `--own-tab` spawn gets a full-size tab of its own instead of a grid slot.
+It also waits for Claude's own UI before reporting the worker ready, rather
+than trusting Herdr's `interactive_ready`, which fires while the TUI is still
+painting and silently swallows the first prompt sent to it.
 
 **Pass `--trust-cwd` whenever the worker's cwd is one Claude has not seen** —
 a fresh worktree, every time. Without it the spawn stops on Claude's
@@ -116,12 +121,28 @@ norm. Mechanical retrieval and rote edits go to the cheapest fast model;
 bounded execution against a good plan goes mid; open-ended reasoning, design,
 and gnarly debugging go top.
 
+**Reuse an idle worker with `assign` before spawning a new one.**
+`herdr-fleet.sh assign <id> --brief <file>` re-tasks a worker in place — same
+tab, same warm context, no re-read of the repo from zero — when all three
+hold: (a) an idle worker's persona matches the new task's shape, (b) the task
+is in the *same cwd/worktree* that worker already owns, and (c) its context is
+not near full — `status`'s CTX column is how you check; respawn once a worker
+is past roughly 60%. Respawn instead (a fresh `spawn` on that id, or a new id)
+when the task needs a different tree, when the role requires a protocol-fresh
+context by rule — a judge, always; a validator reviewing a change its own
+session wrote, always — or when the worker's context is already heavy. Reuse
+never crosses the author/verifier line: an idle builder is never `assign`ed a
+validation brief, and an idle reviewer is never `assign`ed implementation
+work. §3's self-certification rule governs regardless of which verb started
+the worker.
+
 **Bookkeeping root — defined once, here.** Briefs, reports, persona bodies and
-the manifest live under `.herdr-fleet/` at the orchestration root:
-`.herdr-fleet/<id>/brief.md`, `.herdr-fleet/<id>/report.md`. Everything below
-says "the bookkeeping root" instead of repeating the name, because the wiring
-script writes into the same tree and this is the contract they share. Change it
-in this paragraph and nowhere else.
+the manifest live under `$FLEET_HOME/.herdr-fleet/` — the fleet home, not any
+worker's own tree: `$FLEET_HOME/.herdr-fleet/workers/<id>/brief.md`,
+`$FLEET_HOME/.herdr-fleet/workers/<id>/report.md`. Everything below says "the
+bookkeeping root" instead of repeating the name, because the wiring script
+writes into the same tree and this is the contract they share. Change it in
+this paragraph and nowhere else.
 
 **Isolation is not optional for anything that writes.** Any worker that mutates
 files gets its own git worktree — parallel writers must never share a tree, and
@@ -143,14 +164,18 @@ yourself; that is the pattern `--brief` replaced.
 when it does this; that warning means the run is no longer unattended.
 
 **Every brief must end with its completion contract**, in those words: write
-the full report to `.herdr-fleet/<id>/report.md` — what you did, what you ran,
-results, open questions — then stop. `await` waits on precisely that file, so a
-brief missing that sentence produces a worker that finishes and an `await` that
-never returns.
+the full report to `$FLEET_HOME/.herdr-fleet/workers/<id>/report.md` — what
+you did, what you ran, results, open questions — then stop. `await` waits on
+precisely that file, so a brief missing that sentence produces a worker that
+finishes and an `await` that never returns.
 
-Paths inside a brief are relative to the *worker's* cwd, never absolute paths
-into another tree — an absolute cross-tree path crosses the worker's permission
-boundary and stalls the run on a prompt nobody is watching.
+Paths to **project** files inside a brief are relative to the *worker's* cwd,
+never absolute paths into another tree — an absolute cross-tree path crosses
+the worker's permission boundary and stalls the run on a prompt nobody is
+watching. The bookkeeping-root paths (brief, report) are the one deliberate
+exception: they are always absolute, because the fleet home is the one tree
+every worker is *always* granted, and `spawn --brief` already writes the
+kickoff prompt that way.
 
 Run independent work in parallel. Cap concurrency at five workers unless the
 human raises it.
@@ -163,8 +188,12 @@ change:
 1. Spawn a **reviewer** in validation mode (fresh context) — it runs real
    verification and returns evidence plus findings.
 2. If there are findings, spawn a **second, separate reviewer** in judge mode
-   to refute the false positives. Same persona, fresh context, different brief
-   — the point is that the judging context did not produce the findings.
+   — `herdr-fleet.sh spawn ... --no-peers` — to refute the false positives.
+   Same persona, fresh context, different brief, no peer grant: the point is
+   that the judging context did not produce the findings, and `--no-peers`
+   keeps it sealed off from any peer edge a team file might declare for
+   `reviewer`, so judgment and validation never coordinate outside their own
+   reports.
 3. Only judge-confirmed findings (plus surviving-uncertain high-severity ones)
    count. Fix them with a builder, then re-validate.
 

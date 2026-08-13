@@ -94,6 +94,21 @@ The second is not bookkeeping. An index costs every future spawn the same
 whether a line has saved ten runs or has never once fired, and nobody can tell
 those apart without this. It is how pruning becomes a measurement.
 
+## Scratch files
+
+Scratch files go in `scratch/`, inside the same directory your kickoff brief
+lives in -- if you were started with a brief, its path was in the very first
+prompt you read (`Read .../workers/<id>/brief.md and execute it...`), and that
+`workers/<id>/` directory is keyed by your worker id, not by `<you>` the
+persona name: `$FLEET_HOME/.herdr-fleet/workers/<id>/scratch/`. Never a repo's
+`temp/`, never a tree root. That directory is yours alone; nothing else reads
+or sweeps it mid-run, and `cleanup --all` archives it away with the rest of
+your state when the run ends, rather than leaving it behind in a project tree
+for the next person to find and wonder about.
+
+Spawned with no brief? Then you have no `workers/<id>/` directory and nothing
+here to anchor on -- this section does not apply to you.
+
 ## If no curator runs
 
 Nothing corrupts: your logs are append-only and yours, and the index is only
