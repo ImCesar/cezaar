@@ -27,7 +27,8 @@
 #   herdr-fleet.sh read   <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
 #   herdr-fleet.sh status
 #           worker rows, including a CTX column parsed from the pane (see
-#           CLAUDE_UI below); reads `?` when the marker is not visible.
+#           CLAUDE_CTX below); reads `?` when the marker is not visible, which
+#           a custom status line without a context readout is enough to cause.
 #   herdr-fleet.sh curate  [<id>] [--persona <file>] [--cwd <dir>] [--brief <file>]
 #                          [-- <extra claude args>...]
 #           spawns the one persona declaring `curates_memory: true` against a
@@ -101,8 +102,87 @@ STATE="$FLEET_HOME/.herdr-fleet"
 MANIFEST="$STATE/manifest.jsonl"
 WS_FILE="$STATE/workspace"
 
-# Claude's TUI, as it actually renders in a herdr pane (confirmed on 0.8.0).
-CLAUDE_UI='ctx [0-9]+%|-- INSERT|for shortcuts|esc to interrupt'
+# Claude's context readout, in Claude's own status line (`ctx 0%`) and in most
+# custom ones (`ctx: 39%` -- the colon is the operator's, not Claude's). Read
+# twice: by boot verify below, and by worker_ctx for the status table's CTX
+# column, which is why it is one definition and not two literals.
+CLAUDE_CTX='ctx:? *[0-9]+%'
+# Claude's TUI, as it actually renders in a herdr pane. Boot verify greps a
+# captured screen for these, so a screen matching NONE of them is read as a
+# Claude that never painted -- and every alternate here is conditional on
+# something. That is the whole difficulty, and issue #12 is what it costs: an
+# operator whose custom status line displaced Claude's own waited out the boot
+# timeout on a worker that had started perfectly well. So the alternates are
+# derived at the FLOOR: the narrowest pane the wrapper's own default placement
+# can produce. Workers pack into 2x2 grid tabs (`grid_slot` below), so a slot
+# is about half the operator's terminal in each dimension -- and a stock 80x24
+# terminal gives ~39 columns by ~11-12 rows (a real 80x24 split 2x2 measures
+# 40x12, 40x11, 39x12, 39x11). THAT is the floor. The ~59 columns a
+# 120-column terminal yields is not, and deriving there is how three of the
+# six permission modes below went missing for a round: a 59-column pane is
+# comfortably green over exactly the gap that kills a 39-column one. Width is
+# what takes markers away, and the count is monotone across this chain's
+# captures -- 3 alternates survive at 59 columns, 2 at 43-45, and at 39
+# exactly ONE: the permission-mode indicator, alone, everything else
+# truncated or scrolled off. That single anchor at the floor is why all six
+# modes have to be enumerated and not just the three someone happened to run,
+# and it is why the next re-derivation belongs at ~39x12 -- or against a real
+# grid slot -- and never at 59:
+#   $CLAUDE_CTX          the context readout -- absent when a custom status
+#                        line does not carry one.
+#   ─ Claude Code        the welcome box's title bar, independent of the status
+#                        line. Matched WITHOUT the version, which Claude prints
+#                        in that bar only above ~70 columns: a narrower pane
+#                        renders a bare `╭─ Claude Code ──╮`, so a
+#                        version-bearing alternate is not merely scrolled off a
+#                        short pane, it was never painted. Both mechanisms are
+#                        real -- the box does also scroll off a short pane:
+#                        gone at 59x14, present at 59x20 -- which is why this
+#                        cannot be the only anchor either. Leaving the version
+#                        out is also what keeps first-run onboarding ("Welcome
+#                        to Claude Code v2.1.229" over a theme picker, which
+#                        accepts no brief) from verifying as ready.
+#   manual mode on       the permission-mode indicator: the LEFTMOST thing in
+#   plan mode on         the hint row, and so the last of that row to be
+#   accept edits on      truncated away by a narrow pane. ALL SIX of Claude's
+#   auto mode on         modes are here -- the row renders `<indicator> on`,
+#   don't ask on         and v2.1.229's six indicators are exactly these. That
+#   bypass permissions   completeness is the point: three of them were missing
+#                on      once, and a booted `auto` or `dontAsk` pane at 39x14
+#                        then matched no alternate at all, which is issue #12
+#                        again. Claude's own chrome: customizing the status
+#                        line cannot take it away.
+#   shift+tab to cycle   the mode-cycle hint, printed in every mode measured
+#   for agents           except manual; the agents hint, further right in the
+#   for shortcuts        same row and so the first of it to be cut off; the
+#                        older Claudes' hint in that same row.
+#   -- INSERT            vim input mode, off unless the operator turned it on;
+#                        leftmost of all when it is on.
+# Deliberately NOT here: bare elapsed-time or model-name fragments from a
+# status line. They match a crashed pane's leftovers too, and a false "ready"
+# sends the first brief into a shell. `esc to interrupt` was here and is not
+# any more, for the same reason: no turn has been started when boot verify
+# runs, so it can only ever have matched leftovers.
+# checked: 2026-08-13 against claude v2.1.229. Panes captured in tmux and
+# grepped one alternate at a time -- 45x20, 59x20, 59x14 and 59x20-with-vim in
+# DEFAULT permission mode behind a custom status line carrying no context
+# readout (the configuration that strips the most), 59x20 in plan and in
+# accept-edits mode, and the 80/100/120-column, trust-dialog and
+# first-run-onboarding captures from the review of #12: all matched, and the
+# trust dialog and both onboarding captures matched nothing. `auto` and
+# `dontAsk` were then captured live at 39x14 by the round-2 reviewers -- both
+# booted, both matching nothing until their two indicators were added. That
+# 39x14 was synthesized (`tmux new-session -x 39 -y 14`), never observed on a
+# live grid slot, and a stock 80x24 slot is a row or two SHORTER than that;
+# since rows only ever remove chrome, measuring at 14 does not overstate
+# safety -- but do not read 14 back as the stock height. The SIX indicator
+# strings come from the mode table in the installed bundle
+# (~/.local/share/claude/versions/2.1.229), which is also the whole basis for
+# `bypass permissions on`: that mode is ARGUED, not launched. Entering it
+# answers a "Yes, I accept" dialog that writes the operator's own config, so
+# the alternate rests on the bundle giving it the same `⏵⏵` symbol as the
+# three `⏵⏵` modes whose rows were captured. Re-derive it if that ever fails.
+CLAUDE_UI="$CLAUDE_CTX|─ Claude Code|manual mode on|plan mode on|accept edits on|auto mode on|don't ask on|bypass permissions on|shift\+tab to cycle|for agents|for shortcuts|-- INSERT"
 # Claude asks this once per directory it has never been run in. A worker spawned
 # into a fresh worktree hits it every time, and it looks exactly like a hung boot.
 CLAUDE_TRUST_UI='trust the files in this folder|Yes, I trust this folder'
@@ -354,10 +434,12 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
 }
 
 worker_ctx() { # agent -> "NN%" parsed from the pane's visible ctx marker, or "?"
-  # `ctx [0-9]+%` is Claude-TUI's own context-remaining readout, not Herdr's --
-  # the same marker CLAUDE_UI already greps for at boot. Claude-TUI fact,
-  # checked: 2026-08-12 against a live 0.8.0 pane. If the marker is ever gone
-  # (a Claude UI change) this reads "?" rather than breaking `status`.
+  # $CLAUDE_CTX is the context-remaining readout Claude's own status line
+  # prints, and the same definition boot verify greps for -- shared rather than
+  # written twice, because issue #12 was one of the two copies going stale
+  # against a customized status line while the other was still believed. If the
+  # marker is ever gone (a Claude UI change, or a status line that omits it)
+  # this reads "?" rather than breaking `status`.
   # `|| true` on the pipeline itself, not just the herdr call: under this
   # script's set -e, a `var=$(pipeline)` whose LAST stage is a no-match grep
   # exits nonzero and takes the whole script down with it -- measured against
@@ -365,7 +447,7 @@ worker_ctx() { # agent -> "NN%" parsed from the pane's visible ctx marker, or "?
   # precisely the "marker absent" case this function must degrade through, not
   # die on.
   _screen=$("$HERDR" agent read "$1" --source visible --lines 40 --format text 2>/dev/null || true)
-  _ctx=$(printf '%s' "$_screen" | grep -oE 'ctx [0-9]+%' | tail -1 | grep -oE '[0-9]+%' || true)
+  _ctx=$(printf '%s' "$_screen" | grep -oE "$CLAUDE_CTX" | tail -1 | grep -oE '[0-9]+%' || true)
   [ -n "$_ctx" ] && printf '%s\n' "$_ctx" || printf '?\n'
 }
 

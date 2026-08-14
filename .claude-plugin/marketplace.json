@@ -11,7 +11,7 @@
       "name": "herdr-fleet",
       "source": "./plugins/herdr-fleet",
       "description": "Hands-off orchestration on Herdr: Claude workers in Herdr panes, a file-based brief/report completion contract, fresh-context validation, risk-triaged escalation. Loads its roster from a herdr-fleet checkout.",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"
