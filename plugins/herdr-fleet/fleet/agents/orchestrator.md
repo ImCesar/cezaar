@@ -152,6 +152,75 @@ read-only work may share the main checkout: a researcher, a judge-mode
 reviewer, a report-writer — and only because their writes are confined to their
 own directory under the bookkeeping root.
 
+**Where that worktree comes from.** The target branch is either one the
+operator named, or — when they didn't — one you pick for the task and create
+yourself, off the repo's default branch, never stacked on another unmerged
+branch. When one task depends on another, sequence them: wait for the first
+to land on the default branch, then branch the next one from the updated
+default.
+
+**A live worker already owns the tree for that branch — route through it,
+don't resolve anything below.** Follow-up work, including fix rounds after
+review, goes back to that worker via `assign` — the reuse rule above. If it's
+busy, wait. If it's gone, a replacement takes over the tree. `status`'s CWD
+column shows which tree each live worker owns; `git worktree list` maps that
+tree to its branch. Never spawn a second writer into a tree a live worker
+owns.
+
+No live owner — resolve in this order, and stop at the first match:
+
+1. `--cwd` is already a linked worktree checked out to the target branch —
+   use it. (A detached `--cwd` doesn't count; see below.)
+2. Some other linked worktree holds the target branch — reuse that path, no
+   git state change. `git worktree list`, porcelain form, finds it (parse the
+   `worktree`/`branch` pairs it prints, **skipping the first block for this
+   search only** — that one is always the repository's main worktree, the
+   operator's own checkout or the bare repo itself, and porcelain never marks
+   it as such).
+3. The branch isn't checked out anywhere (checking the whole list here, not
+   case 2's filtered one) — create a linked worktree for it, following the
+   repo's own pattern (`git worktree list` for a sibling `<repo>.worktrees/`
+   or `<repo>-wt/`, say, and match it; with no visible convention, default to
+   a sibling `<repo>.worktrees/<branch-or-task>`). Check first whether the
+   branch already exists (`git rev-parse`, verify form, on
+   `refs/heads/<branch>`, succeeds — a tag of the same name must not count) —
+   a re-run, or a stale branch left by an earlier run, can already have it,
+   and a stale branch gets looked at, not reused blind. Existing branch:
+   `git worktree add <path> <branch>`. Branch you're creating for the task:
+   `git worktree add -b <branch> <path> <default-branch>`. Either way, spawn
+   with `--trust-cwd` — already required above for any cwd Claude hasn't
+   seen.
+4. The operator **named** a branch and it's checked out in their own main
+   checkout — stop. Never switch, stash, reset, or otherwise touch it to free
+   the branch for a worker; that rewrites the human's working state to suit
+   the tooling. Escalate with triage-rules.md's escalation brief format,
+   naming the exact commands the operator could run to free it (switch their
+   checkout elsewhere, then the `git worktree add` that would follow). The
+   run waits for the human. A branch you picked yourself never reaches this
+   case — nothing else has it checked out yet.
+
+A **detached `--cwd`** matches none of the above: it holds no branch, so the
+branch-keyed order can't resolve it. A validate-pass reviewer gets one of
+these, pinned at the commit under review — one already handed to you as
+`--cwd`, or, if not, one you create (`git worktree add <path> <commit>`, a
+commit rather than a branch, then spawn with `--trust-cwd` — the same
+reminder case 3 carries); don't create a second one when the first is
+already there. Still a mutating tree despite the name — its mutation testing
+is exactly why it must not be the builder's own tree. A judge-mode reviewer
+mutates nothing and may be pointed at the validator's copy once the
+validator has reported — a validate pass leaves the tree mutated between its
+own steps.
+
+**Reuse (1–2) may hand over a tree that isn't clean.** New worktrees are
+clean by construction, so this only comes up on reuse. Check `git status`,
+porcelain form, and read what's there yourself — recognising, say, a dead
+worker's half-finished edits is often enough to decide whether the new worker
+should continue from them. Ask the operator only when you can't tell what the
+changes are or what to do with them — uncommitted work you can't attribute to
+a fleet worker is exactly that case, not one to judge yourself. Report which
+case you took, which tree the work landed in, and — on reuse — what you
+found there and what you did about it.
+
 **Briefs are files, not pane text — and `spawn --brief <file>` does the whole
 handoff.** It stages the brief into the worker's own state directory and sends
 the kickoff pointing at it. Do not hand-stage a brief and prompt the worker
