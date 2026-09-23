@@ -521,14 +521,43 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
   # must stage fine -- only a near-miss occupying the position the exact
   # token would have to occupy to resolve is an error. A mid-text mention
   # with no placeholder final line ships as ordinary unresolved prose; that
-  # gap is `await`'s existing no-contract degradation warning's job, not
-  # staging's (F-v2-3).
+  # gap used to be credited to `await`'s no-contract degradation warning, but
+  # that warning only fires for a worker spawned with no brief at all (see
+  # the `await` case below keyed on an empty manifest `brief` field), so a
+  # brief that IS present but never states its report path anywhere never
+  # tripped it (cezaar #24). The NO-REPORT-PATH WARNING right below is what
+  # actually covers this gap now.
   _slastline=$(awk 'NF{n=NR; l=$0} END{print n":"l}' "$_sstage")
   _slastnum=${_slastline%%:*}
   _slastnorm=$(printf '%s' "${_slastline#*:}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
   if [ "$_slastnorm" = "<completioncontract>" ]; then
     rm -f "$_sstage"
     die "brief $_sdest's last non-blank line (line $_slastnum) still contains an unresolved '<completion contract>' placeholder -- only the EXACT literal line \`<completion contract>\` (matching case, no doubled/inserted whitespace, nothing before or after it) is resolved into the report-path sentence at staging; fix that line's spelling/spacing, or write the contract sentence out by hand instead. A mention of the token earlier in the brief is not checked here and does not block staging."
+  fi
+
+  # NO-REPORT-PATH WARNING (cezaar #24): a brief that neither ends in the
+  # placeholder nor otherwise names this worker's resolved report path
+  # anywhere stages fine -- it might be a brief that legitimately restates
+  # its contract in different words, or one covered by the `await
+  # --timeout`/pane-lifecycle fallback, so this is a `note`, not a `die`.
+  # But silently staging it is exactly how #24 happened: `curate` wrote a
+  # brief with no contract at all and `await` waited forever with no signal
+  # anything was wrong. Warn here so spawn, assign, and curate all get the
+  # same loud heads-up.
+  #
+  # Matched on the FULL RESOLVED ABSOLUTE $_sreport, not a bare
+  # `.herdr-fleet/workers/<id>/report.md` suffix: that suffix pins nothing to
+  # its LEFT, and the sibling MISMATCH REJECTION above only checks the <id>
+  # that lives INSIDE the suffix -- so a report path under a DIFFERENT fleet
+  # home (or an orchestrator's own persona-file template, unexpanded
+  # `$FLEET_HOME` literally included) would pass both guards silently and
+  # leave `await` watching a file that will never be written (judge-confirmed
+  # finding 3 on cezaar #24's first fix round). `agents/orchestrator.md`
+  # already states bookkeeping-root paths (brief, report) are always
+  # absolute, so requiring the absolute form here does not ask a
+  # well-written brief for anything it wasn't already supposed to do.
+  if ! grep -qF "$_sreport" "$_sstage"; then
+    note "brief staged for $_sid does not mention its resolved report path ($_sreport) anywhere -- await will likely wait forever with no report to see; end the brief with the literal line \`<completion contract>\` so staging can inject the resolved path"
   fi
 
   mv "$_sstage" "$_sdest"
@@ -1449,6 +1478,12 @@ $opts"
           echo "- (none recorded in $MANIFEST -- say so in your report rather than"
           echo "  curating from an empty set)"
         fi
+        # Resolved by stage_brief (cezaar #18's mechanism) into the report-path
+        # sentence for THIS spawn -- curate reaches stage_brief through `spawn
+        # --brief` below, so writing the sentence out by hand here would risk
+        # disagreeing with what `await` actually watches (cezaar #24).
+        echo
+        echo "<completion contract>"
       } > "$brief"
       note "wrote curation brief $brief"
     fi

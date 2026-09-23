@@ -182,7 +182,12 @@ like this paragraph does) never blocks staging. A near-miss occupying the
 last line — wrong case, doubled internal whitespace, a stray space before
 the closing `>` — is not resolved silently: staging dies naming the brief
 and the line, rather than shipping a worker whose contract line is still the
-literal placeholder.
+literal placeholder. Staging also warns on stderr (not dies) when the staged
+brief contains, nowhere in it, the literal full absolute report path
+`$FLEET_HOME/.herdr-fleet/workers/<id>/report.md` — in whatever surrounding
+wording, but that exact path — that gap is exactly what left an earlier
+`curate`-generated brief with no contract at all, and `await` waiting on it
+forever with no signal.
 
 Paths to **project** files inside a brief are relative to the *worker's* cwd,
 never absolute paths into another tree — an absolute cross-tree path crosses
