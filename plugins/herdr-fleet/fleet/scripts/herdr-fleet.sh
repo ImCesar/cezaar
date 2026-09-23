@@ -897,7 +897,7 @@ Two rules, in spirit as much as in words:
       _sharp=1
     else
       _sharp=0
-      note "$cwd is not a worktree of its own -- worker $id gets no mutation grants (memory is still granted)"
+      note "$cwd is not a worktree of its own -- worker $id gets no restore-and-rewrite command grants (memory is still granted)"
     fi
     _tmpl="$here/../install/worker-permissions.json"
     [ -f "$_tmpl" ] || note "no $_tmpl -- worker $id gets memory but no command grants"
