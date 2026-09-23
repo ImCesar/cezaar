@@ -169,6 +169,21 @@ you did, what you ran, results, open questions — then stop. `await` waits on
 precisely that file, so a brief missing that sentence produces a worker that
 finishes and an `await` that never returns.
 
+You do not have to type that sentence out by hand. End the brief with the
+literal line `<completion contract>` instead, and `spawn --brief`/`assign
+--brief` resolve it at staging time into the sentence above, computed from
+that worker's own id — so it cannot disagree with what `await` actually
+watches. The token must be the **exact final line**: matching case, no
+doubled or inserted whitespace, nothing before or after it (no trailing
+space, no trailing blank line) — that exact spelling is the only thing ever
+silently resolved. Staging checks *only that last non-blank line*, not the
+rest of the brief: mentioning the token elsewhere (explaining the feature,
+like this paragraph does) never blocks staging. A near-miss occupying the
+last line — wrong case, doubled internal whitespace, a stray space before
+the closing `>` — is not resolved silently: staging dies naming the brief
+and the line, rather than shipping a worker whose contract line is still the
+literal placeholder.
+
 Paths to **project** files inside a brief are relative to the *worker's* cwd,
 never absolute paths into another tree — an absolute cross-tree path crosses
 the worker's permission boundary and stalls the run on a prompt nobody is
