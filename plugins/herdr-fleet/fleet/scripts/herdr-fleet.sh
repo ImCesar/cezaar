@@ -13,6 +13,19 @@
 #           to override, if the worker is `working`, or if its tab is gone
 #           ("gone -- spawn instead").
 #   herdr-fleet.sh prompt <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
+#   herdr-fleet.sh respond <id> <approve|approve-always|deny>
+#           answers a worker's visible Claude permission dialog by INTENT, not
+#           by option number -- a dialog's numbering is not stable (issue #16:
+#           "2" means "don't ask again" in one dialog and "No" in the next), so
+#           this reads the dialog, matches each option's own text against the
+#           intent, and sends whichever number that specific dialog gave it.
+#           Hard errors, naming what WAS on offer, if the intent has no
+#           matching option or the pane shows no dialog at all -- never a
+#           guess. Re-reads the pane after sending and fails if the dialog did
+#           not clear.
+#           KNOWN LIMITATION (F-v2-4): a pane that quotes a dialog rather than
+#           showing one (a report reproducing it, footer and all) reads as a
+#           real dialog and gets answered blind -- see DIALOG_CARET_RE above.
 #   herdr-fleet.sh tell   <from-id> <to-id-or-persona> "<text>"
 #           delivers a peer message between two workers whose personas share a
 #           declared edge in the team file (teams/default.md's `peers:`, or
@@ -186,6 +199,27 @@ CLAUDE_UI="$CLAUDE_CTX|─ Claude Code|manual mode on|plan mode on|accept edits 
 # Claude asks this once per directory it has never been run in. A worker spawned
 # into a fresh worktree hits it every time, and it looks exactly like a hung boot.
 CLAUDE_TRUST_UI='trust the files in this folder|Yes, I trust this folder'
+# `respond` reads a permission dialog's own option text, never its position --
+# restricted to lines that literally start "N. Yes" or "N. No" (an optional
+# `❯ ` cursor ahead of the number, for whichever option is currently
+# selected). That alone is not enough: a worker reply enumerating steps
+# ("1. Yes, the migration is safe to run.") matches the exact same shape
+# (issue F1). DIALOG_CARET_RE is the structural gate that catches what the
+# option regex cannot -- a real Claude dialog marks its selected option with
+# `❯`, which ordinary numbered prose never does, so `dialog_options` below
+# refuses to treat ANY numbered line as an option unless the caret marker is
+# present somewhere on the same screen.
+DIALOG_OPTION_RE='^[[:space:]]*(❯[[:space:]]*)?[0-9]+\.[[:space:]]*(Yes|No)\b'
+DIALOG_CARET_RE='❯[[:space:]]*[0-9]+\.[[:space:]]*(Yes|No)\b'
+# KNOWN LIMITATION (F-v2-4): this gate is unanchored -- it matches the caret
+# shape anywhere on screen, not only in a genuine dialog chrome -- so a pane
+# whose content merely QUOTES a caret'd option line (a worker's report
+# reproducing a dialog it hit, `cat` of a file with one in it) is
+# indistinguishable from a real dialog and gets answered blind. Requiring the
+# `Esc to cancel` footer too does not close this: measured, a quoted dialog
+# that includes its own footer (which is how these reports actually quote
+# them) still matches. No screen-scraping gate can tell "displays a dialog"
+# from "is a dialog" with certainty; this is a residual, not a bug to chase.
 
 die() { echo "herdr-fleet: $*" >&2; exit 1; }
 note() { echo "herdr-fleet: $*" >&2; }
@@ -416,6 +450,13 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
   # attempt with this id would satisfy a file-first await the instant it is
   # called), factored here so spawn and assign cannot drift on the freshness
   # contract await depends on. Prints the resolved absolute brief-src path.
+  #
+  # Also resolves cezaar issue #18: a brief's completion-contract line is
+  # hand-restated prose, so it can silently name a path `await` never watches.
+  # Staged HERE, not just written once by whoever authored the brief, because
+  # this is the one place spawn and assign both funnel through with the true
+  # report path already resolved -- see MISMATCH REJECTION and PLACEHOLDER
+  # INJECTION below.
   _sid="$1"; _sbrief="$2"
   [ -f "$_sbrief" ] || die "brief file not found: $_sbrief"
   _sbrief=$(CDPATH='' cd -- "$(dirname -- "$_sbrief")" && pwd)/$(basename -- "$_sbrief")
@@ -423,7 +464,75 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
   _sreport="$_sws/report.md"
   mkdir -p "$_sws"
   _sdest="$_sws/brief.md"
-  [ "$_sbrief" = "$_sdest" ] || cp "$_sbrief" "$_sdest"
+
+  # MISMATCH REJECTION, checked on the SOURCE before it is ever copied: a
+  # brief that names another worker's path under .herdr-fleet/workers/ (e.g. a
+  # re-dispatched brief that kept the previous worker's id in its contract
+  # line) must not stage at all -- that worker would finish while `await`
+  # watches an empty directory forever. Extract every .herdr-fleet/workers/<id>
+  # segment named in the brief text and reject if any names an id other than
+  # this one; checking the source (not the copy-onto-self destination) means a
+  # rejected brief is never left sitting at brief.md looking staged.
+  _sbadid=$(grep -oE '\.herdr-fleet/workers/[^/[:space:]]+' "$_sbrief" 2>/dev/null \
+             | sed 's#.*/##' | sort -u | grep -v -F -x "$_sid" || true)
+  if [ -n "$_sbadid" ]; then
+    die "brief $_sbrief names worker '$(printf '%s' "$_sbadid" | head -1)' under .herdr-fleet/workers/, but is being staged for worker '$_sid' (whose report path is $_sreport) -- fix the brief's contract line, or spawn/assign it to the worker it actually names"
+  fi
+
+  # STAGE VIA A TEMP COPY, not $_sdest directly: injection and the leftover
+  # guard below both need to run against the brief's post-injection content,
+  # so -- unlike the mismatch guard above -- they can't check the source. A
+  # throwaway copy gets the same "a rejected brief is never left sitting at
+  # brief.md looking staged" property instead: only `mv` onto the real
+  # destination once BOTH checks below pass, so a rejected near-miss can
+  # never clobber whatever this worker had staged before it (F-v2-1 --
+  # before this, injection wrote straight onto $_sdest, and a rejected brief
+  # left its half-applied edit sitting there; tests/test-wiring.sh:2117
+  # already asserts this exact property for the sibling guard above).
+  _sstage="$_sdest.staging.$$"
+  cp "$_sbrief" "$_sstage"
+
+  # PLACEHOLDER INJECTION: a brief ending in the literal line
+  # `<completion contract>` gets that line replaced with the fully resolved
+  # sentence, computed from $_sreport right here rather than typed by hand --
+  # so it cannot disagree with what `await` actually watches. Byte-exact on
+  # purpose: this is the only spelling that is ever silently resolved: the
+  # guard below is what catches everything else.
+  if [ "$(tail -n 1 "$_sstage" 2>/dev/null)" = "<completion contract>" ]; then
+    _scontract="write the full report to $_sreport -- what you did, what you ran, results, open questions -- then stop."
+    _sinject="$_sstage.inject"
+    awk -v new="$_scontract" 'NR>1{print prev} {prev=$0} END{print new}' "$_sstage" > "$_sinject" \
+      && mv "$_sinject" "$_sstage"
+  fi
+
+  # UNRESOLVED-PLACEHOLDER GUARD, scoped to the LAST NON-BLANK LINE only: the
+  # injection above only fires on an exact last-line match, so a near-miss
+  # THERE -- wrong case, doubled or tabbed internal whitespace, a stray space
+  # before the closing `>` -- leaves the literal token staged with no error,
+  # and the worker boots with no report path and no signal anything is
+  # wrong. Compared NORMALIZED (case folded, ALL whitespace stripped) rather
+  # than a literal-substring search: a byte-exact/`grep -F` check misses a
+  # doubled space or a swapped-in tab entirely, because the substring
+  # `<completion contract>` no longer literally occurs on that line.
+  #
+  # Deliberately NOT scanning the whole file: a brief that merely MENTIONS
+  # the token in prose earlier on (explaining the feature, or this very
+  # paragraph in agents/orchestrator.md) is not a near-miss contract line and
+  # must stage fine -- only a near-miss occupying the position the exact
+  # token would have to occupy to resolve is an error. A mid-text mention
+  # with no placeholder final line ships as ordinary unresolved prose; that
+  # gap is `await`'s existing no-contract degradation warning's job, not
+  # staging's (F-v2-3).
+  _slastline=$(awk 'NF{n=NR; l=$0} END{print n":"l}' "$_sstage")
+  _slastnum=${_slastline%%:*}
+  _slastnorm=$(printf '%s' "${_slastline#*:}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')
+  if [ "$_slastnorm" = "<completioncontract>" ]; then
+    rm -f "$_sstage"
+    die "brief $_sdest's last non-blank line (line $_slastnum) still contains an unresolved '<completion contract>' placeholder -- only the EXACT literal line \`<completion contract>\` (matching case, no doubled/inserted whitespace, nothing before or after it) is resolved into the report-path sentence at staging; fix that line's spelling/spacing, or write the contract sentence out by hand instead. A mention of the token earlier in the brief is not checked here and does not block staging."
+  fi
+
+  mv "$_sstage" "$_sdest"
+
   if [ -f "$_sreport" ]; then
     _sstale="$_sws/report.stale-$(date -u +%Y%m%d-%H%M%S).md"
     mv "$_sreport" "$_sstale"
@@ -449,6 +558,24 @@ worker_ctx() { # agent -> "NN%" parsed from the pane's visible ctx marker, or "?
   _screen=$("$HERDR" agent read "$1" --source visible --lines 40 --format text 2>/dev/null || true)
   _ctx=$(printf '%s' "$_screen" | grep -oE "$CLAUDE_CTX" | tail -1 | grep -oE '[0-9]+%' || true)
   [ -n "$_ctx" ] && printf '%s\n' "$_ctx" || printf '?\n'
+}
+
+dialog_options() { # agent -> this worker's visible Yes/No dialog options, one "N. text" per line
+  # `|| true` on the pipeline: under this script's set -e, a grep that matches
+  # nothing (the ordinary "no dialog visible" case) would otherwise take the
+  # whole script down with it -- same rule worker_ctx follows above.
+  _dscreen=$("$HERDR" agent read "$1" --source visible --lines 40 --format text 2>/dev/null || true)
+  # STRUCTURAL GATE (issue F1): read once, gate once. A screen with no caret
+  # anywhere is never a real permission dialog -- ordinary prose that merely
+  # starts a line "1. Yes..." fails here and reports as no dialog, rather than
+  # falling through to DIALOG_OPTION_RE below and being misread as one.
+  printf '%s\n' "$_dscreen" | grep -qE "$DIALOG_CARET_RE" || return 0
+  # The caret itself is UI chrome, not part of any option's text -- stripped
+  # here so every caller (approve/approve-always/deny matching, and the
+  # extractors at F4) keeps working on "N. text" alone, same as before this
+  # gate existed.
+  printf '%s\n' "$_dscreen" | grep -E "$DIALOG_OPTION_RE" \
+    | sed 's/^\([[:space:]]*\)❯[[:space:]]*/\1/'
 }
 
 team_peers() { # -> "personaA personaB" per declared edge, one per line, sorted
@@ -501,19 +628,23 @@ grid_slot() { # ws cwd -> "pane_id tab_id" for the next worker's slot
     read -r g_tab g_p0 g_p1 g_n < "$grid_file" || true
   fi
   if [ -n "$g_tab" ] && [ "$g_n" -lt 4 ]; then
-    # SELF-HEAL: about to split against p0 (and p1, once it exists). An
-    # operator closing a pane by hand is one way this state can lie, but it is
-    # not the only one any more: the respawn guard's per-worker pane close and
-    # `cleanup <id>`'s pane close are two more, both routine paths that now
-    # leave a grid tab's root or #2 pane closed while the tab itself stays
-    # open for its other worker(s). Any miss abandons the file rather than
-    # splitting against a pane that is gone, which is a fresh grid tab, not a
-    # wedged spawn.
+    # SELF-HEAL: test only the anchor the upcoming split (below) depends on --
+    # slots 2 & 3 (g_n 0..2, though 0 can't reach here -- see the "no grid
+    # file yet" branch) split p0; slot 4 (g_n 3) splits p1, not p0. A dead
+    # non-anchor pane must NOT disqualify the tab: e.g. a closed p0 with only
+    # slot 4 left is exactly the sparse grid this function's own header
+    # comment above already accepts, not a desync. An operator closing a pane
+    # by hand is one way an anchor can go stale, but it is not the only one
+    # any more: the respawn guard's per-worker pane close and `cleanup <id>`'s
+    # pane close are two more, both routine paths that now leave a grid tab's
+    # root or #2 pane closed while the tab itself stays open for its other
+    # worker(s). Any miss abandons the file rather than splitting against a
+    # pane that is gone, which is a fresh grid tab, not a wedged spawn.
     stale=0
-    "$HERDR" pane get "$g_p0" >/dev/null 2>&1 || stale=1
-    if [ "$stale" -eq 0 ] && [ "$g_n" -ge 2 ]; then
-      "$HERDR" pane get "$g_p1" >/dev/null 2>&1 || stale=1
-    fi
+    case "$g_n" in
+      0|1|2) "$HERDR" pane get "$g_p0" >/dev/null 2>&1 || stale=1 ;;  # slots 2 & 3 split p0
+      3)     "$HERDR" pane get "$g_p1" >/dev/null 2>&1 || stale=1 ;;  # slot 4 splits p1, not p0
+    esac
     if [ "$stale" -eq 1 ]; then
       note "grid tab $g_tab desynced (a recorded pane is gone) -- abandoning it, opening a fresh grid tab"
       g_tab=""
@@ -775,12 +906,14 @@ for spelling in (home, os.path.realpath(home)):
 # check is the enforcement" true for who is talking, not only for which pairs
 # may. `status` takes no from-id argument, so it stays unpinned.
 #
-# CAVEAT: this pin assumes the Claude permission matcher for `Bash(prefix:*)`
-# requires a word boundary after the prefix. If the matcher is actually a
-# bare startsWith, an id that is a string prefix of another (w1 / w10) could
-# let the shorter id grant cross-authorize the longer one -- unverified
-# against the real matcher (checked: offline-only 2026-08-13). Operators can
-# avoid prefix-sharing worker ids if it turns out to matter.
+# CAVEAT: this pin relies on the Claude permission matcher for
+# `Bash(prefix:*)` requiring a word boundary after the prefix, so a shorter
+# id grant cannot cross-authorize a longer one that shares its prefix
+# (w1 / w10) -- word boundary required; `Bash(... tell w1:*)` does NOT match
+# `tell w10` (checked: live-verified 2026-08-13; confirmed via
+# code.claude.com/docs/en/permissions -- ":*" enforces a word boundary, space
+# or end-of-string -- plus a controlled live headless probe; see
+# .herdr-fleet/workers/r19/ for the report).
 if not no_peers:
     allow = perms["allow"]
     for spelling in (home, os.path.realpath(home)):
@@ -1020,6 +1153,57 @@ with open(out, "w", encoding="utf-8") as fh:
     "$HERDR" agent prompt "$agent" "$text" "$@"
     ;;
 
+  respond)
+    [ $# -eq 2 ] || die "respond needs: <id> <approve|approve-always|deny>"
+    id="$1"; intent="$2"
+    case "$intent" in
+      approve|approve-always|deny) ;;
+      *) die "respond needs: <id> <approve|approve-always|deny> (got '$intent')" ;;
+    esac
+    agent=$(resolve_agent "$id")
+    opts=$(dialog_options "$agent")
+    [ -n "$opts" ] || die "respond: pane for $id shows no permission dialog to answer"
+
+    # THE OPTION'S OWN TEXT IS THE CONTRACT, NEVER ITS POSITION (issue #16):
+    # "2" is "don't ask again" in one dialog and "No" in the next, so intent is
+    # matched against what each option actually SAYS.
+    case "$intent" in
+      approve-always)
+        num=$(printf '%s\n' "$opts" | grep -iE "don't ask again" | head -1 \
+              | grep -oE '^[[:space:]]*[0-9]+' | tr -dc '0-9')
+        ;;
+      approve)
+        num=$(printf '%s\n' "$opts" | grep -viE "don't ask again" \
+              | grep -E '^[[:space:]]*[0-9]+\.[[:space:]]*Yes\b' | head -1 \
+              | grep -oE '^[[:space:]]*[0-9]+' | tr -dc '0-9')
+        ;;
+      deny)
+        num=$(printf '%s\n' "$opts" | grep -E '^[[:space:]]*[0-9]+\.[[:space:]]*No\b' | head -1 \
+              | grep -oE '^[[:space:]]*[0-9]+' | tr -dc '0-9')
+        ;;
+    esac
+    [ -n "$num" ] || die "respond: intent '$intent' has no matching option in $id's dialog -- on offer:
+$opts"
+
+    "$HERDR" agent prompt "$agent" "$num" >/dev/null || die "respond: failed to send option $num to $id"
+
+    # CONFIRM, NEVER ASSUME: a send that lands on a dialog which does not
+    # actually clear (a repaint that has not happened yet, a second dialog
+    # behind the first) must not be reported as answered.
+    respond_wait="${FLEET_RESPOND_TIMEOUT:-5}"
+    i=0; cleared=0
+    while : ; do
+      [ -z "$(dialog_options "$agent")" ] && { cleared=1; break; }
+      i=$((i + 1))
+      [ "$i" -ge "$respond_wait" ] && break
+      sleep 1
+    done
+    [ "$cleared" -eq 1 ] \
+      || die "respond: sent option $num ($intent) to $id but its dialog is still visible after ${respond_wait}s"
+
+    echo "responded to $id: $intent -> option $num"
+    ;;
+
   tell)
     # PEER TRANSPORT: `herdr agent prompt`, same as a human steering a worker
     # -- a prompt wakes the peer, where a mailbox would need the peer to poll,
@@ -1086,6 +1270,14 @@ with open(out, "w", encoding="utf-8") as fh:
       # finished, and an orchestrator that cannot tell those apart is not
       # running unattended, it is only pretending to.
       note "worker $id was spawned without --brief: no report contract, falling back to herdr agent wait (settles on blocked as well as done)"
+      # Same ground truth as the contract path below: `agent wait` on a gone
+      # worker surfaces herdr's raw agent_not_found error and exits 1,
+      # indistinguishable from a timeout. Check worker_alive first so a gone
+      # worker gets the standard exit 4 instead.
+      if [ -n "$tab" ] && ! worker_alive "$id"; then
+        note "worker $id is gone (its pane/tab is gone) and left no report -- nothing will ever satisfy this await"
+        exit 4
+      fi
       if [ "$wait_secs" -gt 0 ]; then
         exec "$HERDR" agent wait "$agent" --timeout "$((wait_secs * 1000))"
       fi

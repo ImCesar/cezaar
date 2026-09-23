@@ -4,6 +4,7 @@
       "Bash(git status:*)",
       "Bash(git checkout:*)",
       "Bash(git restore:*)",
+      "Bash(git diff:*)",
       "Bash(perl -0pi:*)",
       "Bash(sed -i:*)"
     ]
