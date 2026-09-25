@@ -8,9 +8,10 @@ validates the result with a second worker that did not write it, and decides —
 by a policy file you control — whether the change is finished or whether it
 needs you. Every worker is a visible pane you can watch or take the wheel of.
 
-This plugin is **two skills and nothing else**. The personas, the team roster,
-the autonomy policy and the wrapper script that talks to Herdr all live in a
-separate repository — the *fleet home* — and the skills load them at
+This plugin is **skills and nothing else**: two entry points, `invoke-team`
+and `invoke-agent`, plus the two old names kept as aliases. The personas, the
+teams, the autonomy policy and the wrapper script that talks to Herdr all live
+in a separate repository — the *fleet home* — and the skills load them at
 invocation. That split is deliberate: a copy bundled into the plugin would be a
 second source of truth that drifts from the first in silence.
 
@@ -52,8 +53,10 @@ claude --plugin-dir /path/to/cezaar/plugins/herdr-fleet
 
 ### The fleet home
 
-Both skills resolve a fleet home before doing anything: **the current directory
-first, then `~/.fleet`.**
+Every skill resolves a fleet home before doing anything: **the current
+directory first, then `~/.fleet`.** A fleet home has `agents/`, `teams/`,
+`artifacts/` and `system/`, the team file `teams/execution.md`, and the
+wrapper `scripts/herdr-fleet.sh`.
 
 **If you have neither, the first invocation installs one.** This plugin ships
 the whole fleet — the six personas, the roster, the triage rules, the wrapper
@@ -83,34 +86,71 @@ A symlink rather than a copy, so there is one roster and not two. The current
 directory winning is deliberate: a checkout you are editing overrides the
 installed one, so a change to a persona can be tried before it is installed.
 
-Each skill **says which home it resolved**, because "which roster answered" is
+Each skill **says which home it resolved**, because "which fleet answered" is
 otherwise invisible — and it will not copy over an existing `~/.fleet` that
 does not qualify. A half-populated fleet home belongs to someone; the skill
 reports what is there and what was missing rather than overwriting it.
+
+**An older fleet home is upgraded, never deleted.** A home with `agents/` and
+the wrapper but no `artifacts/`, `system/` or `teams/execution.md` predates
+the stage teams. (A copy of an earlier seed can have the first two and still
+only `teams/default.md`.) The skill reports it with the fix instead of
+treating it as foreign:
+
+- a git checkout of herdr-fleet: update the checkout (the skill tells you; it
+  does not pull in your repository);
+- a copy of the seed: with your approval, the skill moves the old home aside
+  to `~/.fleet.pre-stage-teams-<timestamp>`, installs the seed fresh, and
+  copies your `memory/` and `outputs/` back into it. A partial copy would
+  leave the new teams running on the old wrapper and personas. The skill
+  lists the files where your old home differed from the seed, because those
+  may be your own edits; carrying any over is yours to do.
 
 ---
 
 ## Use
 
-Two entry points. Both work by their bare name and by the namespaced form:
+Two entry points, and two aliases for the names that came before them:
 
 ```
-/herdr-orchestrate            /herdr-fleet:herdr-orchestrate
-/herdr-architect              /herdr-fleet:herdr-architect
+/herdr-fleet:invoke-team <team> [input]      your session leads a team
+/herdr-fleet:invoke-agent <agent> [input]    one persona, in its own pane
+/herdr-orchestrate    alias: invoke-team execution
+/herdr-architect      alias: invoke-agent architect
 ```
 
-Use the namespaced form when you want to be certain you are addressing *this*
-plugin — see [Gotchas](#gotchas). Invoke either from the repository the work is
-actually about; you do not have to stand in the fleet home.
+The aliases also answer as `/herdr-fleet:herdr-orchestrate` and
+`/herdr-fleet:herdr-architect`. Use the namespaced form when you want to be
+certain you are addressing *this* plugin — see [Gotchas](#gotchas). Invoke any
+of them from the repository the work is actually about; you do not have to
+stand in the fleet home.
 
-**`/herdr-architect`** — for work whose shape is not settled. It designs:
-decomposition, interfaces, data shapes, trade-offs, and how the result will be
-verified. It names one recommendation rather than presenting a menu, marks
-every unverified mechanism as an assumption in the design itself, and has **no
-authority to spawn anyone**. Hand its output to the orchestrator as the plan.
+**`invoke-team <team>`** — your session becomes the lead of
+`teams/<team>.md`, for work you steer over many turns. With no team named it
+lists every team with its `description` and `takes`, and asks. It reads the
+team file, the lead persona, the templates for the team's `takes` and
+`produces`, and every `policy` file the team names, and asks for any input the
+`takes` require. Every wrapper call carries `FLEET_TEAM`, the team file's
+path, so the workers it spawns message each other only over that team's
+`peers:`. On a clean close it writes the team's `produces` artifact where its
+template says and runs `curate`; after an abort it does not curate. It never
+tears the panes down on its own.
 
-**`/herdr-orchestrate`** — for work that should be handled end to end. What it
-does, in order:
+**`invoke-agent <agent>`** — spawns one persona in its own pane, on that
+persona's own model and effort, with a fresh context, while you keep working.
+It fills in a brief from the templates for the persona's `takes`, asking for
+anything missing, waits in the background, and tells you where the persona's
+`produces` artifact is. It refuses a system persona (the curator), and asks
+before spawning when live workers already exist, because until per-run state
+lands all runs share one manifest.
+
+**`/herdr-architect`** is `invoke-agent architect`: design for work whose
+shape is not settled — decomposition, interfaces, data shapes, trade-offs, and
+how the result will be verified.
+
+**`/herdr-orchestrate`** is `invoke-team execution`. The execution team takes
+an `architecture`; for small, clear work, use `invoke-agent builder` with a
+`build-spec` instead. What the execution team does, in order:
 
 1. **Plan.** Subtasks, files touched, and a verification method for each.
    Clarifying questions are asked once, up front, never guessed at mid-flight.
@@ -142,16 +182,20 @@ mode, then judge mode — as two separate sessions.
 Everything below lives in the **fleet home**, not in this plugin. That is where
 you edit; the plugin never needs touching.
 
-### The roster — `agents/*.md`, `teams/default.md`
+### Personas and teams — `agents/*.md`, `teams/*.md`
 
 Each persona is YAML frontmatter plus a system-prompt body: its `kind`, its
-model, its constraints, and whether it has escalation authority.
+model and effort, what it `takes` and `produces`, its constraints, and whether
+it has escalation authority.
 
-**The roster is `teams/default.md`, by that name.** Both skills gate on it and
-read it literally — a second file in `teams/` is checked by `make check` and
-loaded by nothing, so treat that directory as one live file rather than a set
-to choose from. To re-theme the fleet, edit the `display_name` of each member
-in `default.md`, or swap a different roster into that filename.
+**A team is a file in `teams/`, and adding one is dropping a file there.** No
+team file is special: `invoke-team <name>` loads `teams/<name>.md`. A team
+names a `lead`, its `members`, the `takes` and `produces` it promises, and
+optionally `policy` files and `peers` edges. Its lead must declare
+`escalation_authority: orchestrator`, since the lead of the invoked team is
+the point of contact; no persona that leads no team may. `make check` in a
+herdr-fleet checkout says what a new team file is missing. To re-theme a
+team, copy its file under a new name and change the `display_name`s.
 
 ### The autonomy dial — `triage-rules.md`
 
@@ -277,7 +321,7 @@ to a skill file that does not also bump `version` — in both
 sit unpublished on every installed copy while the marketplace clone looks
 current. `claude plugin tag` validates that those two version strings agree.
 
-Note that all of this applies only to the two skill files. The roster in the
+Note that all of this applies only to the skill files. The roster in the
 fleet home is read live at every invocation, so persona and policy edits take
 effect immediately with no update step.
 

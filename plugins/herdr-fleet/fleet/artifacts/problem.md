@@ -9,8 +9,13 @@ written_to: .herdr-fleet/artifacts/{type}/{id}.md
 The issue URL, text, or file this problem came from.
 
 ## Text
-The problem as given, unedited.
+The problem as given, unedited. Anything the operator added in conversation
+goes under its own heading below, not mixed into this.
 
 ## Raised by
 Who raised it — the operator, a linked issue's author, or an earlier
 artifact's open question.
+
+## Added in conversation
+What the operator said about the problem beyond the source, in their words.
+None is a complete answer.

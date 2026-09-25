@@ -1,16 +1,18 @@
 ---
-name: default
-description: Stripped default roster — one orchestrator and five worker roles.
+name: execution
+description: Builds an architecture into reviewed, judged and integrated changes — one orchestrator and six worker roles.
 lead: orchestrator
 members:
-  - persona: architect
-    display_name: Architect
-  - persona: researcher
-    display_name: Researcher
   - persona: builder
     display_name: Builder
   - persona: reviewer
     display_name: Reviewer
+  - persona: judge
+    display_name: Judge
+  - persona: integrator
+    display_name: Integrator
+  - persona: researcher
+    display_name: Researcher
   - persona: runner
     display_name: Runner
 takes: [architecture]
@@ -23,13 +25,14 @@ peers:
   - [builder, reviewer]
 ---
 
-The point of contact is derived, not declared here: `orchestrator` is this
-team's `lead`, and its own persona file carries `escalation_authority:
-orchestrator`, so it is the single point of contact. Every other member is
-`worker` — they receive work and report back, and none of them can spawn
-anyone. The lead is not also listed in `members`; it is a separate field for
-exactly the same reason point of contact is derived rather than declared
-twice.
+The point of contact is the lead of whichever team was invoked, and
+`/herdr-fleet:invoke-team execution` makes the operator's session this team's
+`lead`, `orchestrator`. Leading some team is what `escalation_authority:
+orchestrator` in a persona file means, and `make check-personas` holds the two
+together: every lead declares it and no other persona does. The members
+receive work and report back, and none of them spawns anyone. The lead is not
+also listed in `members`; it is a separate field so the point of contact is
+read from one place rather than declared twice.
 
 **Paths in this file's frontmatter resolve from the repository root**, not from
 `teams/`. `policy: [triage-rules.md]` means `<repo>/triage-rules.md`; there is
@@ -46,11 +49,6 @@ one that silently becomes wrong.
 
 **Memory curation is fleet infrastructure**, handled by `system/curator.md`
 through `herdr-fleet.sh curate`, and teams never name it.
-
-**Reviewer appears once in this roster but is spawned twice** — validate, then
-judge, as two separate sessions. Noted here only because six entries would
-otherwise read as six concurrent roles; the reason and the procedure are in
-`agents/reviewer.md`.
 
 **`peers:` declares which personas may message each other directly**, with
 `herdr-fleet.sh tell`, instead of round-tripping every leg of an iteration
@@ -69,13 +67,14 @@ anything to. The grant is also pinned to each worker's own id, so having the
 command is not having someone else's identity to say it under, either — this
 file's edges answer *which pairs may talk*, the pinned grant answers *who is
 allowed to speak as whom*, and it takes both together to be the enforcement,
-not the edge check alone. It does not reach into the judge pass: `agents/orchestrator.md` spawns the
-judge with `--no-peers`, which skips both the grant and the composed
-instructions regardless of what this file declares, so a persona-level edge
-can never cross the line that keeps validation and judgment in separate,
-uncoordinated contexts. Whether a team wants a second edge (a
-researcher↔builder pair, say) is a decision for whoever assembles that team —
-adding one is a line in this list, not a redesign.
+not the edge check alone. It does not reach the judge:
+`agents/orchestrator.md` spawns `judge` with `--no-peers`, which skips both
+the grant and the composed instructions regardless of what this file
+declares, so a persona-level edge can never cross the line that keeps
+validation and judgment in separate, uncoordinated contexts. Whether a team
+wants a second edge (a researcher↔builder pair, say) is a decision for
+whoever assembles that team — adding one is a line in this list, not a
+redesign.
 
 Roster names are presentation only. A themed team is a second file in this
 directory pointing at the same `persona:` values and the same `policy`,
