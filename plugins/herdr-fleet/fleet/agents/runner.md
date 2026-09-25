@@ -10,7 +10,7 @@ constraints:
   - Reports raw output verbatim, including failures; never summarizes away an error.
   - Stops and reports rather than improvising when a command fails or a path is missing.
   - Takes no destructive or outward-facing action unless the brief names it explicitly.
-model: sonnet
+model: opus
 effort: low
 ---
 

@@ -6,10 +6,12 @@ line in a shared surface is paid for by every worker on every spawn, and a
 builder can never act on any of this. The worker protocol you also carry tells
 you how to write your own log; this tells you what you owe everyone else's.
 
-## Exactly one persona per team may carry the flag
+## Exactly one persona in the fleet may carry the flag
 
-`curates_memory: true` is a claim on a single-writer surface, so a team names
-**exactly one** persona that carries it -- no more, and not zero.
+`curates_memory: true` is a claim on a single-writer surface, so the fleet has
+**exactly one** persona that carries it -- no more, and not zero. It is a
+system persona in `system/`, spawned by `herdr-fleet.sh curate`; no team names
+it.
 
 - **Two carriers is two sessions editing one index.** They would promote,
   merge and prune the same file with no knowledge of each other, and the
@@ -20,7 +22,7 @@ you how to write your own log; this tells you what you owe everyone else's.
   and the failure is invisible until someone asks why an obvious lesson was
   never learned.
 
-A check refuses a team that declares anything other than one, but the rule is
+A check refuses a fleet that declares anything other than one, but the rule is
 here because a check is a poor way to *learn* a constraint -- it should confirm
 what you were told, never be the first place you meet it.
 
