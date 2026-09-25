@@ -8,6 +8,9 @@ Changes from the source, and nothing else:
   3. Dropped "(per user-level CLAUDE.md)" from the hard no-push rule — a
      citation that dangles once this is installed somewhere else. The rule
      stands on its own text.
+  4. AUTO-PASS rule 1 and the finding ESCALATE trigger now read against
+     review-bar.md's verdict and blocking findings (cezaar#52, approved by
+     the operator 2026-09-24).
 Policy content is otherwise byte-identical.
 -->
 
@@ -16,7 +19,7 @@ Policy content is otherwise byte-identical.
 *The editable policy knob. The orchestrator applies these after validation. Tighten or loosen as trust builds — this file is the line between "the human never sees it" and "the human decides."*
 
 ## AUTO-PASS (finish without asking) — ALL must hold
-1. **Validation green** — a reviewer ran real verification in validate mode, and a second, fresh-context reviewer in judge mode confirmed zero findings (or all findings refuted).
+1. **Validation green** — a reviewer ran real verification in validate mode, and either its verdict is APPROVE, or every blocking finding was fixed, or downgraded or refuted by a second, fresh-context reviewer in judge mode.
 2. **No sensitive paths touched** — see list below.
 3. **Bounded blast radius** — change is localized (one module/area); no public API contract, schema, or config-format changes.
 4. **No judgment calls made** — the plan was followed as written; the worker didn't have to invent product/design decisions mid-flight.
@@ -26,7 +29,7 @@ Typical auto-pass work: docs, typos, comments, formatting, test-only changes, sm
 
 ## ESCALATE (brief + wait) — ANY triggers
 - Touches a **sensitive path**: auth/authz, payments/billing, data migration or deletion, secrets/keys, CI/CD pipelines, public API contracts, anything security-adjacent. **"Touches" includes shared infrastructure those flows pass through** (HTTP clients, middleware, serializers, base classes) — a change to the pipe counts as a change to what flows through it, even if validation came back green.
-- **Confirmed or surviving-uncertain finding** from the validation chain.
+- **An upheld blocking finding that wasn't fixed** from the validation chain. Notes never escalate by themselves.
 - **Large or cross-cutting** change (many modules, shared interfaces, dependency major-bumps).
 - Worker or orchestrator had to make a **product/design judgment** the plan didn't cover — including **behavioral policy defaults** (what to retry/cache/timeout/rate-limit, what errors to swallow). Standard-engineering-practice defaults still count: the user gets to veto policy, not just bugs.
 - Anything **irreversible or outward-facing**: git push, PRs, publishing, external service calls, destructive ops.

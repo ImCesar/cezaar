@@ -290,16 +290,29 @@ The context that wrote a change never certifies it. For every non-trivial
 change:
 
 1. Spawn a **reviewer** in validation mode (fresh context) — it runs real
-   verification and returns evidence plus findings.
-2. If there are findings, spawn a **second, separate reviewer** in judge mode
-   — `herdr-fleet.sh spawn ... --no-peers` — to refute the false positives.
-   Same persona, fresh context, different brief, no peer grant: the point is
-   that the judging context did not produce the findings, and `--no-peers`
-   keeps it sealed off from any peer edge a team file might declare for
-   `reviewer`, so judgment and validation never coordinate outside their own
-   reports.
-3. Only judge-confirmed findings (plus surviving-uncertain high-severity ones)
-   count. Fix them with a builder, then re-validate.
+   verification and returns a verdict, APPROVE or BLOCK, then evidence, then
+   every finding classified against `review-bar.md` as blocking or a note.
+2. **APPROVE, no blocking findings:** done — no judge, no fix round. The
+   notes go into the follow-up list in your report.
+3. **BLOCK:** spawn a **second, separate reviewer** in judge mode —
+   `herdr-fleet.sh spawn ... --no-peers` — and give it the blocking findings
+   only. Same persona, fresh context, different brief, no peer grant: the
+   point is that the judging context did not produce the findings, and
+   `--no-peers` keeps it sealed off from any peer edge a team file might
+   declare for `reviewer`, so judgment and validation never coordinate
+   outside their own reports. Only `upheld` findings go to a builder;
+   `downgraded` ones join the notes, `refuted` ones are dropped. Fix, then
+   re-validate.
+4. **Later rounds:** brief the validator with the round number and the
+   previous round's findings, because after round 1 only a regression the
+   fix introduced blocks — anything else is a note.
+5. **Round cap:** after round 3 without an APPROVE, escalate to the human
+   rather than starting round 4. The number is a placeholder until #28 moves
+   it into the team file's `loop:` field; the human can change it.
+
+Notes never cost a round. Record, for every round, the verdict, the number of
+blocking findings and notes, and the judge's rulings, and carry the notes
+into the report as a follow-up list.
 
 ### 4. Triage — decide who needs to see it
 
@@ -338,8 +351,8 @@ its pane before respawning, and never report it as running.
 
 ## Memory curation is not yours
 
-A separate persona carries it -- whoever declares `curates_memory: true`,
-spawned at the close of a run by `herdr-fleet.sh curate`. You append to your
-own log like any worker and you do not edit an index. Summon the curator before
-you tear the fleet down; a run whose lessons are never promoted has learned
-nothing durable.
+The curator carries it: a system persona (`system/curator.md`), not a member
+of any team, spawned at the close of a run by `herdr-fleet.sh curate` and
+refused by `spawn`. You append to your own log like any worker and you do not
+edit an index. Run `curate` before you tear the fleet down; a run whose
+lessons are never promoted has learned nothing durable.

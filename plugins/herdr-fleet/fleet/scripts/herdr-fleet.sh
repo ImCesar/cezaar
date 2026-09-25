@@ -16,6 +16,8 @@
 #           low|medium|high|xhigh|max, or spawn dies naming them. Not passed
 #           at all when the model (the persona's, or --model's override) is
 #           the alias haiku, which has no effort setting.
+#           Refuses a system persona (system/*.md) -- those are fleet
+#           infrastructure, started only by their own verb (curate).
 #   herdr-fleet.sh assign <id> --brief <file>
 #           re-tasks an idle worker in place instead of respawning it -- same
 #           premature-await guard as spawn (stage_brief). Refuses, with no way
@@ -55,8 +57,9 @@
 #           a custom status line without a context readout is enough to cause.
 #   herdr-fleet.sh curate  [<id>] [--persona <file>] [--cwd <dir>] [--brief <file>]
 #                          [-- <extra claude args>...]
-#           spawns the one persona declaring `curates_memory: true` against a
-#           brief naming this run's workers. Run it BEFORE cleanup --all.
+#           spawns the one system/ persona declaring `curates_memory: true`
+#           against a brief naming this run's workers. Run it BEFORE
+#           cleanup --all.
 #   herdr-fleet.sh cleanup <id> | --all
 #
 # v1 is kind: claude only. A persona declaring any other kind is refused rather
@@ -836,6 +839,25 @@ case "$cmd" in
     cwd=$(CDPATH='' cd -- "$cwd" && pwd)
     persona=$(CDPATH='' cd -- "$(dirname -- "$persona")" && pwd)/$(basename -- "$persona")
 
+    # SYSTEM PERSONAS ARE NOT WORKERS (cezaar#43). system/ holds fleet
+    # infrastructure -- today the curator -- and each one has its own verb,
+    # because that verb is where its preconditions live: `curate` counts the
+    # carriers and writes the run's brief, and a bare spawn of the curator
+    # would skip both. Checked on physical paths, since ~/.fleet is normally a
+    # symlink to a checkout and a logical path would miss the match. The
+    # override is an environment variable rather than a flag on purpose: it is
+    # curate's own handshake with this arm, not part of the interface.
+    _pdir=$(CDPATH='' cd -P -- "$(dirname -- "$persona")" && pwd -P)
+    for _sys in "$FLEET_HOME/system" "$here/../system"; do
+      [ -d "$_sys" ] || continue
+      _sys=$(CDPATH='' cd -P -- "$_sys" && pwd -P)
+      case "$_pdir/" in
+        "$_sys"/*)
+          [ "${HERDR_FLEET_VIA_CURATE:-}" = 1 ] \
+            || die "$persona is a system persona (fleet infrastructure, never a worker) -- start it with '$0 curate', not spawn" ;;
+      esac
+    done
+
     kind=$(persona_field "$persona" kind)
     [ -n "$kind" ] || kind="claude"
     [ "$kind" = "claude" ] || die "persona $persona declares kind: $kind -- v1 supports kind: claude only"
@@ -882,8 +904,9 @@ case "$cmd" in
     # shared surface is paid for by every worker on every spawn, and a builder
     # can never act on a curation duty -- so the duties live in their own file
     # and reach exactly the persona whose frontmatter claims them. The flag is
-    # the same field check_personas.py asserts exactly one team member carries;
-    # this composition and that check read one field, not two conventions.
+    # the same field check_personas.py asserts exactly one system/ persona
+    # carries; this composition and that check read one field, not two
+    # conventions.
     _proto="$here/../memory-protocol.md"
     _curation="$here/../memory-curation.md"
 
@@ -1543,7 +1566,7 @@ $opts"
       # sitting in there, and `set -- $carriers` would hand a persona path to
       # claude as a flag while losing the caller's arguments entirely.
       carriers=""; n_carriers=0; persona=""
-      for f in "$here"/../agents/*.md; do
+      for f in "$here"/../system/*.md; do
         [ -f "$f" ] || continue
         if [ "$(persona_field "$f" curates_memory)" = "true" ]; then
           persona="$f"; n_carriers=$((n_carriers + 1)); carriers="$carriers
@@ -1551,7 +1574,7 @@ $opts"
         fi
       done
       [ "$n_carriers" -eq 1 ] \
-        || die "expected exactly 1 persona under $here/../agents declaring curates_memory: true, found $n_carriers${carriers}"
+        || die "expected exactly 1 system persona under $here/../system declaring curates_memory: true, found $n_carriers${carriers}"
     fi
 
     # The brief names where the logs are, because the curator arrives with no
@@ -1590,10 +1613,12 @@ $opts"
 
     # `--` is re-supplied because this parser consumed the caller's: without
     # it spawn reads the extras as its OWN options and dies on the first one.
+    # HERDR_FLEET_VIA_CURATE is what lets that spawn start a system persona;
+    # set on these two commands only, so it never outlives this verb.
     if [ $# -gt 0 ]; then
-      "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" -- "$@" || exit $?
+      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" -- "$@" || exit $?
     else
-      "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" || exit $?
+      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" || exit $?
     fi
     # Recorded only after the spawn succeeded, so cleanup's note tells the
     # truth about whether a pass actually started.
@@ -1760,13 +1785,13 @@ $opts"
     ;;
 
   ""|-h|--help|help)
-    # 48 is the last line of await's exit-code table, NOT of the Usage
+    # 50 is the last line of await's exit-code table, NOT of the Usage
     # block above (which runs well past it, through cleanup) -- --help has
     # deliberately printed only through that table since before cezaar#41,
     # and this range still needs widening if a line is added ahead of it,
-    # same trap cezaar#41 hit once. The pre-existing truncation past line 48
-    # is a separate, known gap (out of scope here).
-    sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
+    # same trap cezaar#41 hit once and cezaar#43 hit again. The truncation
+    # past line 50 is a separate, known gap (out of scope here).
+    sed -n '2,50p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
   *)
