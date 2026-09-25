@@ -4,14 +4,25 @@
 #
 # Usage:
 #   herdr-fleet.sh preflight
+#           also warns about overrides that beat a spawned worker's effort
+#           level: CLAUDE_CODE_EFFORT_LEVEL in the environment or in
+#           ~/.claude/settings.json's env block, and settings.json's
+#           maxEffortLevel cap. Warnings, not errors.
 #   herdr-fleet.sh spawn <id> <persona-file> [--brief <file>] [--cwd <dir>]
-#                        [--model <m>] [--label <text>] [--timeout <ms>]
-#                        [--trust-cwd] [--no-peers] [--own-tab] [-- <extra claude args>...]
+#                        [--model <m>] [--effort <level>] [--label <text>]
+#                        [--timeout <ms>] [--trust-cwd] [--no-peers] [--own-tab]
+#                        [-- <extra claude args>...]
+#           --effort overrides the persona's effort: <level> against
+#           low|medium|high|xhigh|max, or spawn dies naming them. Not passed
+#           at all when the model (the persona's, or --model's override) is
+#           the alias haiku, which has no effort setting.
 #   herdr-fleet.sh assign <id> --brief <file>
 #           re-tasks an idle worker in place instead of respawning it -- same
 #           premature-await guard as spawn (stage_brief). Refuses, with no way
 #           to override, if the worker is `working`, or if its tab is gone
-#           ("gone -- spawn instead").
+#           ("gone -- spawn instead"). Effort is fixed at spawn time -- assign
+#           never changes it; a live session keeps the level it was spawned
+#           with, even across many assigns.
 #   herdr-fleet.sh prompt <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
 #   herdr-fleet.sh respond <id> <approve|approve-always|deny>
 #           answers a worker's visible Claude permission dialog by INTENT, not
@@ -243,6 +254,32 @@ for key in sys.argv[1:]:
     else:
         sys.exit(0)
 print(node if not isinstance(node, (dict, list)) else json.dumps(node))
+' "$@"
+}
+
+# claude_settings_field <path> <key>... -- a value out of a Claude Code
+# settings.json-shaped file, or nothing if the file, the key path, or the
+# value itself is missing/empty. Same shape as jget, reading a file instead
+# of stdin, because preflight below checks the OPERATOR's settings.json on
+# disk, not a herdr command's response.
+claude_settings_field() {
+  [ -f "$1" ] || return 0
+  need_python
+  python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        data = json.load(fh)
+except (OSError, ValueError):
+    sys.exit(0)
+node = data
+for key in sys.argv[2:]:
+    if isinstance(node, dict) and key in node:
+        node = node[key]
+    else:
+        sys.exit(0)
+if node not in (None, ""):
+    print(node if not isinstance(node, (dict, list)) else json.dumps(node))
 ' "$@"
 }
 
@@ -738,17 +775,53 @@ case "$cmd" in
     command -v "$HERDR" >/dev/null 2>&1 || die "herdr not found on PATH (set HERDR_BIN)"
     "$HERDR" pane list >/dev/null 2>&1 || die "herdr socket unreachable -- is the server running? (herdr status)"
     echo "ok: herdr reachable, fleet home $FLEET_HOME"
+
+    # EFFORT OVERRIDES: warnings, not errors -- CLAUDE_CODE_EFFORT_LEVEL beats
+    # --effort in Claude Code (code.claude.com/docs/en/model-config), so a
+    # spawn's own effort is silently ignored while it is set, and the operator
+    # decides whether to unset it, not this script.
+    #
+    # Checked in THIS process's environment. Verified against a live spawn
+    # (issue #41 item 4): a worker pane is a child of the herdr SERVER
+    # process, never of whatever shell ran `spawn`/`preflight` -- ps ancestry
+    # on a real pane showed its shell's parent chain going straight to `herdr
+    # server`, with no trace of the invoking shell at all, and a variable
+    # exported in that shell moments before spawning did not reach the pane.
+    # So this warning is exact only when herdr server's own environment
+    # matches this one (freshly started from it, or not since diverged).
+    # herdr exposes no command to read a running server's environment, and
+    # this script does not reach into another process's environment to find
+    # one -- see the builder report for issue #41 for the open question this
+    # leaves.
+    if [ -n "${CLAUDE_CODE_EFFORT_LEVEL:-}" ]; then
+      note "warn: CLAUDE_CODE_EFFORT_LEVEL=$CLAUDE_CODE_EFFORT_LEVEL is set in this environment -- it overrides every persona's effort"
+    fi
+    claude_settings="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+    env_effort=$(claude_settings_field "$claude_settings" env CLAUDE_CODE_EFFORT_LEVEL)
+    if [ -n "$env_effort" ]; then
+      note "warn: $claude_settings sets env.CLAUDE_CODE_EFFORT_LEVEL=$env_effort -- it overrides every persona's effort"
+    fi
+    max_effort=$(claude_settings_field "$claude_settings" maxEffortLevel)
+    # LAST STATEMENT IN THIS ARM, deliberately an `if`: there is no trailing
+    # `exit 0` at the end of this script's case, so whatever this arm's last
+    # command returns becomes preflight's own exit status. A bare `test &&
+    # note` here would make preflight exit 1 on the all-clear case (nothing to
+    # warn about) -- the exact opposite of "ok".
+    if [ -n "$max_effort" ]; then
+      note "warn: $claude_settings caps maxEffortLevel at $max_effort"
+    fi
     ;;
 
   spawn)
     [ $# -ge 2 ] || die "spawn needs: <id> <persona-file> [options] [-- extra claude args]"
     id="$1"; persona="$2"; shift 2
-    cwd="$FLEET_HOME"; model=""; label=""; timeout="60000"; trust=0; brief=""; no_peers=0; own_tab=0
+    cwd="$FLEET_HOME"; model=""; effort=""; label=""; timeout="60000"; trust=0; brief=""; no_peers=0; own_tab=0
     while [ $# -gt 0 ]; do
       case "$1" in
         --brief)   [ $# -ge 2 ] || die "--brief needs a path"; brief="$2"; shift 2 ;;
         --cwd)     [ $# -ge 2 ] || die "--cwd needs a path";  cwd="$2"; shift 2 ;;
         --model)   [ $# -ge 2 ] || die "--model needs a value"; model="$2"; shift 2 ;;
+        --effort)  [ $# -ge 2 ] || die "--effort needs a value"; effort="$2"; shift 2 ;;
         --label)   [ $# -ge 2 ] || die "--label needs a value"; label="$2"; shift 2 ;;
         --timeout) [ $# -ge 2 ] || die "--timeout needs ms";   timeout="$2"; shift 2 ;;
         --trust-cwd) trust=1; shift ;;
@@ -767,6 +840,21 @@ case "$cmd" in
     [ -n "$kind" ] || kind="claude"
     [ "$kind" = "claude" ] || die "persona $persona declares kind: $kind -- v1 supports kind: claude only"
     [ -n "$model" ] || model=$(persona_field "$persona" model)
+    [ -n "$effort" ] || effort=$(persona_field "$persona" effort)
+    # Validated here, not just by check_personas.py: this line sees every
+    # persona a spawn can ever name -- fixtures, one-off files, a persona
+    # nobody has run `make check` on yet -- and an --effort override never
+    # goes through check_personas.py at all. Claude Code's five levels, per
+    # code.claude.com/docs/en/model-config.
+    case "$effort" in
+      ""|low|medium|high|xhigh|max) ;;
+      *) die "invalid effort level '$effort' -- valid levels: low medium high xhigh max" ;;
+    esac
+    # HAIKU HAS NO EFFORT SETTING, and Claude Code sends none for it -- passing
+    # --effort anyway would not be wrong so much as meaningless, and the
+    # manifest below must match the argv actually sent, not the level a
+    # persona happened to name.
+    [ "$model" = "haiku" ] && effort=""
     # ENTRY AGENTS GET THEIR OWN TAB, DERIVED FROM A FIELD THAT ALREADY EXISTS.
     # `escalation_authority: orchestrator` already means "the point of contact"
     # everywhere else in this repo (teams/default.md), so reusing it here avoids
@@ -1027,6 +1115,9 @@ with open(out, "w", encoding="utf-8") as fh:
     "$HERDR" pane rename "$pane" "$id" >/dev/null 2>&1 || note "could not rename pane $pane to $id"
 
     set -- "$@"
+    if [ -n "$effort" ]; then
+      set -- --effort "$effort" "$@"
+    fi
     if [ -n "$model" ]; then
       set -- --model "$model" "$@"
     fi
@@ -1099,7 +1190,8 @@ with open(out, "w", encoding="utf-8") as fh:
     log_manifest id="$id" agent="$agent" pane_id="$pane" tab_id="$tab" \
       workspace_id="$ws" persona="$persona" cwd="$cwd" brief="${brief:-}" \
       report="${report_file:-}" stamp="${stamp_file:-}" \
-      settings="${worker_settings:-}" status="$status_row"
+      settings="${worker_settings:-}" status="$status_row" \
+      model="$model" effort="$effort"
 
     if [ "${blocked:-0}" -eq 1 ]; then
       note "worker $id is waiting on Claude's trust-folder prompt for $cwd"
@@ -1163,11 +1255,18 @@ with open(out, "w", encoding="utf-8") as fh:
     worker_state="$STATE/workers/$id"
     report_file="$worker_state/report.md"
     stamp_file="$STATE/$id.spawn-stamp"
+    # MODEL AND EFFORT CARRY FORWARD UNCHANGED: assign re-tasks the same live
+    # session, and a live session keeps the level it was spawned with -- there
+    # is no new "$HERDR" agent start here to pass a different one to. Every
+    # manifest row is a full snapshot (see log_manifest above), so leaving
+    # these out would make manifest_field's "last row wins" lose them after
+    # the first assign.
     log_manifest id="$id" agent="$agent" pane_id="$(manifest_field "$id" pane_id)" \
       tab_id="$tab" workspace_id="$(manifest_field "$id" workspace_id)" \
       persona="$(manifest_field "$id" persona)" cwd="$(manifest_field "$id" cwd)" \
       brief="$brief" report="$report_file" stamp="$stamp_file" \
-      settings="$(manifest_field "$id" settings)" status=assigned
+      settings="$(manifest_field "$id" settings)" status=assigned \
+      model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
 
     "$HERDR" agent prompt "$agent" \
       "Read $worker_state/brief.md and execute it exactly, including its completion contract." \
@@ -1546,7 +1645,8 @@ $opts"
                      brief="$(manifest_field "$id" brief)" \
                      report="$(manifest_field "$id" report)" \
                      stamp="$(manifest_field "$id" stamp)" \
-                     settings="$(manifest_field "$id" settings)" status=cleaned
+                     settings="$(manifest_field "$id" settings)" status=cleaned \
+                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
         continue
       fi
       "$HERDR" tab close "$tab" >/dev/null 2>&1 || true
@@ -1564,7 +1664,8 @@ $opts"
                      brief="$(manifest_field "$id" brief)" \
                      report="$(manifest_field "$id" report)" \
                      stamp="$(manifest_field "$id" stamp)" \
-                     settings="$(manifest_field "$id" settings)" status=cleaned
+                     settings="$(manifest_field "$id" settings)" status=cleaned \
+                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
       fi
     done
     if [ "${1:-}" = "--all" ]; then
@@ -1659,7 +1760,13 @@ $opts"
     ;;
 
   ""|-h|--help|help)
-    sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'
+    # 48 is the last line of await's exit-code table, NOT of the Usage
+    # block above (which runs well past it, through cleanup) -- --help has
+    # deliberately printed only through that table since before cezaar#41,
+    # and this range still needs widening if a line is added ahead of it,
+    # same trap cezaar#41 hit once. The pre-existing truncation past line 48
+    # is a separate, known gap (out of scope here).
+    sed -n '2,48p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
   *)

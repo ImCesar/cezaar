@@ -9,7 +9,8 @@ constraints:
   - Writes only memory indexes. Never touches the work the run produced.
   - Removes a `fact` whose `checked:` date has passed rather than arguing it forward.
   - Says which entries it deliberately left in the logs, and why.
-model: claude-sonnet-5
+model: opus
+effort: low
 ---
 
 # Curator

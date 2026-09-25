@@ -1,10 +1,8 @@
 ---
 name: default
 description: Stripped default roster — one orchestrator, five worker roles, and the curator that promotes what they learned.
-triage_rules: triage-rules.md
+lead: orchestrator
 members:
-  - persona: orchestrator
-    display_name: Orchestrator
   - persona: architect
     display_name: Architect
   - persona: researcher
@@ -17,19 +15,29 @@ members:
     display_name: Curator
   - persona: runner
     display_name: Runner
+takes: [architecture]
+produces: [execution-report]
+policy: [triage-rules.md]
+# Reserved for #28 (in-team builder/reviewer loop). Empty until that issue
+# gives it a shape.
+loop: {}
 peers:
   - [builder, reviewer]
 ---
 
 The point of contact is derived, not declared here: `orchestrator` is this
-team's single point of contact because its own persona file carries
-`escalation_authority: orchestrator`. Every other member is `worker` — they
-receive work and report back, and none of them can spawn anyone.
+team's `lead`, and its own persona file carries `escalation_authority:
+orchestrator`, so it is the single point of contact. Every other member is
+`worker` — they receive work and report back, and none of them can spawn
+anyone. The lead is not also listed in `members`; it is a separate field for
+exactly the same reason point of contact is derived rather than declared
+twice.
 
 **Paths in this file's frontmatter resolve from the repository root**, not from
-`teams/`. `triage_rules: triage-rules.md` means `<repo>/triage-rules.md`; there
-is no `teams/triage-rules.md` and a loader that looks for a sibling will not
-find one.
+`teams/`. `policy: [triage-rules.md]` means `<repo>/triage-rules.md`; there is
+no `teams/triage-rules.md` and a loader that looks for a sibling will not find
+one. `policy` is optional — a team with none names an empty list or omits the
+field.
 
 **Concurrency and isolation live in `agents/orchestrator.md`, not here.** The
 worker cap and the worktree requirement are the orchestrator's rules, because
@@ -79,6 +87,6 @@ researcher↔builder pair, say) is a decision for whoever assembles that team �
 adding one is a line in this list, not a redesign.
 
 Roster names are presentation only. A themed team is a second file in this
-directory pointing at the same `persona:` values and the same `triage_rules`,
+directory pointing at the same `persona:` values and the same `policy`,
 differing only in `display_name` — a skin over one manifest, not a second
 mechanism.
