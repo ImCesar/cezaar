@@ -63,42 +63,38 @@ that matches how it was made:
   succeeds; on the operator's machine `~/.fleet` is a symlink to one): the fix
   is to update the checkout. Tell the operator; it is their repository, so do
   not pull or merge in it yourself.
-- **Copied from the seed** (not a git checkout): the fix is to copy in only
-  the seeded files it is missing. List them first, and list the files that
-  exist but differ from the seed, which stay as they are:
+- **Copied from the seed** (not a git checkout): the fix is a fresh
+  install beside the old home, not a patch into it. Copying only the missing
+  files would leave the new teams running on the old wrapper, personas and
+  templates, a mixed home that works for nobody.
+
+  First check that this plugin's seed is new enough: it must have
+  `artifacts/`, `system/` and `teams/execution.md`. If it doesn't, say that
+  this plugin's seed is older than this skill, and stop.
+
+  Then say exactly what will happen and **get the operator's approval before
+  doing anything**:
+  1. The old home is **moved aside**, never deleted, to
+     `<home>.pre-stage-teams-<UTC timestamp>`.
+  2. The seed is copied fresh to `<home>`.
+  3. The operator's own state is copied back from the old home, if present:
+     `memory/` (the fleet's learned lessons) and `outputs/` (stage outputs).
+     Nothing under `.herdr-fleet/` is copied back: that is a finished run's
+     bookkeeping, and it stays in the moved-aside home.
 
   ```sh
   seed="<plugin>/fleet"; home="<home>"
-  (cd "$seed" && find . -type f) | while read -r f; do
-    if [ ! -e "$home/$f" ]; then echo "missing: $f"
-    elif ! cmp -s "$seed/$f" "$home/$f"; then echo "differs, left alone: $f"; fi
+  old="$home.pre-stage-teams-$(date -u +%Y%m%dT%H%M%SZ)"
+  mv "$home" "$old" && cp -R "$seed" "$home" || exit 1
+  for d in memory outputs; do
+    [ -d "$old/$d" ] && cp -Rp "$old/$d" "$home/$d"
   done
   ```
 
-  **Get the operator's approval before copying anything.** Then copy only the
-  missing ones, never overwriting:
-
-  ```sh
-  seed="<plugin>/fleet"; home="<home>"
-  (cd "$seed" && find . -type f) | while read -r f; do
-    [ -e "$home/$f" ] && continue
-    mkdir -p "$(dirname "$home/$f")" && cp -p "$seed/$f" "$home/$f"
-  done
-  ```
-
-  Report what was added, and name the files that differ: those are the
-  operator's edits or an older copy, and deciding between them is theirs.
-
-  Say plainly what this copy does not fix. **The wrapper is not upgraded**:
-  if `scripts/herdr-fleet.sh` is listed as differing, the home still runs
-  its old wrapper, which may not know the new teams (an older one falls back
-  to `teams/default.md` for `tell`'s peers). **Old files stay**: a
-  `teams/default.md` the seed no longer ships is left in place and still
-  lists as a team named `default`. Replacing or removing either is the
-  operator's call, never yours. And if the missing list does not include
-  every one of `artifacts/`, `system/` and `teams/execution.md` that the
-  home lacks, the seed cannot finish the upgrade: say that this plugin's
-  seed is older than this skill, and stop.
+  Then report where the old home now is, and list the files that differed
+  between it and the seed (its agents, teams or wrapper), because those may
+  be the operator's own edits: carrying any of them over is their call,
+  never yours.
 
 ### No fleet home at all: install the seed
 
