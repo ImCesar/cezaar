@@ -42,8 +42,22 @@ weren't chosen, detail a builder doesn't need.
 
 ## After the first round
 
-Only regressions block: a problem the fix itself introduced that meets the
-bar above. Anything else found in a later round is a note.
+A blocking finding from an earlier round that hasn't been fixed stays
+blocking until it is. The round rule is about what a later round may add,
+not a way to close what an earlier round found.
+
+Among new findings, only regressions block: a problem the fix itself
+introduced that meets the bar above. Anything else first found in a later
+round, including something an earlier round missed, is a note.
+
+## When a blocking finding can't be settled
+
+If a judge can neither demonstrate a blocking finding nor refute it, it is
+downgraded to a note: the bar asks for a concrete failure scenario, and one
+nobody can show has not met it. The exception is a security or data-loss
+finding. That one is upheld, marked uncertain, and escalated to the operator
+instead of going to a builder, because a real one is worth the operator's
+minute.
 
 ## Notes
 

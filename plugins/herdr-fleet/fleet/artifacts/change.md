@@ -12,7 +12,12 @@ written_to: .herdr-fleet/artifacts/{type}/{id}.md
 ## Commits
 
 ## Built against
-Which build-spec this change implements.
+Which build-spec this change implements. For an integrated change, which
+changes it merged and the system-architecture it merged them against.
+
+## Merges
+Integrated changes only: each merge in order, the part it brought in, and
+every conflict with the contract clause that resolved it.
 
 ## Verification
 The commands run and their output.

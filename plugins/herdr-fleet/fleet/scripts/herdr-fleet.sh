@@ -22,9 +22,17 @@
 #           re-tasks an idle worker in place instead of respawning it -- same
 #           premature-await guard as spawn (stage_brief). Refuses, with no way
 #           to override, if the worker is `working`, or if its tab is gone
-#           ("gone -- spawn instead"). Effort is fixed at spawn time -- assign
-#           never changes it; a live session keeps the level it was spawned
-#           with, even across many assigns.
+#           ("gone -- spawn instead"). assign never changes effort -- a live
+#           session keeps its level across many assigns, unless `effort`
+#           below changes it.
+#   herdr-fleet.sh effort <id> <low|medium|high|xhigh|max>
+#           changes an idle worker's effort for that session only, through
+#           the /effort slider's `s` key -- never the bare `/effort <level>`,
+#           which also saves the level as the operator's own default in
+#           ~/.claude/settings.json. Succeeds only when the pane shows "Set
+#           effort level to <level> (this session only)", and records the new
+#           level in the worker's manifest row. Refuses any other level, a
+#           working worker, and a gone one.
 #   herdr-fleet.sh prompt <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
 #   herdr-fleet.sh respond <id> <approve|approve-always|deny>
 #           answers a worker's visible Claude permission dialog by INTENT, not
@@ -41,8 +49,8 @@
 #           real dialog and gets answered blind -- see DIALOG_CARET_RE above.
 #   herdr-fleet.sh tell   <from-id> <to-id-or-persona> "<text>"
 #           delivers a peer message between two workers whose personas share a
-#           declared edge in the team file (teams/default.md's `peers:`, or
-#           $FLEET_TEAM) -- refused otherwise.
+#           declared edge in the `peers:` of the team file $FLEET_TEAM names --
+#           refused otherwise, and refused outright when FLEET_TEAM is unset.
 #   herdr-fleet.sh await  <id> [--timeout <seconds>]
 #           exit 0  the worker's report.md is written and settled; path on stdout
 #           exit 1  timed out (only reachable with --timeout)
@@ -650,9 +658,12 @@ dialog_options() { # agent -> this worker's visible Yes/No dialog options, one "
 team_peers() { # -> "personaA personaB" per declared edge, one per line, sorted
   # A small awk parser over the team file's `peers:` frontmatter block --
   # nothing more elaborate is needed for a handful of `- [a, b]` lines.
-  # Defaults to $FLEET_HOME/teams/default.md; FLEET_TEAM overrides.
-  _team="${FLEET_TEAM:-$FLEET_HOME/teams/default.md}"
-  [ -f "$_team" ] || return 0
+  # Reads $FLEET_TEAM and nothing else (cezaar#44): no team file is special,
+  # so with none in effect there are no edges, rather than some default
+  # team's edges applied to a run that never invoked it. `tell` refuses that
+  # case outright before it gets here.
+  _team="${FLEET_TEAM:-}"
+  [ -n "$_team" ] && [ -f "$_team" ] || return 0
   awk '
     NR==1 && $0=="---" {fm=1; next}
     fm==1 && $0=="---" {exit}
@@ -858,6 +869,21 @@ case "$cmd" in
       esac
     done
 
+    # THE TEAM IN EFFECT TRAVELS WITH THE WORKER (cezaar#44). `tell` runs in
+    # the worker's own shell, and a pane is a child of the herdr server, never
+    # of whatever shell ran this spawn -- so a FLEET_TEAM the lead exported
+    # does not reach it. Measured for #44: neither the server's environment
+    # nor a worker's claude process carried FLEET_TEAM. It is resolved to an
+    # absolute path here, recorded in the manifest row, and handed to claude
+    # through the worker's settings `env` below. Checked before anything is
+    # written: a FLEET_TEAM naming no file would otherwise start a worker
+    # with no edges and no word about why.
+    team_file=""
+    if [ -n "${FLEET_TEAM:-}" ]; then
+      [ -f "$FLEET_TEAM" ] || die "FLEET_TEAM names $FLEET_TEAM, which is not a file"
+      team_file=$(CDPATH='' cd -- "$(dirname -- "$FLEET_TEAM")" && pwd)/$(basename -- "$FLEET_TEAM")
+    fi
+
     kind=$(persona_field "$persona" kind)
     [ -n "$kind" ] || kind="claude"
     [ "$kind" = "claude" ] || die "persona $persona declares kind: $kind -- v1 supports kind: claude only"
@@ -879,7 +905,7 @@ case "$cmd" in
     [ "$model" = "haiku" ] && effort=""
     # ENTRY AGENTS GET THEIR OWN TAB, DERIVED FROM A FIELD THAT ALREADY EXISTS.
     # `escalation_authority: orchestrator` already means "the point of contact"
-    # everywhere else in this repo (teams/default.md), so reusing it here avoids
+    # everywhere else in this repo (a team's lead), so reusing it here avoids
     # inventing a second notion of rank just for tab layout. --own-tab covers
     # anyone else who needs the same treatment; curate does not pass it, so the
     # curator (escalation_authority: worker) takes a grid slot like any worker.
@@ -1017,7 +1043,7 @@ Two rules, in spirit as much as in words:
     need_python
     python3 -c '
 import json, os, sys
-tmpl, out, home, sharp, no_peers, wid = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1", sys.argv[5] == "1", sys.argv[6]
+tmpl, out, home, sharp, no_peers, wid, team = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1", sys.argv[5] == "1", sys.argv[6], sys.argv[7]
 try:
     data = json.load(open(tmpl, encoding="utf-8"))
 except (OSError, ValueError):
@@ -1029,6 +1055,27 @@ dirs = perms.setdefault("additionalDirectories", [])
 for spelling in (home, os.path.realpath(home)):
     if spelling not in dirs:
         dirs.append(spelling)
+# FLEET-HOME ARTIFACT WRITES, NEVER GATED ON THE OPERATOR PERMISSION MODE. A
+# stage artifact is written to outputs/ or .herdr-fleet/artifacts/ under the
+# fleet home, and additionalDirectories above only lets a worker READ there:
+# without these, every such write asks unless the operator happens to run in
+# acceptEdits, and an unattended run stalls on a prompt nobody sees. Not gated
+# on own_worktree either, for the same reason the directory grant is not --
+# these trees are the fleet home, never the operator checkout.
+#
+# Edit(...) rules, deliberately not Write(...): Claude Code checks file
+# permissions against Edit and Read rules only, an Edit rule covers every
+# built-in tool that edits files (Write among them), and a Write(path) rule is
+# accepted but never consulted (code.claude.com/docs/en/permissions, Claude
+# Code v2.1.210 or later). The leading // is what makes the path absolute: a
+# single leading / anchors at the settings source, not the filesystem root.
+# Both spellings, same reason as the directory grant.
+allow = perms["allow"]
+for spelling in (home, os.path.realpath(home)):
+    for sub in ("outputs", ".herdr-fleet/artifacts"):
+        rule = "Edit(/%s/%s/**)" % (spelling, sub)
+        if rule not in allow:
+            allow.append(rule)
 # TELL/STATUS GRANTS, ALONGSIDE THE DIRECTORY GRANT AND LIKE IT NEVER GATED ON
 # own_worktree: messaging a peer or reading fleet status mutates no tree, so
 # the reviewer-first-rule reason for withholding "allow" from a shared
@@ -1063,10 +1110,19 @@ if not no_peers:
         status_grant = "Bash(%s/scripts/herdr-fleet.sh status:*)" % spelling
         if status_grant not in allow:
             allow.append(status_grant)
+# THE TEAM IN EFFECT, AS THE WORKER SESSION ENVIRONMENT. Claude Code applies a
+# settings file env block to the session, so every command the worker runs --
+# its own tell among them -- reads the team that was in effect at spawn. Not
+# gated on no_peers: which team a worker belongs to is a fact about the run,
+# and without the tell grant a sealed worker has nothing to use it for.
+if team:
+    env = data.get("env") if isinstance(data.get("env"), dict) else {}
+    env["FLEET_TEAM"] = team
+    data["env"] = env
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(data, fh, indent=2)
     fh.write("\n")
-' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" "$no_peers" "$id" \
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" "$no_peers" "$id" "$team_file" \
       || die "could not compose worker permissions for $id"
 
     # DELEGATION STATE lives under the FLEET HOME, not the worker's own cwd --
@@ -1214,7 +1270,7 @@ with open(out, "w", encoding="utf-8") as fh:
       workspace_id="$ws" persona="$persona" cwd="$cwd" brief="${brief:-}" \
       report="${report_file:-}" stamp="${stamp_file:-}" \
       settings="${worker_settings:-}" status="$status_row" \
-      model="$model" effort="$effort"
+      model="$model" effort="$effort" team="$team_file"
 
     if [ "${blocked:-0}" -eq 1 ]; then
       note "worker $id is waiting on Claude's trust-folder prompt for $cwd"
@@ -1289,12 +1345,151 @@ with open(out, "w", encoding="utf-8") as fh:
       persona="$(manifest_field "$id" persona)" cwd="$(manifest_field "$id" cwd)" \
       brief="$brief" report="$report_file" stamp="$stamp_file" \
       settings="$(manifest_field "$id" settings)" status=assigned \
-      model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
+      model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
+      team="$(manifest_field "$id" team)"
 
     "$HERDR" agent prompt "$agent" \
       "Read $worker_state/brief.md and execute it exactly, including its completion contract." \
       >/dev/null || die "assign staged the brief but the kickoff prompt failed; brief is at $worker_state/brief.md"
     echo "assigned $id -> $worker_state/brief.md (report expected at $report_file)"
+    ;;
+
+  effort)
+    # SESSION-ONLY, NEVER THE BARE SLASH COMMAND. `/effort <level>` typed into
+    # a worker changes that worker, and also saves the level as effortLevel in
+    # the operator's ~/.claude/settings.json -- every fix round would quietly
+    # rewrite the operator's own default. `/effort` with no argument opens a
+    # slider instead, and its `s` key applies the level to that session only
+    # (cezaar#28, verified 2026-09-25 against Claude Code 2.1.282: the
+    # transcript's effort changed, settings.json kept its sha and mtime).
+    #
+    # Keys go through `pane send-text`/`send-keys` rather than `prompt`:
+    # `prompt` with its wait flag exits 1 on a slash command even when it
+    # lands, because nothing turns working/idle for herdr to observe. The pane
+    # showing the confirmation line is what success means here, and the only
+    # thing. Key names measured against herdr 0.8.0 on a scratch pane echoing
+    # raw bytes: send-text is raw bytes (no bracketed paste), and send-keys
+    # sends enter as CR, left/right as ESC[D/ESC[C, and `s` as `s`.
+    [ $# -eq 2 ] || die "effort needs: <id> <low|medium|high|xhigh|max>"
+    id="$1"; level="$2"
+    # RIGHT PRESSES FROM `low`, NEVER MORE THAN 4: the stop right of `max` is
+    # `ultracode`, which is not an effort level this wrapper sets. The count
+    # comes from this table and nowhere else, so no input can reach a fifth.
+    case "$level" in
+      low) rights=0 ;;
+      medium) rights=1 ;;
+      high) rights=2 ;;
+      xhigh) rights=3 ;;
+      max) rights=4 ;;
+      *) die "invalid effort level '$level' -- valid levels: low medium high xhigh max" ;;
+    esac
+
+    agent=$(resolve_agent "$id")
+    tab=$(manifest_field "$id" tab_id)
+    pane=$(manifest_field "$id" pane_id)
+    if [ -z "$tab" ] || [ -z "$pane" ] || ! worker_alive "$id"; then
+      die "worker $id is gone -- there is no session to change"
+    fi
+    # Same rule as assign: keys typed into a worker mid-turn land in its
+    # input, and one sitting on a dialog would have the dialog answer them.
+    # `done` is a finished turn waiting at the prompt, the state a builder is
+    # in when its report has just come back.
+    [ "$(manifest_field "$id" status)" = "blocked-on-trust" ] \
+      && die "worker $id is blocked on Claude's trust prompt -- effort changes only an idle worker"
+    state=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
+    case "$state" in
+      idle|done) ;;
+      *) die "worker $id is ${state:-in an unknown state} -- effort changes only an idle worker (wait for it to finish)" ;;
+    esac
+
+    effort_wait="${FLEET_EFFORT_TIMEOUT:-10}"   # seconds, per wait below
+    confirm="Set effort level to $level (this session only)"
+    # A LINE ALREADY ON SCREEN IS NOT THIS CHANGE'S. A worker raised to high
+    # once still shows that confirmation in its scrollback, so success is the
+    # count going UP, read the same way before and after. A line scrolling out
+    # of the window meanwhile can only hide a success, never invent one.
+    #
+    # THE SLIDER GETS THE SAME TREATMENT, for the same reason: a worker's
+    # last message can quote the footer verbatim (a builder reporting on this
+    # very verb does), so a footer already on screen says nothing about a
+    # slider. A slider THIS call opened is one that adds a footer line to the
+    # count taken before `/effort` was sent; until it does, no Left, Right or
+    # `s` is sent.
+    #
+    # WHAT COUNTS AS A FOOTER LINE IS NARROW ON PURPOSE. The window is a
+    # fixed 400-line tail, so opening the slider pushes as many lines off its
+    # top as it adds at the bottom; any counted line in that band cancels the
+    # rise, and the verb would report a slider that did open as one that did
+    # not. So only a line that BEGINS with the footer's own opening, after
+    # nothing but whitespace, counts -- never a phrase inside a sentence, nor
+    # a footer quoted inline. The beginning and not the whole line, because a
+    # grid-slot pane (~39 columns) wraps or truncates the footer, and its
+    # first line still starts this way. Not covered: a message line that
+    # starts with the footer itself, sitting in the band that scrolls off --
+    # a false failure (exit 1, nothing typed), never a blind key -- and any
+    # chrome a real Claude might draw before the footer on its line, which
+    # nobody has measured (cezaar#28 describes the footer as plain text).
+    pane_text() { "$HERDR" pane read "$pane" --source recent --lines 400 --format text 2>/dev/null || true; }
+    confirmations() { pane_text | grep -cF "$confirm" || true; }
+    slider_lines() { pane_text | grep -cE '^[[:space:]]*←/→ to adjust' || true; }
+    menu_open() { [ "$(slider_lines)" -gt "$slider_before" ]; }
+    before=$(confirmations)
+    slider_before=$(slider_lines)
+
+    "$HERDR" pane send-text "$pane" "/effort" >/dev/null || die "effort: could not type /effort into $id's pane"
+    "$HERDR" pane send-keys "$pane" enter >/dev/null || die "effort: could not send enter to $id's pane"
+    i=0
+    until menu_open; do
+      i=$((i + 1))
+      if [ "$i" -gt "$effort_wait" ]; then
+        # One esc closes a slider that is open but was not recognised; on an
+        # idle prompt with nothing typed it does nothing.
+        "$HERDR" pane send-keys "$pane" esc >/dev/null 2>&1 || true
+        note "effort: $id's pane never showed the /effort slider within ${effort_wait}s; it showed:"
+        pane_text | tail -n 15 | sed 's/^/    /' >&2
+        die "effort: $id was not changed (sent esc to close anything left open)"
+      fi
+      sleep 1
+    done
+    # Left 7 times clamps to `low` from any starting level, so the count of
+    # Right presses below never depends on where the slider started.
+    i=0
+    while [ "$i" -lt 7 ]; do
+      "$HERDR" pane send-keys "$pane" left >/dev/null || die "effort: could not send left to $id's pane"
+      i=$((i + 1))
+    done
+    i=0
+    while [ "$i" -lt "$rights" ]; do
+      "$HERDR" pane send-keys "$pane" right >/dev/null || die "effort: could not send right to $id's pane"
+      i=$((i + 1))
+    done
+    "$HERDR" pane send-keys "$pane" s >/dev/null || die "effort: could not send s to $id's pane"
+
+    i=0
+    until [ "$(confirmations)" -gt "$before" ]; do
+      i=$((i + 1))
+      if [ "$i" -gt "$effort_wait" ]; then
+        if menu_open; then
+          "$HERDR" pane send-keys "$pane" esc >/dev/null 2>&1 || true
+          note "effort: the slider was still open -- sent esc to close it"
+        fi
+        note "effort: $id's pane never showed \"$confirm\" within ${effort_wait}s; it showed:"
+        pane_text | tail -n 15 | sed 's/^/    /' >&2
+        die "effort: $id was not confirmed at $level -- the manifest keeps its previous effort"
+      fi
+      sleep 1
+    done
+
+    # The manifest is what status, assign and cleanup read, and every row is a
+    # full snapshot, so everything else carries forward unchanged.
+    log_manifest id="$id" agent="$agent" pane_id="$pane" tab_id="$tab" \
+      workspace_id="$(manifest_field "$id" workspace_id)" \
+      persona="$(manifest_field "$id" persona)" cwd="$(manifest_field "$id" cwd)" \
+      brief="$(manifest_field "$id" brief)" report="$(manifest_field "$id" report)" \
+      stamp="$(manifest_field "$id" stamp)" settings="$(manifest_field "$id" settings)" \
+      status="$(manifest_field "$id" status)" model="$(manifest_field "$id" model)" \
+      effort="$level" team="$(manifest_field "$id" team)"
+    echo "effort for $id set to $level (this session only)"
     ;;
 
   prompt|steer)
@@ -1389,8 +1584,17 @@ $opts"
     fi
     [ -n "$to_persona" ] || die "could not resolve $to_id's persona from $MANIFEST"
 
+    # NO TEAM, NO EDGES, AND SAID SO (cezaar#44). The team in effect reaches
+    # a worker's shell only through FLEET_TEAM, which spawn writes into the
+    # worker's launch settings; a pane never inherits it from whoever ran
+    # spawn, because panes are children of the herdr server. Refusing here,
+    # rather than falling back to some default team, keeps a missing team
+    # from reading as an ordinary undeclared edge.
+    [ -n "${FLEET_TEAM:-}" ] \
+      || die "no team is in effect (FLEET_TEAM is not set) -- a peer edge comes from the invoked team's file, and there is none to read"
+    [ -f "$FLEET_TEAM" ] || die "FLEET_TEAM names $FLEET_TEAM, which is not a file"
     peers_declared "$from_persona" "$to_persona" \
-      || die "no declared peer edge between $from_persona and $to_persona (see ${FLEET_TEAM:-$FLEET_HOME/teams/default.md} 'peers:')"
+      || die "no declared peer edge between $from_persona and $to_persona (see $FLEET_TEAM 'peers:')"
 
     # PROVENANCE IS NON-NEGOTIABLE: a bare injected prompt is indistinguishable
     # from the human, and a worker must never mistake a peer for the operator.
@@ -1671,7 +1875,8 @@ $opts"
                      report="$(manifest_field "$id" report)" \
                      stamp="$(manifest_field "$id" stamp)" \
                      settings="$(manifest_field "$id" settings)" status=cleaned \
-                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
+                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
+                     team="$(manifest_field "$id" team)"
         continue
       fi
       "$HERDR" tab close "$tab" >/dev/null 2>&1 || true
@@ -1690,7 +1895,8 @@ $opts"
                      report="$(manifest_field "$id" report)" \
                      stamp="$(manifest_field "$id" stamp)" \
                      settings="$(manifest_field "$id" settings)" status=cleaned \
-                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)"
+                     model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
+                     team="$(manifest_field "$id" team)"
       fi
     done
     if [ "${1:-}" = "--all" ]; then
@@ -1785,13 +1991,14 @@ $opts"
     ;;
 
   ""|-h|--help|help)
-    # 50 is the last line of await's exit-code table, NOT of the Usage
+    # 58 is the last line of await's exit-code table, NOT of the Usage
     # block above (which runs well past it, through cleanup) -- --help has
     # deliberately printed only through that table since before cezaar#41,
     # and this range still needs widening if a line is added ahead of it,
-    # same trap cezaar#41 hit once and cezaar#43 hit again. The truncation
-    # past line 50 is a separate, known gap (out of scope here).
-    sed -n '2,50p' "$0" | sed 's/^# \{0,1\}//'
+    # same trap cezaar#41 hit once, cezaar#43 hit again, and the `effort`
+    # verb's usage block (8 lines) hit a third time. The truncation past
+    # line 58 is a separate, known gap (out of scope here).
+    sed -n '2,58p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
   *)

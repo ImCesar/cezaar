@@ -10,10 +10,15 @@ One entry per **blocking** finding from the findings artifact; notes are not
 judged.
 
 ### <n>. <the finding, one sentence>
-- **Ruling:** upheld | downgraded | refuted
+- **Ruling:** upheld | upheld, uncertain | downgraded | refuted
   - `upheld` — real, and meets the bar;
-  - `downgraded` — real, but below the bar, so it becomes a note;
+  - `upheld, uncertain` — a security or data-loss finding that could be
+    neither demonstrated nor refuted; it goes to the operator, not a builder;
+  - `downgraded` — real but below the bar, or unsettled and not security or
+    data loss; either way it becomes a note;
   - `refuted` — not real.
+- **Would settle it:** only for `upheld, uncertain` — the check that would
+  decide it
 - **Bar clause:** the clause of `review-bar.md` the ruling turns on
 - **Code read:** file:line, and what it shows
 - **Reproduced:** no, or what was run and why — only when the evidence was
