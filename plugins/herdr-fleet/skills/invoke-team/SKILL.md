@@ -22,12 +22,14 @@ at cache locations.
 ## 1. Find the fleet home: cwd first, then `~/.fleet`, else install the seed
 
 A fleet home has the directories `agents/`, `teams/`, `artifacts/` and
-`system/`, and the wrapper `scripts/herdr-fleet.sh`:
+`system/`, the team file `teams/execution.md`, and the wrapper
+`scripts/herdr-fleet.sh`:
 
 ```sh
 for d in . ~/.fleet; do
   if [ -d "$d/agents" ] && [ -d "$d/teams" ] && [ -d "$d/artifacts" ] \
-     && [ -d "$d/system" ] && [ -f "$d/scripts/herdr-fleet.sh" ]; then
+     && [ -d "$d/system" ] && [ -f "$d/teams/execution.md" ] \
+     && [ -f "$d/scripts/herdr-fleet.sh" ]; then
     echo "fleet home: $(cd "$d" && pwd)"; break
   fi
 done
@@ -44,14 +46,18 @@ overrides the installed one: that is how a change to a team is tried before it
 is installed. `~/.fleet` is normally a symlink to a herdr-fleet checkout.
 
 The check is on contents rather than a directory's name, because a name can be
-right while the contents are not.
+right while the contents are not. `teams/execution.md` is in it because a home
+copied from an earlier seed can already have `artifacts/` and `system/` while
+its only team is still `teams/default.md`, and `/herdr-orchestrate` forwards
+to the `execution` team.
 
 ### An older fleet home is upgraded, not replaced
 
 If a candidate has `agents/` and `scripts/herdr-fleet.sh` but lacks
-`artifacts/` or `system/`, it is a fleet home from before stage teams, not a
-foreign directory. Do not carry on with it and do not install over it. Say
-which directories are missing, then give the fix that matches how it was made:
+`artifacts/`, `system/` or `teams/execution.md`, it is a fleet home from
+before stage teams, not a foreign directory. Do not carry on with it and do
+not install over it. Say which of the three are missing, then give the fix
+that matches how it was made:
 
 - **A git checkout of herdr-fleet** (`git -C <home> rev-parse --show-toplevel`
   succeeds; on the operator's machine `~/.fleet` is a symlink to one): the fix
@@ -82,6 +88,17 @@ which directories are missing, then give the fix that matches how it was made:
 
   Report what was added, and name the files that differ: those are the
   operator's edits or an older copy, and deciding between them is theirs.
+
+  Say plainly what this copy does not fix. **The wrapper is not upgraded**:
+  if `scripts/herdr-fleet.sh` is listed as differing, the home still runs
+  its old wrapper, which may not know the new teams (an older one falls back
+  to `teams/default.md` for `tell`'s peers). **Old files stay**: a
+  `teams/default.md` the seed no longer ships is left in place and still
+  lists as a team named `default`. Replacing or removing either is the
+  operator's call, never yours. And if the missing list does not include
+  every one of `artifacts/`, `system/` and `teams/execution.md` that the
+  home lacks, the seed cannot finish the upgrade: say that this plugin's
+  seed is older than this skill, and stop.
 
 ### No fleet home at all: install the seed
 

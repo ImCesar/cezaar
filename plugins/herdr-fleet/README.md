@@ -55,7 +55,8 @@ claude --plugin-dir /path/to/cezaar/plugins/herdr-fleet
 
 Every skill resolves a fleet home before doing anything: **the current
 directory first, then `~/.fleet`.** A fleet home has `agents/`, `teams/`,
-`artifacts/` and `system/`, and the wrapper `scripts/herdr-fleet.sh`.
+`artifacts/` and `system/`, the team file `teams/execution.md`, and the
+wrapper `scripts/herdr-fleet.sh`.
 
 **If you have neither, the first invocation installs one.** This plugin ships
 the whole fleet — the six personas, the roster, the triage rules, the wrapper
@@ -91,14 +92,19 @@ does not qualify. A half-populated fleet home belongs to someone; the skill
 reports what is there and what was missing rather than overwriting it.
 
 **An older fleet home is upgraded, not replaced.** A home with `agents/` and
-the wrapper but no `artifacts/` or `system/` predates the stage teams. The
-skill reports it with the fix instead of treating it as foreign:
+the wrapper but no `artifacts/`, `system/` or `teams/execution.md` predates
+the stage teams. (A copy of an earlier seed can have the first two and still
+only `teams/default.md`.) The skill reports it with the fix instead of
+treating it as foreign:
 
 - a git checkout of herdr-fleet: update the checkout (the skill tells you; it
   does not pull in your repository);
 - a copy of the seed: with your approval, the skill copies in only the seeded
   files that are missing, never overwriting, lists what it added, and names
-  the files that differ from the seed so you can decide about them.
+  the files that differ from the seed so you can decide about them. That
+  includes the wrapper: the copy keeps your old `scripts/herdr-fleet.sh`,
+  and an old `teams/default.md` stays too, so replacing either is yours to
+  do.
 
 ---
 
