@@ -118,8 +118,9 @@ nothing is coming.
 Write each brief by filling in the templates the persona `takes`, with
 absolute paths to earlier workers' artifacts. Tell each worker where its own
 artifact goes: its template's `written_to`, resolved from the fleet home,
-with `{type}` the artifact type and `{id}` that worker's id. End every brief
-with the completion contract line `<completion contract>`.
+with `{type}` the artifact type, `{id}` that worker's id and `{run}` the run
+id in `FLEET_RUN`. End every brief with the completion contract line
+`<completion contract>`.
 
 ## Working alone
 

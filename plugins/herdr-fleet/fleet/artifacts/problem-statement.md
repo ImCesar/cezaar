@@ -1,8 +1,7 @@
 ---
 name: problem-statement
 description: The problem restated with who it affects, constraints, and checkable acceptance criteria. Read by whoever ideates and evaluates solutions.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Problem

@@ -1,8 +1,7 @@
 ---
 name: solution-recommendation
 description: Every option scored against the acceptance criteria, and the one to build. Read by whoever writes the solution design.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Inputs

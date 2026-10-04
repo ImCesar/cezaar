@@ -1,8 +1,7 @@
 ---
 name: findings
 description: A reviewer's verdict, then every finding classified against review-bar.md as blocking or a note. Read by a judge, or by whoever fixes them.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Verdict

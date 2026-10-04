@@ -102,6 +102,8 @@ running the real server rather than reading its docs.
 
 ```
 herdr-fleet.sh preflight
+herdr-fleet.sh run start [--label <text>] [--cwd <dir>]
+herdr-fleet.sh runs
 herdr-fleet.sh spawn   <id> <persona-file> [--brief <file>] [--cwd <dir>]
                        [--model <m>] [--effort <level>] [--label <text>]
                        [--timeout <ms>] [--trust-cwd] [--no-peers] [--own-tab]
@@ -112,7 +114,7 @@ herdr-fleet.sh prompt  <id> "<text>" [--wait] [--until <state>] [--timeout <ms>]
 herdr-fleet.sh tell    <from-id> <to-id-or-persona> "<text>"
 herdr-fleet.sh await   <id> [--timeout <seconds>]
 herdr-fleet.sh read    <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
-herdr-fleet.sh status
+herdr-fleet.sh status [--all-runs]
 herdr-fleet.sh cleanup <id> | --all
 ```
 
@@ -215,8 +217,10 @@ rule governs regardless of which verb started the worker.
 
 **Bookkeeping root — defined once, here.** Briefs, reports, persona bodies and
 the manifest live under `$FLEET_HOME/.herdr-fleet/` — the fleet home, not any
-worker's own tree: `$FLEET_HOME/.herdr-fleet/workers/<id>/brief.md`,
-`$FLEET_HOME/.herdr-fleet/workers/<id>/report.md`. Everything below says "the
+worker's own tree: `$FLEET_HOME/.herdr-fleet/runs/$FLEET_RUN/workers/<id>/brief.md`,
+`$FLEET_HOME/.herdr-fleet/runs/$FLEET_RUN/workers/<id>/report.md`.
+`$FLEET_RUN` is the id `run start` printed when the skill began this run; it
+travels on every wrapper call beside `FLEET_TEAM`. Everything below says "the
 bookkeeping root" instead of repeating the name, because the wiring script
 writes into the same tree and this is the contract they share. Change it in
 this paragraph and nowhere else.
@@ -242,9 +246,11 @@ through waves and the integration branch, nowhere else.
 don't resolve anything below.** Follow-up work, including fix rounds after
 review, goes back to that worker via `assign` — the reuse rule above. If it's
 busy, wait. If it's gone, a replacement takes over the tree. `status`'s CWD
-column shows which tree each live worker owns; `git worktree list` maps that
-tree to its branch. Never spawn a second writer into a tree a live worker
-owns.
+column shows which tree each live worker owns; `status --all-runs` shows the
+other runs' too, and `spawn` warns when a `--cwd` is a tree a live worker of
+another run owns; a writer there is still never spawned. `git worktree list`
+maps that tree to its branch. Never spawn a second writer into a tree a live
+worker owns.
 
 No live owner — resolve in this order, and stop at the first match:
 
@@ -314,7 +320,7 @@ yourself; that is the pattern `--brief` replaced.
 when it does this; that warning means the run is no longer unattended.
 
 **Every brief must end with its completion contract**, in those words: write
-the full report to `$FLEET_HOME/.herdr-fleet/workers/<id>/report.md` — what
+the full report to `$FLEET_HOME/.herdr-fleet/runs/$FLEET_RUN/workers/<id>/report.md` — what
 you did, what you ran, results, open questions — then stop. `await` waits on
 precisely that file, so a brief missing that sentence produces a worker that
 finishes and an `await` that never returns.
@@ -334,7 +340,7 @@ the closing `>` — is not resolved silently: staging dies naming the brief
 and the line, rather than shipping a worker whose contract line is still the
 literal placeholder. Staging also warns on stderr (not dies) when the staged
 brief contains, nowhere in it, the literal full absolute report path
-`$FLEET_HOME/.herdr-fleet/workers/<id>/report.md` — in whatever surrounding
+`$FLEET_HOME/.herdr-fleet/runs/$FLEET_RUN/workers/<id>/report.md` — in whatever surrounding
 wording, but that exact path — that gap is exactly what left an earlier
 `curate`-generated brief with no contract at all, and `await` waiting on it
 forever with no signal.
