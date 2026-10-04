@@ -36,17 +36,29 @@ The agent is `<home>/agents/<agent>.md`.
   `invoke-team` at the close of a clean run.
 - If neither exists, say so and list `<home>/agents/*.md`.
 
-## 3. Check for live workers first
+## 3. Start the run
 
-Until per-run state lands (#23), every run shares one manifest, so a persona
-spawned here sits beside any team run already in progress, and that run's
-`cleanup --all` or `curate` would sweep it up too.
+Per-run state landed with cezaar#23: every run has its own directory under
+`<home>/.herdr-fleet/runs/<id>/`, with its own manifest. A persona spawned
+here gets its own run, so a team run's `cleanup --all` or `curate` never
+reaches it, and it never reaches theirs. Mint the run once, before anything
+else:
 
 ```sh
-sh "<home>/scripts/herdr-fleet.sh" status
+sh "<home>/scripts/herdr-fleet.sh" \
+  run start --label "<work>" --cwd <repo-the-work-concerns>
 ```
 
-If any worker in it is live, **say so, name them, and ask** before spawning.
+`--label` is the work's name, from the invocation's input; with nothing
+better, leave it out and the repository's basename is used. `--cwd` is the
+repository the work concerns. The id is printed alone on stdout. **Say it to
+the operator.** Every later call carries `FLEET_RUN=<id>`, written into the
+command, since shell state does not survive between your commands; without
+it every later verb refuses and lists the live runs. Below, `<id>` means
+that id.
+
+If the operator asks what else is running, `sh "<home>/scripts/herdr-fleet.sh"
+status --all-runs` shows every run's workers, and needs no `FLEET_RUN`.
 
 ## 4. Read the persona, then write the brief
 
@@ -61,8 +73,9 @@ invent it. Then:
 
 - tell the persona where to write its `produces` artifact: the template's
   `written_to`, resolved from `<home>`, with `{type}` the artifact type,
-  `{id}` the worker id you pick below and `{slug}` a short name for the work,
-  unless the operator named another location;
+  `{id}` the worker id you pick below, `{slug}` a short name for the work and
+  `{run}` the run id `run start` printed, unless the operator named another
+  location;
 - **end the brief with the literal line `<completion contract>`**, alone, as
   its final line. `spawn --brief` resolves it into the report-path sentence
   `await` waits on. A brief without it produces a worker that finishes and an
@@ -70,13 +83,15 @@ invent it. Then:
   rule, under "Every brief must end with its completion contract".
 
 Pick a worker id that is not already in the manifest, such as
-`<agent>-<slug>`. Write the brief to a file in your scratchpad.
+`<agent>-<slug>`; below it is `<worker-id>`. Write the brief to a file in
+your scratchpad.
 
 ## 5. Spawn it
 
 ```sh
-sh "<home>/scripts/herdr-fleet.sh" spawn <id> "<home>/agents/<agent>.md" \
-  --brief <brief-file> --cwd <repo-the-work-concerns>
+FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" spawn <worker-id> \
+  "<home>/agents/<agent>.md" --brief <brief-file> \
+  --cwd <repo-the-work-concerns>
 ```
 
 Model and effort come from the persona. Add `--model` or `--effort` only if
@@ -91,7 +106,7 @@ peers to `tell`.
 ## 6. Wait in the background
 
 ```sh
-sh "<home>/scripts/herdr-fleet.sh" await <id>
+FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" await <worker-id>
 ```
 
 Run it as a background command, so the operator's session stays free while
@@ -100,7 +115,7 @@ contract:
 
 - `0`: the report is written. Its path is on stdout.
 - `3`: the worker is blocked, waiting on input. Tell the operator and show the
-  pane (`read <id>`); it is not finished.
+  pane (`FLEET_RUN=<id> ... read <worker-id>`); it is not finished.
 - `4`: the worker is gone and left no report.
 
 ## 7. Report
@@ -109,9 +124,11 @@ Read the worker's report and tell the operator where the persona's `produces`
 artifact is, with a short summary of what it says, and anything the report
 lists as open.
 
-**Do not curate.** The persona appended what it learned to
-`<home>/memory/<agent>/decisions.md`, which persists across runs. Curation
-happens at the close of a team run, and its brief names the personas of the
-workers in the manifest at that moment, so this log is covered while this
-worker is still listed there. Do not run `cleanup` either: the pane stays
-until the operator says so.
+**Do not curate, and do not clean up.** The persona appended what it learned
+to `<home>/memory/<agent>/decisions.md`, which persists across runs. Curation
+happens at the close of a team run; its brief lists every persona's log with
+entries since the last curation pass, so this worker's lessons are named to
+the next curator whichever run spawns it. The pane and this run's state stay
+until the operator says so:
+`FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" cleanup --all` archives
+this run only. `runs` shows it meanwhile.
