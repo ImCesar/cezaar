@@ -1,8 +1,7 @@
 ---
 name: system-architecture
 description: The whole system a change lands in — boundaries, data and control flows, feedback loops, failure behaviour, the decisions made now and the options kept open — and its parts, their contracts and build order. Read by each component architect and the architecture reviewer.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Solution design

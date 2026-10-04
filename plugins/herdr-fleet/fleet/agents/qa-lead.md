@@ -118,8 +118,9 @@ Each persona's `model:` and `effort:` come from its file, so do not override
 them. Write each brief by filling in the templates the persona `takes`, with
 absolute paths to the stage inputs. Tell each worker where its own artifact
 goes: its template's `written_to`, resolved from the fleet home, with
-`{type}` the artifact type and `{id}` that worker's id. End every brief with
-the completion contract line `<completion contract>`.
+`{type}` the artifact type, `{id}` that worker's id and `{run}` the run id in
+`FLEET_RUN`. End every brief with the completion contract line
+`<completion contract>`.
 
 **Always await with `--timeout`** (seconds on `await`, unlike `spawn`),
 sized to the job: longer for a tester that runs the suite than for a judge.

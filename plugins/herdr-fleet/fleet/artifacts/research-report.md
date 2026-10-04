@@ -1,8 +1,7 @@
 ---
 name: research-report
 description: A cited answer to a question, with its search scope and any hypotheses labelled as such. Read by whoever asked.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Answer
