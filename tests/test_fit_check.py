@@ -150,3 +150,22 @@ def test_svg_text_at_floor_passes():
         '<text x="10" y="30" style="font-size:12">half</text></svg>')
     findings, _ = fit_check.check(html)
     assert findings == []
+
+
+def _with_callouts(n):
+    notes = "".join(f'<div class="callout risk">note {i}</div>' for i in range(n))
+    return GOOD.replace('<p class="t3">fine print</p>', notes)
+
+
+def test_counts_callouts_on_cli():
+    r = run(_with_callouts(8))
+    assert r.returncode == 0
+    assert "callouts: 8" in r.stdout.splitlines()
+
+
+def test_flags_more_than_eight_callouts():
+    findings, _ = fit_check.check(_with_callouts(9))
+    assert "callouts: 9 exceeds 8" in findings
+    r = run(_with_callouts(9))
+    assert r.returncode == 1
+    assert "callouts: 9" in r.stdout.splitlines()

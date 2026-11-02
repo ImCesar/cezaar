@@ -49,9 +49,9 @@ Not for: status reports, slide decks, dashboards, API references.
    Either way every label, number, leader line, card and legend is HTML or
    SVG over the picture, never inside it.
 4. **Hang the words off the picture, in three tiers.** Tier one reads
-   across the room: title, big labels, legend. Tier two at arm's length:
-   callouts tied to the picture by leader lines or shared numbers, cards
-   with one anatomy. Tier three is fine print: parameters in small
+   across the room: the title and the big labels on the depiction. Tier
+   two at arm's length: callouts tied to the picture by leader lines or
+   shared numbers, cards with one anatomy. Tier three is fine print: parameters in small
    italics, formulas in a monospace box. SVG font sizes are in viewBox
    units: at 100 per inch the floor is 8.4. Anything that would need a
    fourth tier comes off the page. Draw time and difficulty (a ruler, dividers,
@@ -83,6 +83,9 @@ A finished page has, and a reader can point to each:
 - **required:** each callout and card carries an italic story line, roman
   rule text and a small italic parameter line, where the design has them.
   Callouts and cards set in one register fail this item;
+- **required:** a depiction covering at least half the surface; margin
+  text at 11 pt or less; at most eight callouts, each pointing at the
+  depiction; at most three card sets;
 - time and difficulty drawn, where the design has them;
 - one surface: no links, tabs, collapsed, hidden or hover-only content;
 - a size in inches on the poster, and print CSS to match;
@@ -94,11 +97,13 @@ fine print below 6 pt.
 
 ### The margin budget
 
-The depiction and its tier-one labels take the larger part of the surface.
-Every callout points at one spot on the depiction. A fact that cannot be
-pointed to is a card in a set or comes off the page. The eye has one
-entry point: the title, then the depiction, whose labels outsize
-everything in the margins.
+The depiction's bounding box covers at least half the surface, and it is
+the widest thing on the page. The title and the depiction's own labels
+are the only tier-one text; all margin text, card and callout headings
+included, is tier two or smaller, 11 pt or less. The page has at most
+eight callouts, and every callout's leader ends on the depiction itself.
+Everything else that must be on the page belongs to one of at most three
+card sets, placed along one or two edges.
 
 ## Quick reference
 

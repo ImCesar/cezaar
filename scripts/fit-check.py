@@ -10,6 +10,7 @@ Static checks on a single HTML file:
     viewBox units, read at the kit's 100 units per inch (0.72 pt per unit)
   - external resources (link/script/img with http(s) src)
   - a surface wider or taller than a plotter roll (44 in)
+  - the number of .callout elements, reported always; more than 8 is a finding
 Optional: --preview out.png renders with headless Chrome if present.
 Exit 0: no findings. 1: findings. 2: usage error.
 """
@@ -23,6 +24,7 @@ from html.parser import HTMLParser
 
 PX_PER_PT = 96 / 72
 PT_PER_SVG_UNIT = 72 / 100  # the kit draws at 100 viewBox units per inch
+MAX_CALLOUTS = 8
 PLOTTER_IN = 44.0
 
 _LEN = re.compile(r"(\d+(?:\.\d+)?)\s*(in|cm|mm|pt|px)")
@@ -47,12 +49,15 @@ class _Walker(HTMLParser):
         self.poster_seen = False
         self._in_style = False
         self._svg_depth = 0
+        self.callouts = 0
         self.styles = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         cls = (a.get("class") or "").split()
         style = a.get("style") or ""
+        if "callout" in cls:
+            self.callouts += 1
         if tag == "main" and "poster" in cls:
             self.poster_seen = True
             w = h = None
@@ -142,7 +147,7 @@ def _root_size(css):
     return size
 
 
-def check(html, floor_pt=6.0, max_in=PLOTTER_IN):
+def check(html, floor_pt=6.0, max_in=PLOTTER_IN, stats=None):
     w = _Walker()
     w.floor = floor_pt
     w.feed(html)
@@ -167,6 +172,10 @@ def check(html, floor_pt=6.0, max_in=PLOTTER_IN):
         w.findings.append(":hover rule in <style>: hover-only content is hidden content")
     if re.search(r"display\s*:\s*none", css):
         w.findings.append("display:none in <style>")
+    if w.callouts > MAX_CALLOUTS:
+        w.findings.append(f"callouts: {w.callouts} exceeds {MAX_CALLOUTS}")
+    if stats is not None:
+        stats["callouts"] = w.callouts
     size = root
     if size:
         sw, sh = size
@@ -204,9 +213,11 @@ def main(argv=None):
     except OSError as e:
         print(f"fit-check: {e}", file=sys.stderr)
         return 2
-    findings, size = check(html, args.floor_pt, args.max_in)
+    stats = {}
+    findings, size = check(html, args.floor_pt, args.max_in, stats)
     for f in findings:
         print(f"- {f}")
+    print(f"callouts: {stats['callouts']}")
     if size:
         print(f"surface: {size[0]:.1f} x {size[1]:.1f} in")
     if args.preview:
