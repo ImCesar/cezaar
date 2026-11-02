@@ -7,7 +7,7 @@ Reply (verbatim):
 >
 > I corrected the claim instead of restating it, because "one ninth" leaves out the choice already spent on the wrong piece and the full-roster condition.
 
-(The request was three sentences. The reply ran to about eleven.)
+(The request was three sentences. The reply ran to nine.)
 
 Output: output/2026-11-01-single-mechanic-no-skill.html, 60 lines.
 
@@ -18,8 +18,8 @@ Output: output/2026-11-01-single-mechanic-no-skill.html, 60 lines.
 | One depiction holding the middle | Yes | One `<svg viewBox="0 0 800 130">`: a timeline of nine choices with the wrong pick at 3. It sits below a text verdict and above two tables, and it shows only the timeline, not the eight-slot roster. |
 | Callouts tied to the depiction (leader lines or numbers) | No | Labels are plain `<text>` placed under the boxes ("Choices 3 and 4: spent, no progress (2/9)"). No leader lines. Box numbers 1 to 9 are the only numbering. |
 | Legend for reused symbols | No | Pink fill (`#f6c9c5`) and grey fill (`#eee`) are used with no key. |
-| Three text registers | No | Georgia 15px body, one uppercase 13px h2 style, 11px SVG text. Headings and body, not three distinct registers. |
-| Repeated things as identical cards | Yes | Nine identical `<rect width="78" height="40">` choice cells. Fill varies for the three that matter. |
+| Three text registers (criterion: italic for story or flavour text, roman for rules, small italic for parameters, used consistently; heading sizes alone are hierarchy, not registers) | No | The file has no italic anywhere (no `<i>`, `<em>`, `font-style`). Georgia body, uppercase sans h2 and 11px SVG labels are hierarchy and font changes, not the three registers. |
+| Repeated things as identical cards (criterion: the same box anatomy repeated for each member of a set, with the same slots filled) | Yes | Nine identical `<rect width="78" height="40">` cells, each with the same two slots filled (choice number and role label). Fill varies for the three that matter. |
 | Time or difficulty drawn, not described | Yes | The SVG draws the nine choices along a line and where the cost lands. |
 | One surface, no navigation, nothing hidden | Yes | No nav, links, scripts or hidden elements. Single scrolling body. |
 | Surface sized in inches with print CSS | No | `max-width:820px`; no `@page`, no `@media print`, no inch units. |
