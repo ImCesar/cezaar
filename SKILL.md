@@ -83,9 +83,9 @@ A finished page has, and a reader can point to each:
 - **required:** each callout and card carries an italic story line, roman
   rule text and a small italic parameter line, where the design has them.
   Callouts and cards set in one register fail this item;
-- **required:** a depiction covering at least half the surface; margin
-  text at 11 pt or less; at most eight callouts, each pointing at the
-  depiction; at most three card sets;
+- **required:** a depiction covering half the surface or more, wider than
+  all but the title; margin text at 11 pt or less; at most eight callouts,
+  each pointing at the depiction; at most three card sets;
 - time and difficulty drawn, where the design has them;
 - one surface: no links, tabs, collapsed, hidden or hover-only content;
 - a size in inches on the poster, and print CSS to match;
@@ -97,13 +97,15 @@ fine print below 6 pt.
 
 ### The margin budget
 
-The depiction's bounding box covers at least half the surface, and it is
-the widest thing on the page. The title and the depiction's own labels
-are the only tier-one text; all margin text, card and callout headings
-included, is tier two or smaller, 11 pt or less. The page has at most
-eight callouts, and every callout's leader ends on the depiction itself.
-Everything else that must be on the page belongs to one of at most three
-card sets, placed along one or two edges.
+The depiction's bounding box covers at least half the surface, and apart
+from the title it is the widest thing on the page. A drawn panel of its
+width, set against it, is part of it; any other panel is a card set. The
+title and the depiction's own labels are the only tier-one text; all
+margin text, card and callout headings included, is tier two or smaller,
+11 pt or less. The page has at most eight callouts, and every callout's
+leader ends on the depiction itself. Everything else that must be on the
+page belongs to one of at most three card sets, placed along one or two
+edges.
 
 ## Quick reference
 
