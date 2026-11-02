@@ -163,3 +163,60 @@ Judgement: met on measurement. Two points are open for the final review:
 - **Run map.** Whether the run map is part of the depiction decides whether the box predicate reads 62% or 50.8%. It also decides whether callout 8 ends on the depiction. Under both readings the box is at least half the surface.
 
 Against round 2: callouts went from 11 to 8 and the largest margin text from 15 pt to 10 pt. The central drawing went from about 21% of the surface to 50.8%. Round 3 is the last round; the controller ruled out a round 4.
+
+## Final run (after the final-review fix wave)
+
+Changes under test, all from the final review:
+- **Common mistakes.** They no longer cite earlier runs or this scenario's tower. Each is stated generally and points at a method step or contract slot. The overview draws "the level" instead of "the tower".
+- **Contract.** The size is declared on `:root` and read by the poster and the print CSS.
+- **Step 3, route A.** The PNG is embedded as a `data:` URI. Route B was used, so this did not bind.
+- **Step 5.** The agent opens the preview PNG and checks for cut or overlapping content. The page is printed to PDF, then on a plotter or through a PDF reader's tile option.
+- **Fit-check.** A full-surface SVG whose viewBox is not 100 units per inch of the surface is a finding. SVG text is measured at the layer's real scale.
+
+Run: one fresh `general-purpose` subagent on model `sonnet`. It was given the line "Use the one-page-design skill at /Users/cesar/.claude/skills/one-page-design/SKILL.md." followed by `tests/scenarios/pog-roguelike.md` verbatim, with the output path filled in. Its reply did not come back to me, so this record is scored from the HTML and the PNG only.
+
+Output: output/2026-11-01-pog-roguelike-with-skill-final.html, 476 lines. Preview: output/2026-11-01-pog-roguelike-with-skill-final.png.
+
+Fit-check, the updated script, verbatim, exit code 0:
+```
+callouts: 8
+surface: 28.0 x 17.5 in
+preview: tests/results/output/2026-11-01-pog-roguelike-with-skill-final.png
+```
+Findings: 0. The drawing layer is `viewBox="0 0 2800 1750"` on a 28 x 17.5 in surface, which is 100 units per inch, so the new viewBox check passes.
+
+Preview inspected by eye at preview resolution: nothing is cut at the edges, and no two elements overlap.
+
+Shape chosen: one framed panel holds the whole game. Its upper part is a scene of one slam. You (O) are on the left with charms and roster, and the foe (X) is on the right with its roster. The 16-disc tower sits in the middle under a Dome slammer and aim line, with flipped pogs in the air and a "dome usually reaches here" bracket. The strip lists rows 1 to 16 beside it. To the right, the top-down resolution shows four numbered results and a summary card on a 3 s turn-budget ruler. The fresh pile and discard sit below the tower. A dashed rule divides the lower part of the same frame, which holds the 12-node run map with one red route, a health line and a 0 to 50 minute ruler. The slammer cards and effect cards are on the left edge, and the risk cards are on the right.
+
+| Anatomy item | Present? | Evidence |
+|---|---|---|
+| Title states the point of the page | Yes | `<h1 class="title t1">Whatever lands face up works for the slammer, whoever put it there</h1>`, top-left. |
+| Date on the page | Yes | `<footer class="date">Design proposal · 2026-11-01</footer>`, bottom-right. |
+| One depiction holding the middle | Yes | `<svg viewBox="0 0 2800 1750" ...>` with the frame `<rect x="540" y="190" width="1720" height="1460" ...>` holding the tower, strip, slammer, rosters, resolution, pile, discard and run map. |
+| Callouts tied to the depiction (leader lines or numbers) | Yes | There are 8 `<div class="callout">` and 8 callout leaders (`<polyline class="leader">`), each ending inside the frame: `1120,150 1120,274` at the slammer, `1480,150 1276,548` at the strip, `505,270 588,368` at the charms, `505,460 590,456` at the roster, `505,1070 650,1020` at the fresh pile, `2280,760 2228,723` at the resolution, `2280,1010 2214,1028` at the dud line, and `2280,1370 2016,1370` at the boss. Circled 1 to 5 on the drawing match the numbered callouts. Four more leaders join strip rows to result cards inside the drawing. |
+| Legend for reused symbols | Yes | The legend row under the tower reads: O you, X foe, your pog, foe pog, Blank, lands face up, slammer reach, letters = effect initial. The run map has its own key: fight, elite, shop, rest, boss and the red route. |
+| Three text registers (every callout and card carries an italic story line, roman rule text and a small italic parameter line where the design has them) | Yes | `story`, `rule` and `param` each occur 25 times: once per callout (8) and per card (17). Example: `<h3>Charms: three slots</h3><p class="story">Small numbers, big habits.</p><p class="rule">Number-only items that fire only on the holder's own slam, ...</p>` followed by a `.param` line. |
+| Repeated things as identical cards (same box anatomy, same slots filled) | Yes | There are 17 `<div class="card">` in three sets: 3 slammer cards (head, coloured sub-line, story, rule, param, a drawing and a reach bar), 8 effect cards and 6 risk cards (head, coloured sub-line, story, rule, param). |
+| Time or difficulty drawn, not described | Yes | The run map sits on a 0 to 50 minute ruler with a red "target finish: 40 to 50 min" band and a health line across the nodes. A 0 to 3 s ruler sits under the resolution. |
+| One surface, no navigation, nothing hidden | Yes | One `<main class="poster">`. There is no `<a>`, `<details>`, `<script>` or `<link>`, and fit-check is clean. |
+| Surface sized in inches with print CSS | Yes | `--w:28in; --h:17.5in;` on `:root`, `@page { size: var(--w) var(--h); margin:0; }`, and an `@media print` rule. The poster reads `var(--w)`/`var(--h)`. |
+| Self-contained (no external resources) | Yes | No `http` strings, no `<link>` and no `<script>`. |
+
+Score: 11 of 11 present.
+
+### Margin budget, by measurement
+
+Coordinates are viewBox units at 100 per inch on a 28 x 17.5 in surface, which is 490 sq in.
+
+| Predicate | Measured | Met? |
+|---|---|---|
+| Depiction box at least half the surface | Frame x 540 to 2260, y 190 to 1650: 17.2 x 14.6 in, 251.1 sq in, 51.2%. The run map is inside the frame this time, so there is one reading. | Yes |
+| Depiction is the widest thing on the page, apart from the title | Frame 17.2 in. Next widest: the lede under the title at 9.8 in, then the card columns and callouts at 4.7 to 4.8 in. | Yes |
+| Margin text 11 pt or less | Largest margin text: 10.5 pt (`.callout h3`). The lede and card heads are 10 pt, the legend and set heads 9 pt, callout body 8.5 pt, card body 8 pt and params 7 to 7.5 pt. | Yes |
+| At most eight callouts, each leader ending on the depiction | `callouts: 8`. All 8 callout leaders end inside the frame (see the anatomy table). | Yes |
+| At most three card sets, along one or two edges | Three sets: slammers (3) and effects (8) on the left edge, and risks (6) on the right edge. | Yes, at the cap |
+
+Judgement: the margin budget is met on measurement, with no open readings. Compared with round 3: the run map moved inside the frame, removing round 3's open question. The depiction share is 51.2% against round 3's 50.8% for the scene alone. The card sets went from two to three, which is at the cap.
+
+Observation for the reviewer: the page has the same overall form as round 3. It is a framed panel of about half the surface, with narrow margins of callouts and cards. The no-single-focal-point weakness from the final review persists. The frame holds a scene, a strip, a resolution panel and a run map at similar weight.

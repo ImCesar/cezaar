@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pog roguelike: one-page design</title>
+<!--
+  Route B (drawn): the depiction is inline SVG. Shape: an object (the slam on
+  the tower, with its strip) plus a journey (the run map with a time ruler).
+-->
+<style>
+  :root {
+    --ink:#1f2328; --paper:#fbfaf7; --rule:#8a8f98; --accent:#c0392b;
+    --soft-1:#dfe9e3; --soft-2:#e8e3d4; --soft-3:#dde3ee;
+    --w:28in; --h:17.5in;
+  }
+  @page { size: var(--w) var(--h); margin:0; }
+  html, body { margin:0; background:#d9d9d9; }
+  body { overflow:auto; }
+  .poster { position:relative; width:var(--w); height:var(--h); margin:0.5in auto; background:var(--paper);
+    color:var(--ink); font-family:Georgia,"Times New Roman",serif; box-shadow:0 2px 12px rgba(0,0,0,.25); overflow:hidden; }
+  @media print { html, body { background:none; } .poster { margin:0; box-shadow:none; } }
+  .t1 { font-size:28pt; font-weight:700; letter-spacing:.01em; }
+  .t2 { font-size:11pt; }
+  .story { font-style:italic; }
+  .rule { font-style:normal; }
+  .param { font-style:italic; font-size:7.5pt; color:#444; }
+  .title { position:absolute; top:0.35in; left:0.5in; width:9.8in; margin:0; line-height:1.12; }
+  .sub { }
+  .lede { position:absolute; top:1.3in; left:0.5in; width:9.8in; margin:0; font-size:10pt; line-height:1.3; color:#333; }
+  .date { position:absolute; bottom:0.3in; right:0.5in; font-size:9pt; color:#555; }
+  .callout { position:absolute; }
+  .callout h3 { margin:0 0 2px; font-size:10.5pt; }
+  .callout p { margin:0 0 2px; font-size:8.5pt; line-height:1.25; }
+  .callout p.param { font-size:7.5pt; }
+  .card { position:absolute; box-sizing:border-box; border:1px solid var(--ink); border-radius:8px; padding:4px 7px; background:#fff; }
+  .card .head { font-size:10pt; font-weight:700; }
+  .card .sub { font-size:7.5pt; font-weight:700; margin-bottom:1px; }
+  .card p { margin:0 0 1px; font-size:8pt; line-height:1.22; }
+  .card p.param { font-size:7pt; }
+  .sethead { position:absolute; font-size:9pt; font-weight:700; letter-spacing:.03em; border-bottom:1.5px solid var(--ink); padding-bottom:2px; }
+  .legend { position:absolute; border:1px solid var(--rule); padding:4px 8px; background:#fff; font-size:9pt; }
+  svg .leader { stroke:var(--rule); stroke-width:1.5; fill:none; }
+  svg .outline { stroke:var(--ink); stroke-width:1; }
+  svg text { font-family:Georgia,"Times New Roman",serif; fill:#1f2328; }
+</style>
+</head>
+<body>
+<main class="poster">
+<svg viewBox="0 0 2800 1750" width="100%" height="100%" style="position:absolute;inset:0" aria-hidden="true">
+<rect x="540" y="190" width="1720" height="1460" fill="#ffffff" fill-opacity=".55" class="outline" stroke-width="2"/>
+<line x1="540" y1="1135" x2="2260" y2="1135" stroke="#8a8f98" stroke-dasharray="6 5"/>
+<path d="M1005,1020 L1005,1052 A115,14 0 0 0 1235,1052 L1235,1020 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="1042" font-size="13" fill="#666" text-anchor="end">16</text>
+<path d="M1005,988 L1005,1020 A115,14 0 0 0 1235,1020 L1235,988 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="1010" font-size="13" fill="#666" text-anchor="end">15</text>
+<path d="M1005,956 L1005,988 A115,14 0 0 0 1235,988 L1235,956 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="978" font-size="13" fill="#666" text-anchor="end">14</text>
+<path d="M1005,924 L1005,956 A115,14 0 0 0 1235,956 L1235,924 Z" fill="#dcdcdc" stroke="#1f2328" stroke-width="1" stroke-dasharray="5 3"/>
+<text x="995" y="946" font-size="13" fill="#666" text-anchor="end">13</text>
+<path d="M1005,892 L1005,924 A115,14 0 0 0 1235,924 L1235,892 Z" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="914" font-size="13" fill="#666" text-anchor="end">12</text>
+<path d="M1005,860 L1005,892 A115,14 0 0 0 1235,892 L1235,860 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="882" font-size="13" fill="#666" text-anchor="end">11</text>
+<path d="M1005,828 L1005,860 A115,14 0 0 0 1235,860 L1235,828 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="850" font-size="13" fill="#666" text-anchor="end">10</text>
+<path d="M1005,796 L1005,828 A115,14 0 0 0 1235,828 L1235,796 Z" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="818" font-size="13" fill="#666" text-anchor="end">9</text>
+<path d="M1005,764 L1005,796 A115,14 0 0 0 1235,796 L1235,764 Z" fill="#dcdcdc" stroke="#1f2328" stroke-width="1" stroke-dasharray="5 3"/>
+<text x="995" y="786" font-size="13" fill="#666" text-anchor="end">8</text>
+<path d="M1005,732 L1005,764 A115,14 0 0 0 1235,764 L1235,732 Z" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="754" font-size="13" fill="#666" text-anchor="end">7</text>
+<path d="M1005,700 L1005,732 A115,14 0 0 0 1235,732 L1235,700 Z" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="722" font-size="13" fill="#666" text-anchor="end">6</text>
+<path d="M1005,668 L1005,700 A115,14 0 0 0 1235,700 L1235,668 Z" fill="#9dbbe6" stroke="#c0392b" stroke-width="3"/>
+<text x="995" y="690" font-size="13" fill="#666" text-anchor="end">5</text>
+<path d="M1005,636 L1005,668 A115,14 0 0 0 1235,668 L1235,636 Z" fill="#f2bb82" stroke="#c0392b" stroke-width="3"/>
+<text x="995" y="658" font-size="13" fill="#666" text-anchor="end">4</text>
+<path d="M1005,604 L1005,636 A115,14 0 0 0 1235,636 L1235,604 Z" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<text x="995" y="626" font-size="13" fill="#666" text-anchor="end">3</text>
+<path d="M1005,572 L1005,604 A115,14 0 0 0 1235,604 L1235,572 Z" fill="#f2bb82" stroke="#c0392b" stroke-width="3"/>
+<text x="995" y="594" font-size="13" fill="#666" text-anchor="end">2</text>
+<path d="M1005,540 L1005,572 A115,14 0 0 0 1235,572 L1235,540 Z" fill="#9dbbe6" stroke="#c0392b" stroke-width="3"/>
+<text x="995" y="562" font-size="13" fill="#666" text-anchor="end">1</text>
+<ellipse cx="1120" cy="540" rx="115" ry="14" fill="#c9daf2" stroke="#c0392b" stroke-width="3"/>
+<path d="M1005,540 L1005,732 A115,14 0 0 0 1235,732 L1235,540 Z" fill="#ffd84d" fill-opacity=".30" stroke="none"/>
+<ellipse cx="1120" cy="540" rx="52" ry="13" fill="none" stroke="#c0392b" stroke-width="2" stroke-dasharray="5 4"/>
+<path d="M1054,540 h28 M1158,540 h28 M1120,524 v10" stroke="#c0392b" stroke-width="2"/>
+<line x1="1120" y1="365" x2="1120" y2="522" stroke="#c0392b" stroke-width="2.5" stroke-dasharray="7 6"/>
+<rect x="1111" y="255" width="18" height="48" rx="5" fill="#bbb" class="outline"/>
+<path d="M1062,365 Q1062,290 1120,290 Q1178,290 1178,365 Z" fill="#e9e9e9" stroke="#c0392b" stroke-width="3"/>
+<path d="M1062,365 H1178" stroke="#c0392b" stroke-width="5"/>
+<text x="1200" y="332" font-size="28" font-weight="700">AIM + DROP</text>
+<text x="1200" y="354" font-size="14" font-style="italic" fill="#444">dome slammer, real physics</text>
+<circle cx="1028" cy="305" r="13" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1028" y="311" font-size="17" font-weight="700" text-anchor="middle">1</text>
+<circle cx="1022" cy="470" r="13" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1022" y="476" font-size="17" font-weight="700" text-anchor="middle">2</text>
+<path d="M1190,520 l6,-14 4,12 10,-8 -4,12 14,2 -12,6 10,10 -14,-4 2,14 -8,-10 -8,10 2,-14 -14,4 10,-10 -12,-6 14,-2 -4,-12 10,8 z" fill="#f6b84a" class="outline"/>
+<ellipse cx="1040" cy="482" rx="23" ry="10" fill="#9dbbe6" stroke="#c0392b" stroke-width="2" transform="rotate(-12 1040 482)"/><text x="1040" y="486" font-size="12" font-weight="700" text-anchor="middle">C</text>
+<ellipse cx="1195" cy="478" rx="23" ry="10" fill="#f2bb82" stroke="#c0392b" stroke-width="2" transform="rotate(-12 1195 478)"/><text x="1195" y="482" font-size="12" font-weight="700" text-anchor="middle">S</text>
+<ellipse cx="1236" cy="510" rx="23" ry="10" fill="#f2bb82" stroke="#c0392b" stroke-width="2" transform="rotate(-12 1236 510)"/><text x="1236" y="514" font-size="12" font-weight="700" text-anchor="middle">P</text>
+<ellipse cx="1010" cy="518" rx="23" ry="10" fill="#9dbbe6" stroke="#c0392b" stroke-width="2" transform="rotate(-12 1010 518)"/><text x="1010" y="522" font-size="12" font-weight="700" text-anchor="middle">G</text>
+<text x="1435.0" y="522" font-size="24" font-weight="700" text-anchor="middle">THE STRIP</text>
+<rect x="1300" y="540" width="270" height="32" fill="#fff0a8" stroke="#c0392b" stroke-width="2"/>
+<rect x="1300" y="540" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="556" r="12" fill="#fff" class="outline"/><text x="1332" y="560" font-size="12" font-weight="700" text-anchor="middle">C</text>
+<text x="1352" y="561" font-size="15" font-weight="700">Capstone</text>
+<text x="1562" y="562" font-size="16" font-weight="700" text-anchor="end">+2</text>
+<rect x="1300" y="572" width="270" height="32" fill="#fff0a8" stroke="#c0392b" stroke-width="2"/>
+<rect x="1300" y="572" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="588" r="12" fill="#fff" class="outline"/><text x="1332" y="592" font-size="12" font-weight="700" text-anchor="middle">S</text>
+<text x="1352" y="593" font-size="15" font-weight="700">Strike</text>
+<text x="1562" y="594" font-size="16" font-weight="700" text-anchor="end">4</text>
+<rect x="1300" y="604" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="604" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="620" r="12" fill="#fff" class="outline"/><text x="1332" y="624" font-size="12" font-weight="700" text-anchor="middle">H</text>
+<text x="1352" y="625" font-size="15">Heal</text>
+<text x="1388" y="625" font-size="11" font-style="italic" fill="#555">heavy</text>
+<text x="1562" y="626" font-size="16" font-weight="700" text-anchor="end">3</text>
+<rect x="1300" y="636" width="270" height="32" fill="#fff0a8" stroke="#c0392b" stroke-width="2"/>
+<rect x="1300" y="636" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="652" r="12" fill="#fff" class="outline"/><text x="1332" y="656" font-size="12" font-weight="700" text-anchor="middle">P</text>
+<text x="1352" y="657" font-size="15" font-weight="700">Poison</text>
+<text x="1562" y="658" font-size="16" font-weight="700" text-anchor="end">3</text>
+<rect x="1300" y="668" width="270" height="32" fill="#fff0a8" stroke="#c0392b" stroke-width="2"/>
+<rect x="1300" y="668" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="684" r="12" fill="#fff" class="outline"/><text x="1332" y="688" font-size="12" font-weight="700" text-anchor="middle">G</text>
+<text x="1352" y="689" font-size="15" font-weight="700">Guard</text>
+<text x="1562" y="690" font-size="16" font-weight="700" text-anchor="end">3</text>
+<rect x="1300" y="700" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="700" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="716" r="12" fill="#fff" class="outline"/><text x="1332" y="720" font-size="12" font-weight="700" text-anchor="middle">D</text>
+<text x="1352" y="721" font-size="15">Drain</text>
+<text x="1396" y="721" font-size="11" font-style="italic" fill="#555">slick</text>
+<text x="1562" y="722" font-size="16" font-weight="700" text-anchor="end">2</text>
+<rect x="1300" y="732" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="732" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="748" r="12" fill="#fff" class="outline"/><text x="1332" y="752" font-size="12" font-weight="700" text-anchor="middle">R</text>
+<text x="1352" y="753" font-size="15">Recoil</text>
+<text x="1562" y="754" font-size="16" font-weight="700" text-anchor="end">6</text>
+<rect x="1300" y="764" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="764" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="780" r="12" fill="none" stroke="#999" stroke-dasharray="3 3"/>
+<text x="1352" y="785" font-size="15" fill="#777">Blank</text>
+<text x="1562" y="786" font-size="16" font-weight="700" text-anchor="end">–</text>
+<rect x="1300" y="796" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="796" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="812" r="12" fill="#fff" class="outline"/><text x="1332" y="816" font-size="12" font-weight="700" text-anchor="middle">S</text>
+<text x="1352" y="817" font-size="15">Strike</text>
+<text x="1404" y="817" font-size="11" font-style="italic" fill="#555">sticky</text>
+<text x="1562" y="818" font-size="16" font-weight="700" text-anchor="end">4</text>
+<rect x="1300" y="828" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="828" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="844" r="12" fill="#fff" class="outline"/><text x="1332" y="848" font-size="10" font-weight="700" text-anchor="middle">DS</text>
+<text x="1352" y="849" font-size="15">Deep Strike</text>
+<text x="1562" y="850" font-size="16" font-weight="700" text-anchor="end">4</text>
+<rect x="1300" y="860" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="860" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="876" r="12" fill="#fff" class="outline"/><text x="1332" y="880" font-size="12" font-weight="700" text-anchor="middle">H</text>
+<text x="1352" y="881" font-size="15">Heal</text>
+<text x="1562" y="882" font-size="16" font-weight="700" text-anchor="end">3</text>
+<rect x="1300" y="892" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="892" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="908" r="12" fill="#fff" class="outline"/><text x="1332" y="912" font-size="12" font-weight="700" text-anchor="middle">S</text>
+<text x="1352" y="913" font-size="15">Strike</text>
+<text x="1562" y="914" font-size="16" font-weight="700" text-anchor="end">4</text>
+<rect x="1300" y="924" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="924" width="11" height="32" fill="#9dbbe6" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="940" r="12" fill="none" stroke="#999" stroke-dasharray="3 3"/>
+<text x="1352" y="945" font-size="15" fill="#777">Blank</text>
+<text x="1562" y="946" font-size="16" font-weight="700" text-anchor="end">–</text>
+<rect x="1300" y="956" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="956" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="972" r="12" fill="#fff" class="outline"/><text x="1332" y="976" font-size="12" font-weight="700" text-anchor="middle">P</text>
+<text x="1352" y="977" font-size="15">Poison</text>
+<text x="1562" y="978" font-size="16" font-weight="700" text-anchor="end">3</text>
+<rect x="1300" y="988" width="270" height="32" fill="#f6f4ee" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="988" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="1004" r="12" fill="#fff" class="outline"/><text x="1332" y="1008" font-size="10" font-weight="700" text-anchor="middle">DS</text>
+<text x="1352" y="1009" font-size="15">Deep Strike</text>
+<text x="1562" y="1010" font-size="16" font-weight="700" text-anchor="end">4</text>
+<rect x="1300" y="1020" width="270" height="32" fill="#fff" stroke="#bbb" stroke-width="1"/>
+<rect x="1300" y="1020" width="11" height="32" fill="#f2bb82" stroke="#1f2328" stroke-width="1"/>
+<circle cx="1332" cy="1036" r="12" fill="#fff" class="outline"/><text x="1332" y="1040" font-size="12" font-weight="700" text-anchor="middle">G</text>
+<text x="1352" y="1041" font-size="15">Guard</text>
+<text x="1562" y="1042" font-size="16" font-weight="700" text-anchor="end">3</text>
+<path d="M1274,542 H1280 V730 H1274" fill="none" stroke="#c0392b" stroke-width="3"/>
+<text transform="translate(1266,636) rotate(-90)" font-size="14" font-style="italic" text-anchor="middle" fill="#c0392b">dome usually reaches here</text>
+<text x="1676" y="525" font-size="26" font-weight="700">RESOLVE TOP-DOWN</text>
+<circle cx="1650" cy="518" r="13" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1650" y="524" font-size="17" font-weight="700" text-anchor="middle">3</text>
+<rect x="1650" y="540" width="580" height="62" rx="10" fill="#fff" class="outline"/>
+<circle cx="1678" cy="571" r="12" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1678" y="577" font-size="17" font-weight="700" text-anchor="middle">1</text>
+<text x="1704" y="567" font-size="17" font-weight="700">Capstone: on top, +2</text>
+<text x="1704" y="589" font-size="13" font-style="italic" fill="#555">a pog on top is the bonus pog</text>
+<path d="M2030,571 l8,-17 6,13 12,-11 -3,14 15,1 -12,8 10,11 -14,-3 -1,15 -9,-10 -9,10 0,-15 -14,3 9,-11 -13,-8 14,-1 -3,-14 z" fill="#fff6d8" stroke="none"/>
+<text x="2216" y="579" font-size="24" font-weight="700" fill="#c0392b" text-anchor="end">Foe  −2</text>
+<polyline class="leader" points="1570,556 1610,556 1648,571"/><circle cx="1648" cy="571" r="3" fill="#8a8f98"/>
+<rect x="1650" y="616" width="580" height="62" rx="10" fill="#fff" class="outline"/>
+<circle cx="1678" cy="647" r="12" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1678" y="653" font-size="17" font-weight="700" text-anchor="middle">2</text>
+<text x="1704" y="643" font-size="17" font-weight="700">Strike 4: foe's pog</text>
+<text x="1704" y="665" font-size="13" font-style="italic" fill="#555">works for the slammer, not its owner</text>
+<path d="M2030,647 l8,-17 6,13 12,-11 -3,14 15,1 -12,8 10,11 -14,-3 -1,15 -9,-10 -9,10 0,-15 -14,3 9,-11 -13,-8 14,-1 -3,-14 z" fill="#fff6d8" stroke="none"/>
+<text x="2216" y="655" font-size="24" font-weight="700" fill="#c0392b" text-anchor="end">Foe  −4</text>
+<polyline class="leader" points="1570,588 1610,588 1648,647"/><circle cx="1648" cy="647" r="3" fill="#8a8f98"/>
+<rect x="1650" y="692" width="580" height="62" rx="10" fill="#fff" class="outline"/>
+<circle cx="1678" cy="723" r="12" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1678" y="729" font-size="17" font-weight="700" text-anchor="middle">3</text>
+<text x="1704" y="719" font-size="17" font-weight="700">Poison 3: foe's pog</text>
+<text x="1704" y="741" font-size="13" font-style="italic" fill="#555">hurts the slammer: you</text>
+<path d="M2030,723 l8,-17 6,13 12,-11 -3,14 15,1 -12,8 10,11 -14,-3 -1,15 -9,-10 -9,10 0,-15 -14,3 9,-11 -13,-8 14,-1 -3,-14 z" fill="#fff6d8" stroke="none"/>
+<text x="2216" y="731" font-size="24" font-weight="700" fill="#6b3fa0" text-anchor="end">You  −3</text>
+<polyline class="leader" points="1570,652 1610,652 1648,723"/><circle cx="1648" cy="723" r="3" fill="#8a8f98"/>
+<rect x="1650" y="768" width="580" height="62" rx="10" fill="#fff" class="outline"/>
+<circle cx="1678" cy="799" r="12" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1678" y="805" font-size="17" font-weight="700" text-anchor="middle">4</text>
+<text x="1704" y="795" font-size="17" font-weight="700">Guard 3: your pog</text>
+<text x="1704" y="817" font-size="13" font-style="italic" fill="#555">shield for the slammer</text>
+<path d="M2030,799 l8,-17 6,13 12,-11 -3,14 15,1 -12,8 10,11 -14,-3 -1,15 -9,-10 -9,10 0,-15 -14,3 9,-11 -13,-8 14,-1 -3,-14 z" fill="#fff6d8" stroke="none"/>
+<text x="2216" y="807" font-size="24" font-weight="700" fill="#2b5fa8" text-anchor="end">You  +3 guard</text>
+<polyline class="leader" points="1570,684 1610,684 1648,799"/><circle cx="1648" cy="799" r="3" fill="#8a8f98"/>
+<rect x="1650" y="855" width="580" height="200" rx="12" fill="#fffdf2" stroke="#1f2328" stroke-width="2"/>
+<text x="1672" y="893" font-size="26" font-weight="700">SUMMARY</text>
+<text x="1672" y="929" font-size="18" font-weight="700">FOE</text>
+<rect x="1730" y="915" width="280" height="16" fill="#eee" class="outline"/><rect x="1730" y="915" width="190" height="16" fill="#f2bb82"/><rect x="1920" y="915" width="34" height="16" fill="#c0392b" fill-opacity=".8"/>
+<text x="2024" y="929" font-size="17">40 → 34  (−6)</text>
+<text x="1672" y="967" font-size="18" font-weight="700">YOU</text>
+<rect x="1730" y="953" width="280" height="16" fill="#eee" class="outline"/><rect x="1730" y="953" width="196" height="16" fill="#9dbbe6"/><rect x="1926" y="953" width="17" height="16" fill="#6b3fa0" fill-opacity=".85"/>
+<text x="2024" y="967" font-size="16">38 → 35, guard 3</text>
+<text x="1672" y="1001" font-size="14" font-style="italic" fill="#555">one card, net result of the whole slam</text>
+<rect x="1668" y="1013" width="544" height="30" rx="6" fill="#fff" stroke="#c0392b" stroke-dasharray="6 4" stroke-width="2"/>
+<text x="1684" y="1034" font-size="16" font-weight="700" fill="#c0392b">DUD  <tspan font-weight="400" font-style="italic" fill="#1f2328">nothing flipped: slammer loses 1 health</tspan></text>
+<text x="1650" y="1084" font-size="14" font-style="italic" fill="#444">turn budget: drop, resolve and summary fit in 3 s</text>
+<line x1="1650" y1="1092" x2="2230" y2="1092" stroke="#8a8f98" stroke-width="2"/>
+<line x1="1650" y1="1086" x2="1650" y2="1098" stroke="#8a8f98" stroke-width="2"/><text x="1650" y="1114" font-size="13" text-anchor="middle" fill="#444">0 s</text>
+<line x1="1843" y1="1086" x2="1843" y2="1098" stroke="#8a8f98" stroke-width="2"/><text x="1843" y="1114" font-size="13" text-anchor="middle" fill="#444">1 s</text>
+<line x1="2037" y1="1086" x2="2037" y2="1098" stroke="#8a8f98" stroke-width="2"/><text x="2037" y="1114" font-size="13" text-anchor="middle" fill="#444">2 s</text>
+<line x1="2230" y1="1086" x2="2230" y2="1098" stroke="#8a8f98" stroke-width="2"/><text x="2230" y="1114" font-size="13" text-anchor="middle" fill="#444">3 s</text>
+<circle cx="640" cy="255" r="26" fill="none" stroke="#1f2328" stroke-width="8"/>
+<text x="690" y="265" font-size="30" font-weight="700">YOU</text>
+<rect x="690" y="274" width="230" height="18" fill="#eee" class="outline"/><rect x="690" y="274" width="175" height="18" fill="#9dbbe6"/><text x="698" y="288" font-size="14" font-weight="700">38 / 50</text>
+<text x="590" y="338" font-size="13" font-weight="700" fill="#444">CHARMS (3 slots, your slam only)</text>
+<rect x="590" y="346" width="44" height="44" rx="9" fill="#fff" class="outline"/><text x="612" y="376" font-size="20" font-weight="700" text-anchor="middle">+1</text>
+<rect x="642" y="346" width="44" height="44" rx="9" fill="#fff" class="outline"/><text x="664" y="376" font-size="20" font-weight="700" text-anchor="middle">+2</text>
+<rect x="694" y="346" width="44" height="44" rx="9" fill="#fff" class="outline"/><text x="716" y="376" font-size="20" font-weight="700" text-anchor="middle">×2</text>
+<text x="590" y="424" font-size="13" font-weight="700" fill="#444">ROSTER: 8 SLOTS</text>
+<circle cx="606" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="644" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="682" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="720" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="758" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="796" cy="456" r="15" fill="#9dbbe6" class="outline"/>
+<circle cx="834" cy="456" r="15" fill="none" stroke="#777" stroke-dasharray="4 3" stroke-width="2"/>
+<circle cx="872" cy="456" r="15" fill="none" stroke="#777" stroke-dasharray="4 3" stroke-width="2"/>
+<text x="590" y="492" font-size="12" font-style="italic" fill="#555">dashed = empty slot, holds a Blank</text>
+<path d="M1856,231 L1904,279 M1904,231 L1856,279" stroke="#1f2328" stroke-width="8" stroke-linecap="round"/>
+<text x="1930" y="265" font-size="30" font-weight="700">FOE</text>
+<rect x="1930" y="274" width="230" height="18" fill="#eee" class="outline"/><rect x="1930" y="274" width="184" height="18" fill="#f2bb82"/><text x="1938" y="288" font-size="14" font-weight="700">40 / 50</text>
+<circle cx="1840" cy="350" r="13" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="1840" y="356" font-size="17" font-weight="700" text-anchor="middle">5</text>
+<text x="1862" y="357" font-size="22" font-weight="700">FOE SLAMS NEXT</text>
+<text x="1862" y="378" font-size="13" font-style="italic" fill="#444">turns alternate until one is dead</text>
+<text x="1850" y="424" font-size="13" font-weight="700" fill="#444">FOE ROSTER: 8 SLOTS</text>
+<circle cx="1866" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="1904" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="1942" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="1980" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="2018" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="2056" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="2094" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<circle cx="2132" cy="456" r="15" fill="#f2bb82" class="outline"/>
+<text x="1850" y="492" font-size="12" font-style="italic" fill="#555">visible before you choose a slammer</text>
+<ellipse cx="640" cy="1020" rx="30" ry="12" fill="#9dbbe6" class="outline"/>
+<ellipse cx="690" cy="1020" rx="30" ry="12" fill="#f2bb82" class="outline"/>
+<ellipse cx="740" cy="1020" rx="30" ry="12" fill="#9dbbe6" class="outline"/>
+<ellipse cx="665" cy="1004" rx="30" ry="12" fill="#f2bb82" class="outline"/>
+<ellipse cx="715" cy="1004" rx="30" ry="12" fill="#f2bb82" class="outline"/>
+<ellipse cx="690" cy="988" rx="30" ry="12" fill="#9dbbe6" class="outline"/>
+<ellipse cx="835" cy="1020" rx="30" ry="12" fill="#cfcfcf" class="outline"/>
+<ellipse cx="885" cy="1020" rx="30" ry="12" fill="#bdbdbd" class="outline"/>
+<ellipse cx="935" cy="1020" rx="30" ry="12" fill="#cfcfcf" class="outline"/>
+<ellipse cx="860" cy="1004" rx="30" ry="12" fill="#bdbdbd" class="outline"/>
+<ellipse cx="910" cy="1004" rx="30" ry="12" fill="#cfcfcf" class="outline"/>
+<ellipse cx="885" cy="988" rx="30" ry="12" fill="#bdbdbd" class="outline"/>
+<circle cx="604" cy="945" r="13" fill="#fff" stroke="#1f2328" stroke-width="2"/><text x="604" y="951" font-size="17" font-weight="700" text-anchor="middle">4</text>
+<text x="628" y="953" font-size="22" font-weight="700">FRESH PILE</text>
+<text x="838" y="953" font-size="22" font-weight="700">DISCARD</text>
+<path d="M834,1020 H765" stroke="#1f2328" stroke-width="2" stroke-dasharray="5 4"/><path d="M765,1020 l9,-5 v10 z" fill="#1f2328"/>
+<text x="620" y="1076" font-size="12" font-style="italic" fill="#444">pile runs low: discard shuffles back in, Heals −1</text>
+<polyline points="1000,796 690,796 690,980" fill="none" stroke="#1f2328" stroke-width="2" stroke-dasharray="6 5"/><path d="M690,986 l-6,-10 h12 z" fill="#1f2328"/>
+<text x="700" y="788" font-size="12" font-style="italic" fill="#444">unflipped pogs are shuffled into a fresh pile</text>
+<text x="580" y="1182" font-size="28" font-weight="700">THE RUN: ABOUT 12 NODES TO A BOSS, 40 TO 50 MINUTES</text>
+<line x1="660" y1="1370" x2="780" y2="1290" stroke="#c0392b" stroke-width="5"/>
+<line x1="660" y1="1370" x2="780" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="780" y1="1290" x2="900" y2="1290" stroke="#c0392b" stroke-width="5"/>
+<line x1="780" y1="1290" x2="900" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="780" y1="1450" x2="900" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="780" y1="1450" x2="900" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1290" x2="1020" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1290" x2="1020" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="900" y1="1370" x2="1020" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1370" x2="1020" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1370" x2="1020" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1450" x2="1020" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="900" y1="1450" x2="1020" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1290" x2="1140" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1290" x2="1140" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1370" x2="1140" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1370" x2="1140" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1020" y1="1370" x2="1140" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1450" x2="1140" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1020" y1="1450" x2="1140" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1290" x2="1260" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1290" x2="1260" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1370" x2="1260" y2="1290" stroke="#c0392b" stroke-width="5"/>
+<line x1="1140" y1="1370" x2="1260" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1370" x2="1260" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1450" x2="1260" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1140" y1="1450" x2="1260" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1290" x2="1380" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1290" x2="1380" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1260" y1="1370" x2="1380" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1370" x2="1380" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1370" x2="1380" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1450" x2="1380" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1260" y1="1450" x2="1380" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1290" x2="1500" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1290" x2="1500" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1370" x2="1500" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1370" x2="1500" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1380" y1="1370" x2="1500" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1450" x2="1500" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1380" y1="1450" x2="1500" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1290" x2="1620" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1290" x2="1620" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1370" x2="1620" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1370" x2="1620" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1500" y1="1370" x2="1620" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1450" x2="1620" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1500" y1="1450" x2="1620" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1290" x2="1740" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1290" x2="1740" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1370" x2="1740" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1370" x2="1740" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1620" y1="1370" x2="1740" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1450" x2="1740" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1620" y1="1450" x2="1740" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1290" x2="1860" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1290" x2="1860" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1370" x2="1860" y2="1290" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1370" x2="1860" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1740" y1="1370" x2="1860" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1450" x2="1860" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1740" y1="1450" x2="1860" y2="1450" stroke="#aab" stroke-width="1.5"/>
+<line x1="1860" y1="1290" x2="1980" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<line x1="1860" y1="1370" x2="1980" y2="1370" stroke="#c0392b" stroke-width="5"/>
+<line x1="1860" y1="1450" x2="1980" y2="1370" stroke="#aab" stroke-width="1.5"/>
+<circle cx="660" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="660" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="780" cy="1290" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="780" y="1297" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="780" cy="1450" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="780" y="1457" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="879" y="1269" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="900" y="1297" font-size="20" font-weight="700" text-anchor="middle">$</text>
+<circle cx="900" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="900" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<polygon points="900,1423 927,1450 900,1477 873,1450" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="900" y="1457" font-size="20" font-weight="700" text-anchor="middle">E</text>
+<circle cx="1020" cy="1290" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1020" y="1297" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="998" y="1348" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="1020" y="1378" font-size="24" font-weight="700" text-anchor="middle">+</text>
+<circle cx="1020" cy="1450" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1020" y="1457" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<polygon points="1140,1263 1167,1290 1140,1317 1113,1290" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="1140" y="1297" font-size="20" font-weight="700" text-anchor="middle">E</text>
+<circle cx="1140" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1140" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="1119" y="1429" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="1140" y="1457" font-size="20" font-weight="700" text-anchor="middle">$</text>
+<rect x="1238" y="1268" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="1260" y="1298" font-size="24" font-weight="700" text-anchor="middle">+</text>
+<circle cx="1260" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1260" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="1260" cy="1450" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1260" y="1457" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="1380" cy="1290" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1380" y="1297" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<polygon points="1380,1343 1407,1370 1380,1397 1353,1370" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="1380" y="1377" font-size="20" font-weight="700" text-anchor="middle">E</text>
+<rect x="1359" y="1429" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="1380" y="1457" font-size="20" font-weight="700" text-anchor="middle">$</text>
+<rect x="1479" y="1269" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="1500" y="1297" font-size="20" font-weight="700" text-anchor="middle">$</text>
+<circle cx="1500" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1500" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="1500" cy="1450" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1500" y="1457" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<circle cx="1620" cy="1290" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1620" y="1297" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="1598" y="1348" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="1620" y="1378" font-size="24" font-weight="700" text-anchor="middle">+</text>
+<polygon points="1620,1423 1647,1450 1620,1477 1593,1450" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="1620" y="1457" font-size="20" font-weight="700" text-anchor="middle">E</text>
+<polygon points="1740,1263 1767,1290 1740,1317 1713,1290" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="1740" y="1297" font-size="20" font-weight="700" text-anchor="middle">E</text>
+<circle cx="1740" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1740" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="1719" y="1429" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="1740" y="1457" font-size="20" font-weight="700" text-anchor="middle">$</text>
+<rect x="1838" y="1268" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="1860" y="1298" font-size="24" font-weight="700" text-anchor="middle">+</text>
+<circle cx="1860" cy="1370" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="1860" y="1377" font-size="20" font-weight="700" text-anchor="middle">F</text>
+<rect x="1838" y="1428" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="1860" y="1458" font-size="24" font-weight="700" text-anchor="middle">+</text>
+<polygon points="1946,1370 1963,1340 1997,1340 2014,1370 1997,1400 1963,1400" fill="#c0392b" class="outline" stroke-width="3"/><text x="1980" y="1378" font-size="22" font-weight="700" text-anchor="middle" fill="#fff">B</text>
+<g transform="translate(590,1224) scale(0.55)">
+<circle cx="0" cy="0" r="22" fill="#dfe9e3" class="outline" stroke-width="2"/><text x="0" y="7" font-size="20" font-weight="700" text-anchor="middle">F</text>
+</g>
+<text x="612" y="1230" font-size="16">fight</text>
+<g transform="translate(740,1224) scale(0.55)">
+<polygon points="0,-27 27,0 0,27 -27,0" fill="#f4c6c0" class="outline" stroke-width="2"/><text x="0" y="7" font-size="20" font-weight="700" text-anchor="middle">E</text>
+</g>
+<text x="762" y="1230" font-size="16">elite</text>
+<g transform="translate(890,1224) scale(0.55)">
+<rect x="-21" y="-21" width="42" height="42" fill="#f6e3a1" class="outline" stroke-width="2"/><text x="0" y="7" font-size="20" font-weight="700" text-anchor="middle">$</text>
+</g>
+<text x="912" y="1230" font-size="16">shop: charms and slammers</text>
+<g transform="translate(1220,1224) scale(0.55)">
+<rect x="-22" y="-22" width="44" height="44" rx="14" fill="#cfe8c8" class="outline" stroke-width="2"/><text x="0" y="8" font-size="24" font-weight="700" text-anchor="middle">+</text>
+</g>
+<text x="1242" y="1230" font-size="16">rest: heals 30%</text>
+<g transform="translate(1470,1224) scale(0.55)">
+<polygon points="-34,0 -17,-30 17,-30 34,0 17,30 -17,30" fill="#c0392b" class="outline" stroke-width="3"/><text x="0" y="8" font-size="22" font-weight="700" text-anchor="middle" fill="#fff">B</text>
+</g>
+<text x="1492" y="1230" font-size="16">boss</text>
+<text x="1600" y="1230" font-size="14" font-style="italic" fill="#c0392b">red line = one example route</text>
+<polyline points="660,1508 780,1517 900,1517 1020,1500 1140,1508 1260,1500 1380,1514 1500,1523 1620,1505 1740,1513 1860,1522 1980,1522" fill="none" stroke="#2b5fa8" stroke-width="3"/>
+<circle cx="660" cy="1508" r="4" fill="#2b5fa8"/>
+<circle cx="780" cy="1517" r="4" fill="#2b5fa8"/>
+<circle cx="900" cy="1517" r="4" fill="#2b5fa8"/>
+<circle cx="1020" cy="1500" r="4" fill="#2b5fa8"/>
+<circle cx="1140" cy="1508" r="4" fill="#2b5fa8"/>
+<circle cx="1260" cy="1500" r="4" fill="#2b5fa8"/>
+<circle cx="1380" cy="1514" r="4" fill="#2b5fa8"/>
+<circle cx="1500" cy="1523" r="4" fill="#2b5fa8"/>
+<circle cx="1620" cy="1505" r="4" fill="#2b5fa8"/>
+<circle cx="1740" cy="1513" r="4" fill="#2b5fa8"/>
+<circle cx="1860" cy="1522" r="4" fill="#2b5fa8"/>
+<circle cx="1980" cy="1522" r="4" fill="#2b5fa8"/>
+<text x="560" y="1493" font-size="13" font-style="italic" fill="#2b5fa8">health carries over between fights (illustrative, 50 max): drops in fights, climbs at rests</text>
+<line x1="600" y1="1596" x2="2100" y2="1596" stroke="#8a8f98" stroke-width="2"/>
+<line x1="600" y1="1590" x2="600" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="600" y="1620" font-size="14" text-anchor="middle" fill="#444">0</text>
+<line x1="750" y1="1590" x2="750" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="750" y="1620" font-size="14" text-anchor="middle" fill="#444">5</text>
+<line x1="900" y1="1590" x2="900" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="900" y="1620" font-size="14" text-anchor="middle" fill="#444">10</text>
+<line x1="1050" y1="1590" x2="1050" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1050" y="1620" font-size="14" text-anchor="middle" fill="#444">15</text>
+<line x1="1200" y1="1590" x2="1200" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1200" y="1620" font-size="14" text-anchor="middle" fill="#444">20</text>
+<line x1="1350" y1="1590" x2="1350" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1350" y="1620" font-size="14" text-anchor="middle" fill="#444">25</text>
+<line x1="1500" y1="1590" x2="1500" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1500" y="1620" font-size="14" text-anchor="middle" fill="#444">30</text>
+<line x1="1650" y1="1590" x2="1650" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1650" y="1620" font-size="14" text-anchor="middle" fill="#444">35</text>
+<line x1="1800" y1="1590" x2="1800" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1800" y="1620" font-size="14" text-anchor="middle" fill="#444">40</text>
+<line x1="1950" y1="1590" x2="1950" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="1950" y="1620" font-size="14" text-anchor="middle" fill="#444">45</text>
+<line x1="2100" y1="1590" x2="2100" y2="1602" stroke="#8a8f98" stroke-width="2"/><text x="2100" y="1620" font-size="14" text-anchor="middle" fill="#444">50</text>
+<rect x="1800" y="1591" width="300" height="10" fill="#c0392b" fill-opacity=".6"/>
+<text x="1795" y="1584" font-size="14" font-style="italic" text-anchor="end" fill="#c0392b">target finish: 40 to 50 min</text>
+<text x="2112" y="1601" font-size="14" fill="#444">min</text>
+<polyline class="leader" points="1120,150 1120,274"/><circle cx="1120" cy="274" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="1480,150 1276,548"/><circle cx="1276" cy="548" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="505,270 588,368"/><circle cx="588" cy="368" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="505,460 590,456"/><circle cx="590" cy="456" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="505,1070 650,1020"/><circle cx="650" cy="1020" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="2280,760 2228,723"/><circle cx="2228" cy="723" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="2280,1010 2214,1028"/><circle cx="2214" cy="1028" r="3.5" fill="#8a8f98"/>
+<polyline class="leader" points="2280,1370 2016,1370"/><circle cx="2016" cy="1370" r="3.5" fill="#8a8f98"/>
+</svg>
+<h1 class="title t1">Whatever lands face up works for the slammer, whoever put it there</h1>
+<p class="lede">A single-player desktop roguelike against AI, played with mouse or controller. Both fighters' rosters are built into one stack; you aim a slammer, it drops, and the pogs that flip fire their effects at the slammer's owner. Turns alternate until someone is dead.</p>
+<div class="callout" style="left:10.6in;top:0.28in;width:3.6in"><h3>1, 2  Aim, then drop</h3><p class="story">Choose the slammer after seeing the foe's roster.</p><p class="rule">Aim at the tower and the slammer drops with real physics. Pogs that land face up fire for the slammer, whoever added them.</p><p class="param">mouse or controller · single player vs AI</p></div>
+<div class="callout" style="left:14.6in;top:0.28in;width:3.8in"><h3>The strip</h3><p class="story">Every pog, top to bottom.</p><p class="rule">Icon, value and contributor colour per row, lined up with the tower. The bracket shows how deep the chosen slammer usually reaches from the aim point.</p><p class="param">Heavy, Slick, Sticky shown as tags</p></div>
+<div class="callout" style="left:0.3in;top:2.0in;width:4.7in"><h3>Charms: three slots</h3><p class="story">Small numbers, big habits.</p><p class="rule">Number-only items that fire only on the holder's own slam, so they can never help the other side.</p><p class="param">bought in shops</p></div>
+<div class="callout" style="left:0.3in;top:3.9in;width:4.7in"><h3>Roster: eight slots</h3><p class="story">Add one pog or cut one, never both.</p><p class="rule">After each fight take one of three offered pogs into an empty slot, or remove one. Three copies merge into one stronger pog (numbers x1.5) and free two slots. An empty slot holds a Blank, so the tower is always 16 high.</p><p class="param">the foe fields eight slots too</p></div>
+<div class="callout" style="left:0.3in;top:9.9in;width:4.7in"><h3>4  Reshuffle</h3><p class="story">Misses are not lost, just mixed in.</p><p class="rule">Everything that did not flip is shuffled into a fresh pile. When the pile runs low the discard is shuffled back in, and every Heal loses 1 point per reshuffle.</p><p class="param">Heal 3 → 2 → 1, so shared healing fades</p></div>
+<div class="callout" style="left:22.85in;top:6.9in;width:4.8in"><h3>3  Resolve top-down</h3><p class="story">One at a time, so you can follow it.</p><p class="rule">Each effect pops its number in order, then one summary card shows the net change for both sides.</p><p class="param">all within the 3 s turn budget</p></div>
+<div class="callout" style="left:22.85in;top:9.5in;width:4.8in"><h3>The dud rule</h3><p class="story">Nothing flipped, nothing earned.</p><p class="rule">A slam that flips nothing is a dud and costs the slammer 1 health, so a poison-laden stack cannot be stalled out.</p><p class="param">dud = −1 health</p></div>
+<div class="callout" style="left:22.85in;top:12.9in;width:4.8in"><h3>The run map</h3><p class="story">Twelve choices to a boss.</p><p class="rule">About 12 nodes, branching, ending in a boss. Fight, elite, shop (charms and slammers), rest (heals 30%). Health carries over between fights.</p><p class="param">40 to 50 minutes</p></div>
+<div class="sethead" style="left:0.3in;top:5.5in;width:4.8in">SLAMMERS: own up to three, pick one per fight (reach is a placeholder)</div>
+<div class="card" style="left:0.3in;top:5.85in;width:4.7in;min-height:1.2in"><div class="head">Dome</div><div class="sub" style="color:#2b5fa8">Flips the top few</div><p class="story" style="margin-right:1.15in">A thumb on a bubble.</p><p class="rule" style="margin-right:1.15in">Round face. The hit lands on a small spot at the top, so it is easy to read and shallow.</p><p class="param">usually reaches rows 1 to 6</p><svg width="110" height="90" viewBox="0 0 110 90" style="position:absolute;right:6px;top:6px" aria-hidden="true"><g transform="translate(0,5)"><circle cx="35" cy="35" r="26" fill="#e9e9e9" stroke="#1f2328" stroke-width="2"/><circle cx="35" cy="35" r="14" fill="none" stroke="#999"/><circle cx="35" cy="35" r="5" fill="#999"/></g><g transform="translate(88,0) scale(1,1)"><rect x="0" y="0.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="5.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="11.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="16.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="22.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="27.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="33.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="38.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="44.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="49.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="55.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="60.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="66.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="71.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="77.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="82.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/></g></svg></div>
+<div class="card" style="left:0.3in;top:7.13in;width:4.7in;min-height:1.2in"><div class="head">Ring</div><div class="sub" style="color:#2b5fa8">Hollow, tips one side</div><p class="story" style="margin-right:1.15in">The hole is the point.</p><p class="rule" style="margin-right:1.15in">Hollow face. The rim strikes and one side tips, so where you aim decides which side flips.</p><p class="param">usually reaches rows 1 to 8, one side</p><svg width="110" height="90" viewBox="0 0 110 90" style="position:absolute;right:6px;top:6px" aria-hidden="true"><g transform="translate(0,5)"><circle cx="35" cy="35" r="26" fill="#e9e9e9" stroke="#1f2328" stroke-width="2"/><circle cx="35" cy="35" r="14" fill="#fbfaf7" stroke="#1f2328" stroke-width="2"/><path d="M60 20 L48 28" stroke="#c0392b" stroke-width="3"/></g><g transform="translate(88,0) scale(1,1)"><rect x="0" y="0.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="5.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="11.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="16.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="22.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="27.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="33.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="38.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="44.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="49.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="55.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="60.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="66.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="71.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="77.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="82.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/></g></svg></div>
+<div class="card" style="left:0.3in;top:8.41in;width:4.7in;min-height:1.2in"><div class="head">Flat</div><div class="sub" style="color:#2b5fa8">Broad, reaches deep</div><p class="story" style="margin-right:1.15in">A palm on the table.</p><p class="rule" style="margin-right:1.15in">Wide face spreads the hit over many pogs and reaches deep into the tower.</p><p class="param">usually reaches rows 1 to 12</p><svg width="110" height="90" viewBox="0 0 110 90" style="position:absolute;right:6px;top:6px" aria-hidden="true"><g transform="translate(0,5)"><rect x="3" y="18" width="64" height="34" rx="6" fill="#e9e9e9" stroke="#1f2328" stroke-width="2"/><path d="M12 35 H58" stroke="#999"/></g><g transform="translate(88,0) scale(1,1)"><rect x="0" y="0.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="5.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="11.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="16.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="22.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="27.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="33.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="38.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="44.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="49.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="55.0" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="60.5" width="16" height="4.5" fill="#c0392b" stroke="#555" stroke-width=".5"/><rect x="0" y="66.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="71.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="77.0" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/><rect x="0" y="82.5" width="16" height="4.5" fill="#e4e4e4" stroke="#555" stroke-width=".5"/></g></svg></div>
+<div class="sethead" style="left:0.3in;top:11.75in;width:4.8in">EFFECTS: fire for the slammer, whoever added the pog. Numbers are placeholders. Pogs may also be Heavy, Slick or Sticky.</div>
+<div class="card" style="left:0.3in;top:12.1in;width:2.35in;min-height:1.0in"><div class="head">Strike 4</div><div class="sub" style="color:#a33">hurts them</div><p class="story">Plain and honest.</p><p class="rule">Deal 4 to the other side.</p><p class="param">4</p></div>
+<div class="card" style="left:2.75in;top:12.1in;width:2.35in;min-height:1.0in"><div class="head">Heal 3</div><div class="sub" style="color:#2a7a3a">helps the slammer</div><p class="story">A deep breath.</p><p class="rule">Slammer heals 3, minus 1 per reshuffle.</p><p class="param">3 → 2 → 1</p></div>
+<div class="card" style="left:0.3in;top:13.2in;width:2.35in;min-height:1.0in"><div class="head">Poison 3</div><div class="sub" style="color:#a33">hurts the slammer</div><p class="story">Bitter pill.</p><p class="rule">Slammer takes 3, even from its own pog.</p><p class="param">3</p></div>
+<div class="card" style="left:2.75in;top:13.2in;width:2.35in;min-height:1.0in"><div class="head">Guard 3</div><div class="sub" style="color:#2a7a3a">shields the slammer</div><p class="story">Hold the line.</p><p class="rule">Slammer gains 3 guard.</p><p class="param">3</p></div>
+<div class="card" style="left:0.3in;top:14.3in;width:2.35in;min-height:1.0in"><div class="head">Drain 2</div><div class="sub" style="color:#6b3fa0">swaps health</div><p class="story">A little for me.</p><p class="rule">They lose 2, the slammer gains 2.</p><p class="param">2 (my reading)</p></div>
+<div class="card" style="left:2.75in;top:14.3in;width:2.35in;min-height:1.0in"><div class="head">Recoil</div><div class="sub" style="color:#a33">hits both</div><p class="story">It kicks back.</p><p class="rule">Them −6, the slammer −2.</p><p class="param">−6 / −2</p></div>
+<div class="card" style="left:0.3in;top:15.4in;width:2.35in;min-height:1.0in"><div class="head">Deep Strike</div><div class="sub" style="color:#6b3fa0">rewards depth</div><p class="story">Down where it is quiet.</p><p class="rule">Strike, doubled from the bottom half.</p><p class="param">needs a deep slammer</p></div>
+<div class="card" style="left:2.75in;top:15.4in;width:2.35in;min-height:1.0in"><div class="head">Capstone</div><div class="sub" style="color:#6b3fa0">rewards the top</div><p class="story">The cherry on top.</p><p class="rule">+2 if it is on top of the tower.</p><p class="param">top row only</p></div>
+<div class="sethead" style="left:22.85in;top:1.9in;width:4.8in">RISKS, AND WHAT ANSWERS EACH</div>
+<div class="card" style="left:22.85in;top:2.25in;width:2.35in;min-height:1.4in"><div class="head">Obvious best shot</div><div class="sub" style="color:#2a7a3a">Three faces, mixed stack</div><p class="story">The same aim wins every time.</p><p class="rule">Slammers reach different depths, the stack mixes both rosters, and effects can hurt the slammer, so the best aim changes each pile.</p><p class="param">Heavy, Slick, Sticky bend the physics</p></div>
+<div class="card" style="left:25.3in;top:2.25in;width:2.35in;min-height:1.4in"><div class="head">Unreadable outcomes</div><div class="sub" style="color:#2a7a3a">Strip, bracket, pops</div><p class="story">You cannot tell what happened.</p><p class="rule">The strip lists every pog, the bracket shows usual reach, effects pop one by one, then a summary card.</p><p class="param">colour = contributor</p></div>
+<div class="card" style="left:22.85in;top:3.75in;width:2.35in;min-height:1.4in"><div class="head">Shared healing</div><div class="sub" style="color:#2a7a3a">Heals fade</div><p class="story">Fights that never end.</p><p class="rule">A Heal loses 1 point each time the discard is shuffled back in.</p><p class="param">Heal 3 → 2 → 1 → 0</p></div>
+<div class="card" style="left:25.3in;top:3.75in;width:2.35in;min-height:1.4in"><div class="head">Poison stalls</div><div class="sub" style="color:#2a7a3a">Duds cost health</div><p class="story">Waiting becomes free.</p><p class="rule">A slam that flips nothing is a dud and costs the slammer 1 health.</p><p class="param">dud = −1 health</p></div>
+<div class="card" style="left:22.85in;top:5.25in;width:2.35in;min-height:1.4in"><div class="head">Conversion items</div><div class="sub" style="color:#2a7a3a">Charms are numbers</div><p class="story">One item erases a trade-off.</p><p class="rule">Charms only add or scale numbers, hold three, and fire only on the holder's own slam.</p><p class="param">3 charm slots</p></div>
+<div class="card" style="left:25.3in;top:5.25in;width:2.35in;min-height:1.4in"><div class="head">Long animations</div><div class="sub" style="color:#2a7a3a">3 s turn budget</div><p class="story">Waiting on the animation.</p><p class="rule">Effects resolve one at a time, top-down, quickly; the whole turn fits in 3 seconds.</p><p class="param">3 s per turn</p></div>
+<div class="legend" style="left:5.75in;top:10.85in;font-size:9pt"><b>O</b> you · <b>X</b> foe · <span style="background:#9dbbe6;padding:0 8px;border:1px solid #333">&nbsp;</span> your pog · <span style="background:#f2bb82;padding:0 8px;border:1px solid #333">&nbsp;</span> foe pog · <span style="background:#dcdcdc;padding:0 8px;border:1px dashed #333">&nbsp;</span> Blank · <span style="background:#fff0a8;padding:0 8px;border:1px solid #c0392b">&nbsp;</span> lands face up (red ring on tower) · <span style="background:#ffd84d;opacity:.6;padding:0 8px">&nbsp;</span> slammer reach · letters = effect initial</div>
+<footer class="date">Design proposal · 2026-11-01</footer>
+</main>
+</body>
+</html>
