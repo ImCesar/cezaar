@@ -1,58 +1,60 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Merge-and-sell economy: does it punish impatient picks?</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Merge-and-sell economy: cost of an impatient pick</title>
 <style>
-body{font:14px/1.45 system-ui,sans-serif;color:#1b1b1b;max-width:1000px;margin:16px auto;padding:0 16px}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:14px 0 4px;border-bottom:1px solid #ccc}
-.v{background:#fff4d6;border-left:5px solid #c88a00;padding:8px 12px;margin:8px 0}
+@page{size:A4;margin:12mm}
+body{font:12px/1.4 system-ui,sans-serif;color:#1c1c1c;max-width:980px;margin:16px auto;padding:0 14px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#444}
+.v{background:#fff3d6;border-left:5px solid #c77d00;padding:8px 12px;margin:8px 0}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-table{border-collapse:collapse;width:100%;font-size:13px}td,th{border:1px solid #ccc;padding:3px 6px;text-align:left}
-.row{display:flex;gap:3px;margin:2px 0;align-items:center}.row b{width:92px;font-size:12px}
-.c{width:28px;height:22px;text-align:center;font-size:11px;line-height:22px;border:1px solid #999}
-.b{background:#cfe8cf}.j{background:#f4b6b6}.x{background:#ddd;color:#777}.u{background:#fff}
-ul{margin:4px 0;padding-left:18px}small{color:#555}
-@media print{body{margin:0}}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:3px 6px;text-align:left}th{background:#f1f1f1}
+.t{display:flex;gap:3px;margin:3px 0}.t div{flex:1;text-align:center;padding:4px 0;border:1px solid #999;font-size:11px}
+.g{background:#cfe8cf}.b{background:#f4c7c3}.k{background:#e3e3e3;color:#666}
+ul{margin:3px 0;padding-left:18px}small{color:#555}
 </style></head><body>
 <h1>Merge-and-sell economy: does it punish impatient picks?</h1>
-<small>Design one-pager for production. Rules: 8 slots, 3 offers per win, take one piece or remove one (never both), 3 identical pieces merge to one at 1.5x (rounded up) and free 2 Blank slots, no currency, about 9 choices per run, opponent rosters visible.</small>
+<small>One-page design note for production. Numbers below come from the stated rules; items marked (assumption) are not in the rules.</small>
 
-<div class="v"><b>Verdict: yes, it punishes impatience, but the brief's number is too small.</b>
-The "one ninth" is only the removal. The impatient pick also spent a choice, so the run loses <b>2 of 9 choices (about 22%)</b> to one mistake, and the slot is Blank only if the player pays for the removal. Whether the penalty bites at all depends on slot pressure, which this economy mostly relieves (see below).</div>
+<div class="v"><b>Verdict: yes, and harder than the "one ninth" claim says.</b> Undoing an impatient pick costs about <b>2 of ~9 choices (22%)</b>: one choice was spent taking it, one more is spent removing it. The slot is then Blank for one fight. If the player never removes it, the cost is 1 choice plus one of eight slots (12.5% of capacity) held by a piece that is not in the build. The 1/9 figure counts only the removal.</div>
 
-<h2>Choice accounting for one impatient pick</h2>
 <div class="cols"><div>
-<table>
-<tr><th>Choice</th><th>Action</th><th>Build value</th></tr>
-<tr><td>N</td><td>Take off-build piece</td><td>0 (a build piece went untaken)</td></tr>
-<tr><td>N+1</td><td>Remove it (slot becomes Blank)</td><td>0 (a choice spent to undo)</td></tr>
-<tr><td>N+2 at earliest</td><td>Fill the Blank with a build piece</td><td>1 (normal pick)</td></tr>
-</table>
-<p>Clean run: 9 choices, 9 build picks. Impatient run with undo: 9 choices, 7 build picks. Cost: pick 1/9 + removal 1/9 = <b>2/9</b>. The "1/9 to undo" holds for the removal alone. The Blank cannot be refilled in the same choice (take and remove are exclusive), so it sits through at least the rest of that reward and is only useful if a later offer has a build piece.</p>
+<h2>Rules in play</h2>
+<ul>
+<li>8 slots. After each win: take 1 of 3 offered pieces into an empty slot, <i>or</i> remove 1 piece. Never both.</li>
+<li>3 identical pieces auto-merge into 1 piece, all numbers x1.5 rounded up. The 2 freed slots become Blanks.</li>
+<li>Blanks do nothing. A removed piece becomes a Blank. No currency, so no refund and no reroll.</li>
+<li>About 9 choices per run. Opponent rosters, including merges, are visible before each fight.</li>
+</ul>
+<h2>Timeline of one impatient pick</h2>
+<div class="t"><div class="g">Win k: take off-build piece</div><div class="k">Fight: slot holds it</div><div class="b">Win k+1: remove it (no new piece)</div><div class="k">Fight: slot Blank</div><div class="g">Win k+2: slot refilled</div></div>
+<small>The slot does no build work from win k to win k+2 at the earliest. Two choices are spent, and one fight is played with a Blank.</small>
 </div><div>
-<div class="row"><b>Clean</b><span class="c b">1</span><span class="c b">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
-<div class="row"><b>Impatient, undo</b><span class="c j">1</span><span class="c x">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
-<div class="row"><b>Impatient, keep</b><span class="c j">1</span><span class="c b">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
-<small>green = build pick, red = off-build pick, grey = removal. Keeping the junk costs 1/9 of picks and a held slot instead of 2/9.</small>
+<h2>Why the cost is more than a fraction</h2>
+<table>
+<tr><th>Choices on build piece</th><th>Result (3 per merge)</th><th>Multiplier</th></tr>
+<tr><td>9 of 9</td><td>one tier-3 piece (3 x 3)</td><td>1.5 x 1.5 = 2.25x, ceilings compound upward</td></tr>
+<tr><td>7 of 9 (one impatient pick, removed)</td><td>two tier-2 + one tier-1</td><td>1.5x, 1.5x, 1x</td></tr>
+<tr><td>8 of 9 (pick kept)</td><td>two tier-2 + two tier-1</td><td>1.5x, 1.5x, 1x, 1x, one slot lost</td></tr>
+</table>
+<small>Merging is a threshold: 9 matching copies are needed for the top tier. Missing even one choice forfeits the top merge, so the loss lands as a lost tier, not as 11% weaker. This assumes the build piece is offered every time (assumption); in practice it will not be, which makes each wasted choice worse.</small>
 </div></div>
 
-<h2>The cost is conditional on slot pressure</h2>
+<h2>What softens it</h2>
 <ul>
-<li><b>Merges free slots.</b> Nine perfect picks form three triples: 9 pieces become 3, leaving 6 Blanks. A tight build never fills 8 slots, so the junk piece can simply stay and the removal is never needed. The real cost is then 1/9 (the wasted pick) plus a broken triple.</li>
-<li><b>Triples are the real casualty.</b> Three copies are needed per merge. A wasted pick can leave a triple short at run end, forfeiting the 1.5x step (for example a stat of 3 becomes 5, 2 becomes 3, 1 becomes 2, so small numbers gain the most in relative terms). With only 9 choices there is almost no slack: three triples use all nine.</li>
-<li><b>Wide or two-build runs fill the 8 slots.</b> Only there does the removal become forced, giving the full 2/9.</li>
-<li><b>The junk piece is not inert.</b> Unlike a Blank it has stats, so it may still help a fight; the penalty is smaller for a piece that is merely off-build than for a dead one.</li>
+<li>The off-build piece may match a later offer and become a second build line (assumption: offers repeat pieces).</li>
+<li>Merges free slots, so late-run slot pressure is lower: 8 slots hold a 9-copy build because each merge returns 2.</li>
+<li>Visible opponent rosters let players spot a counter-need early. An "impatient" pick made for a visible threat is a read, not a mistake.</li>
 </ul>
 
-<h2>Mitigations already in the rules</h2>
-<ul><li>Visible opponent rosters, including merged pieces, let players see what builds beat what, which reduces "sounds good" picks.</li>
-<li>No currency means there is no refund: removal gives nothing back, so the penalty is not softened.</li></ul>
+<h2>Open questions to playtest</h2>
+<table>
+<tr><th>Question</th><th>Why it matters</th><th>Measure</th></tr>
+<tr><td>How often is the build piece in the three offers?</td><td>Sets how many choices are truly free to waste</td><td>Offer logs per run</td></tr>
+<tr><td>Does a Blank fight lose more often?</td><td>Tests the Blank cost beyond the choice count</td><td>Win rate with 1 Blank vs 0</td></tr>
+<tr><td>Do players remove or hoard off-build pieces?</td><td>Decides whether the real cost is 2 choices or 1 choice + 1 slot</td><td>Remove rate after off-build take</td></tr>
+<tr><td>Is a 22% penalty wanted?</td><td>Design intent: strict teacher or forgiving?</td><td>Producer call</td></tr>
+</table>
 
-<h2>What the producer should decide</h2>
-<ul>
-<li>Is a 22% choice loss per mistake intended? It is harsh given run length; one mistake can cost a whole third triple.</li>
-<li>Options: lengthen the run to 10 to 12 choices, offer 4 pieces, or let removal and take happen together at a cost. All soften the penalty.</li>
-<li>Playtest: record how often slots are full at choice 9 and how often a run ends with a triple one piece short. If rarely full, rewrite the claim as "costs a triple, not a slot".</li>
-</ul>
-<small>Assumptions: about 9 choices, one pick per choice, all picks either on-build or off-build, no Blank-dependent effects. Numbers are arithmetic from the rules, not playtest data.</small>
+<h2>Recommendation</h2>
+<p>Restate the claim internally as "about 2/9 of the run's choices, plus a Blank fight." If that is too harsh, the cheapest softener is letting removal and a take share one reward when the removed piece was taken on the previous win. Do not add currency; the lack of it is what makes the penalty legible.</p>
 </body></html>

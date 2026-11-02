@@ -1,79 +1,99 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Merge-and-sell economy: does it punish impatient picks?</title>
 <style>
-@page{size:letter;margin:0.4in}
-body{font:12px/1.4 Georgia,serif;color:#222;max-width:960px;margin:12px auto;padding:0 14px}
-h1{font-size:21px;margin:0 0 2px}
-.sub{color:#555;margin:0 0 8px}
-.verdict{border-left:5px solid #b03a2e;background:#faf0ee;padding:6px 10px;margin:6px 0 10px;font-size:13px}
-h2{font:bold 12px sans-serif;text-transform:uppercase;letter-spacing:.06em;color:#b03a2e;margin:10px 0 3px}
+@page{size:Letter;margin:0.4in}
+*{box-sizing:border-box}
+body{margin:0;background:#f4f1ea;color:#1d1d1b;font:12px/1.38 -apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+main{max-width:8.3in;margin:0 auto;padding:.3in;background:#fff}
+h1{font-size:20px;margin:0 0 2px;line-height:1.2}
+h2{font-size:11px;letter-spacing:.07em;text-transform:uppercase;margin:12px 0 4px;color:#555}
+p{margin:0 0 5px}
+.sub{color:#555;margin-bottom:8px}
+.verdict{border-left:4px solid #b3261e;background:#fbeeed;padding:7px 10px;margin:6px 0}
+.verdict b{color:#b3261e}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-p,ul{margin:2px 0}ul{padding-left:16px}
-.row{display:grid;grid-template-columns:110px repeat(9,1fr);gap:2px;margin:2px 0;font:10px sans-serif}
-.row b{align-self:center;font-size:11px}
-.c{padding:4px 1px;text-align:center;border-radius:2px;background:#dfe9dc}
-.c.bad{background:#e8b4ac}.c.rm{background:#f2d9a0}.c.blank{background:#ddd;color:#666}.c.ref{background:#c9d9ee}
-table{border-collapse:collapse;width:100%;font:11px sans-serif}
-td,th{border:1px solid #ccc;padding:3px 5px;text-align:left;vertical-align:top}th{background:#f3f3f3}
+.strip{display:grid;grid-template-columns:118px repeat(9,1fr) 150px;gap:2px;align-items:stretch;margin-bottom:2px}
+.strip .lab{font-weight:600;font-size:11px;align-self:center}
+.c{height:24px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border-radius:2px}
+.B{background:#2f6f4f;color:#fff}.J{background:#d98a1f;color:#fff}.R{background:#b3261e;color:#fff}.N{background:#ddd;color:#666}
+.res{font-size:10.5px;align-self:center;padding-left:6px}
+.key{font-size:10.5px;color:#555;margin:3px 0 0}
+.key span{display:inline-block;width:10px;height:10px;vertical-align:-1px;margin:0 3px 0 8px;border-radius:2px}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th,td{border-bottom:1px solid #ddd;padding:3px 5px;text-align:left;vertical-align:top}
+th{background:#f0ede6}
+ul{margin:0;padding-left:16px}li{margin-bottom:2px}
 .small{font-size:10.5px;color:#555}
-@media print{body{margin:0}}
-</style></head><body>
-<h1>Merge-and-sell roster economy: does it punish impatient picks?</h1>
-<p class="sub">Design one-pager for production. Subject: 8 roster slots, 3 offered pieces after each win, about 9 choices per run.</p>
+@media print{body{background:#fff}main{padding:0;max-width:none}}
+</style></head><body><main>
 
-<div class="verdict"><b>Answer: yes, and the cost is larger than the "one ninth" figure suggests.</b> Undoing a bad pick costs 1 of 9 choices (about 11%). But the bad pick itself also consumed a choice, so the run has spent 2 of 9 (about 22%) to end up where it started, with the slot Blank until a third choice refills it. Whether that hurts depends on slot pressure, which the numbers below show is low early and high late.</div>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<p class="sub">Design note for production. Rule set: 8 slots, about 9 choices per run, one action per win (take one of three pieces, or remove one piece). Three copies merge to one piece at x1.5 rounded up, freeing two slots as Blanks. No currency.</p>
 
-<h2>Rules in brief</h2>
-<ul>
-<li>After each win: take one of 3 offered pieces into an empty slot, <i>or</i> remove one piece. Never both.</li>
-<li>Three identical pieces merge automatically into one with all numbers x1.5, rounded up. The two freed slots become Blanks.</li>
-<li>A Blank does nothing. A removed piece becomes a Blank. No currency, so a choice is the only resource.</li>
-<li>Opponent rosters, merged pieces included, are visible before each fight.</li>
-</ul>
+<div class="verdict"><b>Short answer: yes, it punishes, but the claim understates it and names the wrong mechanism.</b>
+Undoing a stray pick does cost one ninth of the run (the removal turn). The pick itself already cost another ninth, so the true price is
+<b>two ninths</b>, or <b>one ninth if you never undo it</b> and carry a dead slot instead. The Blank slot is a smaller cost than claimed (one fight, and no extra choice). The larger cost is that merges need whole triplets, so one wasted choice in a tight run can cost a full merge.</div>
 
-<h2>Timeline: clean run vs. one impatient pick (9 choices)</h2>
-<div class="row"><b></b><span class="c">1</span><span class="c">2</span><span class="c">3</span><span class="c">4</span><span class="c">5</span><span class="c">6</span><span class="c">7</span><span class="c">8</span><span class="c">9</span></div>
-<div class="row"><b>Clean</b><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span></div>
-<div class="row"><b>Impatient</b><span class="c">build</span><span class="c">build</span><span class="c bad">off-build pick</span><span class="c rm">remove it</span><span class="c ref">refill</span><span class="c">build</span><span class="c">build</span><span class="c">build</span><span class="c">build</span></div>
-<p class="small">Result: 7 build choices instead of 9 (a 2/9 loss). The off-build piece sits in a slot for the fights after choice 3 (it may help or hurt). After choice 4 the slot is Blank for the fight that follows, until choice 5 fills it. If you never remove it, the cost is the slot it occupies instead, and the loss falls to 1/9 plus the slot.</p>
+<h2>1. The cost, choice by choice (9 choices, best case for a focused build)</h2>
+<div class="strip"><div class="lab">Disciplined</div>
+<div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div>
+<div class="res">3 merges, or 1 triple-merge (9 copies)</div></div>
+<div class="strip"><div class="lab">Impatient, keep it</div>
+<div class="c B">B</div><div class="c B">B</div><div class="c J">J</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div>
+<div class="res">2 merges + 2 spare; 7 usable slots; no 9-copy build</div></div>
+<div class="strip"><div class="lab">Impatient, undo it</div>
+<div class="c B">B</div><div class="c B">B</div><div class="c J">J</div><div class="c R">R</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div><div class="c B">B</div>
+<div class="res">2 merges + 1 spare; slot Blank for one fight</div></div>
+<p class="key"><span class="B"></span>build piece <span class="J"></span>off-build pick <span class="R"></span>removal turn. Order is illustrative; the arithmetic does not depend on where the pick falls.</p>
 
-<div class="cols"><div>
-<h2>Where the claim holds and where it bends</h2>
+<div class="cols">
+<div>
+<h2>2. Checking the claim</h2>
 <table>
-<tr><th>Claim</th><th>Check</th></tr>
-<tr><td>Undo costs about 1/9 of choices</td><td>Correct for the removal alone: one choice of about nine. Understates total cost by ignoring the wasted pick.</td></tr>
-<tr><td>Slot sits Blank until next reward</td><td>Correct, one fight. Not strictly "next reward": a player can use that reward to remove another piece instead, delaying the refill.</td></tr>
-<tr><td>Removal is required</td><td>Often not. 9 choices vs. 8 slots, and each merge frees 2 slots, so early on a wrong piece can just sit. Removal is forced only when the roster is full, which is mostly choices 7 to 9.</td></tr>
+<tr><th>Claim</th><th>Holds?</th></tr>
+<tr><td>Undo costs about 1/9 of choices</td><td>Yes. Removal is a whole turn because take and remove are exclusive.</td></tr>
+<tr><td>Total cost of the mistake</td><td>2/9 if undone (pick + removal); 1/9 plus a dead slot if kept.</td></tr>
+<tr><td>Slot sits Blank until next reward</td><td>Yes, but the refill is the choice you would make anyway, so the Blank costs one fight with a missing piece, not an extra choice.</td></tr>
+<tr><td>Is removal even needed?</td><td>Only when all 8 slots are full. Merges free two slots each, so slot pressure is often low and keeping the piece is cheaper.</td></tr>
 </table>
-</div><div>
-<h2>Why timing changes the penalty</h2>
-<ul>
-<li><b>Early (choices 1 to 4):</b> slots are plentiful. A junk piece costs one choice, not two, but it can block a merge triple if it was meant to be a copy.</li>
-<li><b>Late (choices 7 to 9):</b> roster is full, so junk forces a removal. Few choices remain to refill, so the Blank may stay empty through the end of the run.</li>
-<li><b>Merges soften it:</b> a merge frees two slots, so a run with one merge has room to absorb one mistake free of removal.</li>
-<li><b>Visible opponents</b> let players see what wins before they pick. That makes impatience a choice, not an accident, which supports the penalty being fair.</li>
-</ul>
-</div></div>
 
-<h2>Merge arithmetic (x1.5, rounded up)</h2>
-<p>Stat 1 becomes 2 (+100%), 2 becomes 3, 3 becomes 5, 4 becomes 6, 5 becomes 8. Low numbers gain the most in relative terms. A merge costs 3 choices (3 copies) for one stronger piece plus 2 free slots, so a build chasing a merge commits a third of the run to one piece, which makes any wasted choice relatively more costly.</p>
+<h2>3. Why the real cost is a cliff</h2>
+<ul>
+<li>Merges consume copies in threes. Nine choices fit exactly three triplets, so any waste of 1 to 3 choices loses one whole merge, not a fraction of one.</li>
+<li>A second-tier merge needs nine copies of one piece. One off-build pick, kept or undone, makes that impossible in a 9-choice run.</li>
+<li>Rounding favors small numbers lightly and large ones heavily: 2 to 3, 3 to 5, 5 to 8, 7 to 11. Two merge tiers on a base 4 give 6 then 9.</li>
+</ul>
+</div>
 
-<div class="cols"><div>
-<h2>Producer takeaways</h2>
+<div>
+<h2>4. What softens it</h2>
 <ul>
-<li>The economy punishes impatience: 2/9 choices lost when removal is needed, 1/9 plus a slot when it is not.</li>
-<li>The penalty is mild early and sharp late. That is a reasonable shape, but it should be intended.</li>
-<li>The "about 1/9" line in the pitch should read "about 2/9 including the pick itself".</li>
+<li>Opponent rosters, including merges, are visible before each fight. A "sounds good" pick can be checked against what is coming, which supports patience and also lets a counter pick be deliberate rather than impatient.</li>
+<li>Offers show three pieces, so a build copy often appears; a miss costs only the turn spent waiting for one.</li>
+<li>An off-build piece still fights. If it is strong enough it is not a total loss, only an inefficient one.</li>
+<li>No currency means no second penalty: the mistake never costs gold, only turns.</li>
 </ul>
-</div><div>
-<h2>Open questions to test</h2>
+
+<h2>5. What I could not confirm</h2>
 <ul>
-<li>How often is the roster actually full by choice 7? Needs a playtest log or a simulation.</li>
-<li>Is "about nine" choices fixed or variable? A shorter run raises each choice's weight.</li>
-<li>Can offers be all off-build? If so, is "remove" a forced waste for patient players too?</li>
-<li>Does a lone Blank during one fight measurably change win rate? This is untested; the figures above are rule arithmetic, not measured data.</li>
+<li><b>Offer odds.</b> How often a build piece appears among the three. If rarely, even disciplined runs waste turns and the impatient pick costs less than shown.</li>
+<li><b>Run length.</b> "About nine" matters: at 10 or 12 choices the cliff moves and a stray pick may be absorbed.</li>
+<li><b>Losses.</b> Choices come after wins; whether a loss ends the run or only skips a reward changes the 9.</li>
+<li><b>Blank vs empty.</b> I assumed a Blank counts as an empty slot you can take into.</li>
+<li><b>Off-build value.</b> No data on how strong a stray piece is in a fight.</li>
 </ul>
-</div></div>
-<p class="small">Basis: figures derive only from the rules stated in the brief; no playtest data was used.</p>
-</body></html>
+</div>
+</div>
+
+<h2>6. Decisions for the producer</h2>
+<table>
+<tr><th style="width:30%">Question</th><th>Recommendation</th></tr>
+<tr><td>Is the economy punishing enough?</td><td>Yes in a 9-choice run. It is punishing through merge math, not through slots.</td></tr>
+<tr><td>Is it too punishing?</td><td>Playtest. If the stray pick feels fatal, add one spare choice (10) or let a removal also take a piece in the same turn once per run.</td></tr>
+<tr><td>Fix the wording of the claim</td><td>Say "one ninth to undo, two ninths with the pick itself; one ninth if kept."</td></tr>
+<tr><td>Measure next</td><td>Simulate offer odds and run length; track how often players remove versus keep a stray piece.</td></tr>
+</table>
+<p class="small" style="margin-top:6px">Arithmetic here is hand-derived from the stated rules, not from playtest data.</p>
+</main></body></html>
