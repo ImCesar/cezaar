@@ -12,6 +12,7 @@ Cesar's personal Claude Code plugin marketplace.
 | **gh-dashboard** | GitHub project status dashboard |
 | **obsidian-brain** | Capture, journal, reflect, and generate reviews in an Obsidian vault |
 | **crucible** | Convene a panel of thinking systems to pressure-test ideas |
+| **one-page-design** | Turn any design into a Librande-style one-page document |
 
 ## Installation
 
@@ -23,4 +24,5 @@ claude plugins install review-hats
 claude plugins install gh-dashboard
 claude plugins install obsidian-brain
 claude plugins install crucible
+claude plugins install one-page-design
 ```

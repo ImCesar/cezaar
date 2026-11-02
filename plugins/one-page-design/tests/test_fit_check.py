@@ -4,8 +4,9 @@ import subprocess
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "fit-check.py"
-SCAFFOLD = ROOT / "scaffold.html"
+SKILL = ROOT / "skills" / "one-page-design"
+SCRIPT = SKILL / "scripts" / "fit-check.py"
+SCAFFOLD = SKILL / "scaffold.html"
 
 spec = importlib.util.spec_from_file_location("fit_check", SCRIPT)
 fit_check = importlib.util.module_from_spec(spec)

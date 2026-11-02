@@ -1,0 +1,10 @@
+{
+  "name": "one-page-design",
+  "description": "Turns any design into a Stone Librande-style one-page document: one printable HTML surface, a depiction in the middle, the words hung off it.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Cesar Avitia"
+  },
+  "repository": "https://github.com/ImCesar/cezaar",
+  "keywords": ["design", "one-page", "game-design", "documentation", "poster"]
+}
