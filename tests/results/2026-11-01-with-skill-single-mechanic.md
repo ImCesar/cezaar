@@ -53,3 +53,11 @@ The claim correction (two in nine) also appeared in the baseline, so the skill d
 ## Comparison with scenario 1
 
 Shape chosen here: two-row comparison of runs on a choice ruler. Scenario 1: central object with margin cards and a run map. The shapes differ. Shared across both: title as claim, footer date, three registers, a boxed legend, numbered leader callouts, the same paper, ink and red accent palette, and an inch-sized sheet.
+
+## fit-check after Task 8
+
+The updated fit-check, which also checks unitless SVG font sizes at 100 units per inch, run on the existing page. Verbatim output, exit code 0:
+```
+surface: 17.0 x 11.0 in
+```
+Findings: 0. Scenario 2 was not re-run.
