@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pog Roguelike: One-Page Design</title>
+<style>
+  :root { --ink:#1d1b22; --mute:#5d5a68; --line:#d9d6e0; --bg:#faf9fc; --acc:#6b3fd4; --warn:#b3261e; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:20px 24px 28px; }
+  h1 { font-size:22px; margin:0 0 2px; }
+  .tag { color:var(--mute); margin:0 0 12px; font-size:14px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--acc); margin:0 0 4px; border-bottom:1px solid var(--line); padding-bottom:2px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px 22px; }
+  .span2 { grid-column:span 2; } .span3 { grid-column:span 3; }
+  p { margin:0 0 5px; } ul { margin:0; padding-left:16px; } li { margin-bottom:2px; }
+  table { border-collapse:collapse; width:100%; font-size:12px; }
+  th,td { text-align:left; padding:2px 6px 2px 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  .loop { display:flex; gap:6px; flex-wrap:wrap; align-items:stretch; margin:4px 0; }
+  .step { background:#fff; border:1px solid var(--line); border-radius:6px; padding:4px 8px; font-size:12px; flex:1 1 120px; }
+  .step b { display:block; color:var(--acc); }
+  .bad { color:var(--warn); font-weight:600; }
+  code { background:#eeeaf6; padding:0 3px; border-radius:3px; }
+  .pill { display:inline-block; border:1px solid var(--line); background:#fff; border-radius:10px; padding:0 7px; margin:1px 2px 1px 0; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Pog Roguelike</h1>
+<p class="tag">A single-player desktop roguelike (mouse or controller). You and an AI opponent build one shared stack of pogs, then take turns dropping a slammer on it. Pogs that land face up fire their effect for the slammer, whoever owns them. Last combatant alive wins.</p>
+
+<div class="grid">
+
+<section class="span3">
+<h2>Core loop: one turn (hard cap 3 s of animation)</h2>
+<div class="loop">
+  <div class="step"><b>1. Stack</b>Both rosters (8 slots each) combine into one 16-high tower. Shuffled.</div>
+  <div class="step"><b>2. Aim</b>Pick the aim point; the strip bracket shows the usual reach depth.</div>
+  <div class="step"><b>3. Drop</b>The slammer falls under real physics. Pogs that land face up are "flipped".</div>
+  <div class="step"><b>4. Resolve</b>Flipped pogs fire top-down, one at a time, each with a popping number. Then a summary card.</div>
+  <div class="step"><b>5. Reshuffle</b>Unflipped pogs go into a fresh pile. Low pile: discard is shuffled back in. Turn passes.</div>
+</div>
+<p>Effects always go to the <b>slammer</b>, not the pog's owner. Your own pog can hurt you and an enemy pog can help you. That is the central tension: you want to hit the right pogs, not just the most.</p>
+</section>
+
+<section class="span2">
+<h2>Effects (placeholder numbers)</h2>
+<table>
+<tr><th>Effect</th><th>Result for the slammer</th></tr>
+<tr><td>Strike 4</td><td>Deal 4 to the other side</td></tr>
+<tr><td>Heal 3</td><td>Slammer +3 health. Loses 1 point each time the pile reshuffles (min 0).</td></tr>
+<tr><td>Poison 3</td><td class="bad">Slammer takes 3</td></tr>
+<tr><td>Guard 3</td><td>Block 3 incoming damage</td></tr>
+<tr><td>Drain 2</td><td>Take 2 from the other side, add it to yourself</td></tr>
+<tr><td>Recoil</td><td>Other side -6, slammer -2</td></tr>
+<tr><td>Deep Strike</td><td>Strike doubled if the pog sits in the bottom half of the tower</td></tr>
+<tr><td>Capstone</td><td>+2 if the pog is on top</td></tr>
+<tr><td>Blank</td><td>No effect. Fills empty roster slots so the tower is always 16 high.</td></tr>
+</table>
+<p style="margin-top:4px">Modifiers: <span class="pill">Heavy</span><span class="pill">Slick</span><span class="pill">Sticky</span> change how a pog moves and flips under physics. Exact rules are a tuning question (see Open).</p>
+</section>
+
+<section>
+<h2>Slammers (pick one per fight)</h2>
+<table>
+<tr><th>Slammer</th><th>Face</th><th>Reach</th></tr>
+<tr><td>Dome</td><td>Rounded</td><td>Flips the top few</td></tr>
+<tr><td>Ring</td><td>Hollow</td><td>Tips one side of the stack</td></tr>
+<tr><td>Flat</td><td>Broad</td><td>Reaches deep</td></tr>
+</table>
+<p style="margin-top:4px">You own up to 3. You choose <b>after</b> seeing the enemy roster, so the choice is a real read: deep-heavy enemy, bring Flat; Capstone-heavy, bring Dome.</p>
+</section>
+
+<section class="span2">
+<h2>Readability</h2>
+<ul>
+<li><b>Tower</b> (3D, centre): the physics you watch.</li>
+<li><b>Strip</b> (beside it): every pog top to bottom, with icon, value and a contributor colour (yours or theirs). A bracket marks how deep the chosen slammer usually reaches from the aim point, so you can read the likely outcome before you drop.</li>
+<li><b>Resolution</b>: effects fire one at a time in tower order, each with a number popping up, then one summary card of net changes. The strip is the single source of truth, so nothing resolves in a hidden order.</li>
+</ul>
+</section>
+
+<section>
+<h2>Roster</h2>
+<ul>
+<li>8 slots. After each fight: <b>add</b> one of 3 offered pogs to an empty slot <b>or remove</b> one. Never both.</li>
+<li>3 identical pogs merge into one stronger pog (numbers x1.5) and free 2 slots.</li>
+<li>Opponents also field 8 slots.</li>
+</ul>
+</section>
+
+<section class="span2">
+<h2>Run structure (40 to 50 min)</h2>
+<ul>
+<li>Branching map of about 12 nodes ending in a boss.</li>
+<li>Nodes: <b>Fight</b>, <b>Elite</b> (harder roster, better reward), <b>Shop</b> (buy charms and slammers), <b>Rest</b> (heal 30%).</li>
+<li>Health carries over between fights, so route choice is a resource decision.</li>
+<li><b>Charms</b>: items with numbers only (no new rules). 3 slots. They fire only on the holder's own slam.</li>
+</ul>
+</section>
+
+<section>
+<h2>Roguelike hook</h2>
+<p>Each run is a different pile of 8 pogs, 3 slammers and 3 charms. Build decisions (what to add, remove or merge) matter more than aim, because the enemy's pogs are in the tower too.</p>
+</section>
+
+<section class="span3">
+<h2>Risks and how the design answers them</h2>
+<table>
+<tr><th style="width:19%">Risk</th><th>Answer</th></tr>
+<tr><td>An obvious best shot</td><td>Pogs are shuffled every turn and the tower holds both sides' pogs, so the best depth changes each time. Three slammers reach differently, and slammer choice is made against the enemy roster. Effects help or hurt the slammer, so "flip the most" is not always right.</td></tr>
+<tr><td>Unreadable outcomes</td><td>The strip lists every pog with value and colour, plus a reach bracket. Resolution is top-down, one at a time, with popping numbers and a summary card.</td></tr>
+<tr><td>Shared healing prolongs fights</td><td>Heal is slammer-only and loses 1 point at every reshuffle, so it decays to nothing in a long fight. Enemy Heals can also help you.</td></tr>
+<tr><td>Poison stalls</td><td>A slam that flips nothing is a dud and costs 1 health, so nobody can wait safely. Poison hurts the slammer, so you cannot hide behind it.</td></tr>
+<tr><td>Conversion items erase trade-offs</td><td>Charms are number-only. They cannot change an effect's type, such as turning Poison into Heal. They fire only on the holder's own slam.</td></tr>
+<tr><td>Long animations</td><td>3 s turn budget. Resolution speeds up with the number of flipped pogs to fit the cap. The summary card carries the detail.</td></tr>
+</table>
+</section>
+
+<section class="span3">
+<h2>Open (needs tuning in prototype)</h2>
+<p>All numbers are placeholders. Heavy, Slick and Sticky need exact physics definitions. Elite rewards, shop prices and boss design are not yet specified. AI opponent behaviour (how it picks its slammer and aim) is the largest unknown for the feel of the game.</p>
+</section>
+
+</div>
+</main>
+</body>
+</html>
