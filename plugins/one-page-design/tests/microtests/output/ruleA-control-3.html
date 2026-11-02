@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Merge-and-sell economy: cost of an impatient pick</title>
+<style>
+@page{size:A4;margin:12mm}
+body{font:12px/1.4 system-ui,sans-serif;color:#1c1c1c;max-width:980px;margin:16px auto;padding:0 14px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#444}
+.v{background:#fff3d6;border-left:5px solid #c77d00;padding:8px 12px;margin:8px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:3px 6px;text-align:left}th{background:#f1f1f1}
+.t{display:flex;gap:3px;margin:3px 0}.t div{flex:1;text-align:center;padding:4px 0;border:1px solid #999;font-size:11px}
+.g{background:#cfe8cf}.b{background:#f4c7c3}.k{background:#e3e3e3;color:#666}
+ul{margin:3px 0;padding-left:18px}small{color:#555}
+</style></head><body>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<small>One-page design note for production. Numbers below come from the stated rules; items marked (assumption) are not in the rules.</small>
+
+<div class="v"><b>Verdict: yes, and harder than the "one ninth" claim says.</b> Undoing an impatient pick costs about <b>2 of ~9 choices (22%)</b>: one choice was spent taking it, one more is spent removing it. The slot is then Blank for one fight. If the player never removes it, the cost is 1 choice plus one of eight slots (12.5% of capacity) held by a piece that is not in the build. The 1/9 figure counts only the removal.</div>
+
+<div class="cols"><div>
+<h2>Rules in play</h2>
+<ul>
+<li>8 slots. After each win: take 1 of 3 offered pieces into an empty slot, <i>or</i> remove 1 piece. Never both.</li>
+<li>3 identical pieces auto-merge into 1 piece, all numbers x1.5 rounded up. The 2 freed slots become Blanks.</li>
+<li>Blanks do nothing. A removed piece becomes a Blank. No currency, so no refund and no reroll.</li>
+<li>About 9 choices per run. Opponent rosters, including merges, are visible before each fight.</li>
+</ul>
+<h2>Timeline of one impatient pick</h2>
+<div class="t"><div class="g">Win k: take off-build piece</div><div class="k">Fight: slot holds it</div><div class="b">Win k+1: remove it (no new piece)</div><div class="k">Fight: slot Blank</div><div class="g">Win k+2: slot refilled</div></div>
+<small>The slot does no build work from win k to win k+2 at the earliest. Two choices are spent, and one fight is played with a Blank.</small>
+</div><div>
+<h2>Why the cost is more than a fraction</h2>
+<table>
+<tr><th>Choices on build piece</th><th>Result (3 per merge)</th><th>Multiplier</th></tr>
+<tr><td>9 of 9</td><td>one tier-3 piece (3 x 3)</td><td>1.5 x 1.5 = 2.25x, ceilings compound upward</td></tr>
+<tr><td>7 of 9 (one impatient pick, removed)</td><td>two tier-2 + one tier-1</td><td>1.5x, 1.5x, 1x</td></tr>
+<tr><td>8 of 9 (pick kept)</td><td>two tier-2 + two tier-1</td><td>1.5x, 1.5x, 1x, 1x, one slot lost</td></tr>
+</table>
+<small>Merging is a threshold: 9 matching copies are needed for the top tier. Missing even one choice forfeits the top merge, so the loss lands as a lost tier, not as 11% weaker. This assumes the build piece is offered every time (assumption); in practice it will not be, which makes each wasted choice worse.</small>
+</div></div>
+
+<h2>What softens it</h2>
+<ul>
+<li>The off-build piece may match a later offer and become a second build line (assumption: offers repeat pieces).</li>
+<li>Merges free slots, so late-run slot pressure is lower: 8 slots hold a 9-copy build because each merge returns 2.</li>
+<li>Visible opponent rosters let players spot a counter-need early. An "impatient" pick made for a visible threat is a read, not a mistake.</li>
+</ul>
+
+<h2>Open questions to playtest</h2>
+<table>
+<tr><th>Question</th><th>Why it matters</th><th>Measure</th></tr>
+<tr><td>How often is the build piece in the three offers?</td><td>Sets how many choices are truly free to waste</td><td>Offer logs per run</td></tr>
+<tr><td>Does a Blank fight lose more often?</td><td>Tests the Blank cost beyond the choice count</td><td>Win rate with 1 Blank vs 0</td></tr>
+<tr><td>Do players remove or hoard off-build pieces?</td><td>Decides whether the real cost is 2 choices or 1 choice + 1 slot</td><td>Remove rate after off-build take</td></tr>
+<tr><td>Is a 22% penalty wanted?</td><td>Design intent: strict teacher or forgiving?</td><td>Producer call</td></tr>
+</table>
+
+<h2>Recommendation</h2>
+<p>Restate the claim internally as "about 2/9 of the run's choices, plus a Blank fight." If that is too harsh, the cheapest softener is letting removal and a take share one reward when the removed piece was taken on the previous win. Do not add currency; the lack of it is what makes the penalty legible.</p>
+</body></html>

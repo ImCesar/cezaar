@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merge-and-sell economy: does it punish impatient picks?</title>
+<style>
+  @page { size: letter; margin: 0.4in; }
+  :root { --ink:#1d2330; --mute:#5b6475; --line:#d5d9e2; --good:#2f7d4f; --bad:#b3402e; --blank:#e9ebf0; --acc:#2a5db0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:11.5px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink); background:#fff; }
+  main { max-width:8.3in; margin:0 auto; padding:0.25in; }
+  h1 { font-size:20px; margin:0 0 2px; }
+  .sub { color:var(--mute); margin:0 0 8px; }
+  .verdict { border-left:4px solid var(--bad); background:#fbf1ef; padding:7px 10px; margin-bottom:9px; }
+  .verdict b { color:var(--bad); }
+  h2 { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--acc); margin:0 0 3px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; }
+  section { margin-bottom:2px; }
+  p { margin:0 0 4px; }
+  ul { margin:0; padding-left:15px; }
+  li { margin-bottom:2px; }
+  .full { grid-column:1 / -1; }
+  .row { display:flex; align-items:center; gap:6px; margin:3px 0; }
+  .lab { width:150px; flex:none; font-size:10.5px; color:var(--mute); }
+  .cell { width:26px; height:20px; border-radius:3px; display:flex; align-items:center; justify-content:center;
+          font-size:9.5px; font-weight:600; color:#fff; flex:none; }
+  .g { background:var(--good); } .b { background:var(--bad); } .x { background:var(--blank); color:var(--mute); }
+  .m { background:var(--acc); } .n { background:#8b93a5; }
+  .res { margin-left:6px; font-size:10.5px; }
+  table { border-collapse:collapse; width:100%; font-size:10.5px; }
+  th,td { border-bottom:1px solid var(--line); padding:2px 5px; text-align:left; vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  .key { font-size:10px; color:var(--mute); margin-top:3px; }
+  .key span { display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin:0 3px 0 8px; }
+  @media print { main { padding:0; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+  <p class="sub">Design note for production. Rules as specified: 8 slots, about 9 choices per run, one action per win (take one of three, or remove one), three-of-a-kind merges at x1.5 rounded up, no currency.</p>
+
+  <div class="verdict">
+    <b>Short answer: yes, and the "one ninth" figure understates it.</b>
+    Undoing a wrong pick costs 1 choice of 9 (11%), but the wrong pick itself already spent a choice, and the emptied slot needs another choice to refill. Counted against a run with no mistake, a pick that is taken and then undone costs about <b>2 of 9 choices (22%)</b>, and a pick that is kept costs <b>1 of 9</b> plus a slot. The sharper effect is a cliff, not a flat tax: a single-piece build that wants two merge tiers uses all 9 choices, so one wasted choice removes the second tier.
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>What the claim gets right</h2>
+      <ul>
+        <li>Removing a piece is a full action. It cannot be combined with a take, so the undo consumes exactly 1 of about 9 choices.</li>
+        <li>A removed piece becomes a Blank, and a Blank does nothing. The slot contributes nothing until a later take fills it.</li>
+        <li>There is no currency, so nothing offsets the loss. No refund, no trade, no bank.</li>
+      </ul>
+    </section>
+    <section>
+      <h2>What the claim misses</h2>
+      <ul>
+        <li><b>Three choices, not one.</b> Wrong take (1), remove (1), correct refill (1). The correct piece would have cost 1 anyway, so the net loss is 2.</li>
+        <li><b>Blank lasts at least one fight.</b> Removal happens at a reward. The next fight is played with that slot Blank. The refill can come no sooner than the next reward, and only if the three offers include a build piece (offer odds are not specified).</li>
+        <li><b>The wrong piece also sat in the slot for the fight before.</b> It did something, possibly harmful, possibly useful. Not modeled here.</li>
+        <li><b>Undo is sometimes optional.</b> If a free slot exists, leaving the piece costs no removal. Early on this is common; see slot pressure below.</li>
+      </ul>
+    </section>
+
+    <section class="full">
+      <h2>The 9 choices, three ways (single-piece build, ceiling case)</h2>
+      <div class="row"><div class="lab">No mistake</div>
+        <div class="cell g">1</div><div class="cell g">2</div><div class="cell g">3</div><div class="cell g">4</div><div class="cell g">5</div><div class="cell g">6</div><div class="cell g">7</div><div class="cell g">8</div><div class="cell g">9</div>
+        <span class="res">9 copies: 3 merge to tier 1, those 3 merge to tier 2 (x2.25)</span></div>
+      <div class="row"><div class="lab">Impatient, kept</div>
+        <div class="cell g">1</div><div class="cell g">2</div><div class="cell b">3</div><div class="cell g">4</div><div class="cell g">5</div><div class="cell g">6</div><div class="cell g">7</div><div class="cell g">8</div><div class="cell g">9</div>
+        <span class="res">8 copies: two tier 1 plus 2 loose. No tier 2. Off-build piece holds a slot</span></div>
+      <div class="row"><div class="lab">Impatient, undone</div>
+        <div class="cell g">1</div><div class="cell g">2</div><div class="cell b">3</div><div class="cell x">cut</div><div class="cell g">5</div><div class="cell g">6</div><div class="cell g">7</div><div class="cell g">8</div><div class="cell g">9</div>
+        <span class="res">7 copies: two tier 1 plus 1 loose. No tier 2. Blank for at least one fight</span></div>
+      <div class="key"><span class="g" style="background:var(--good)"></span>build piece taken<span style="background:var(--bad)"></span>off-build take<span style="background:#cfd3dc"></span>remove action (no take)</div>
+      <p class="key">Assumes every offer contains the build piece and the build is one piece type. Real builds use several types, so the cliff softens; the 1-to-2 choice cost does not.</p>
+    </section>
+
+    <section>
+      <h2>Slot pressure (why undo is often optional)</h2>
+      <p>Eight slots against about nine choices looks tight, but each merge frees two slots. A focused build keeps filling and collapsing, so it rarely runs out of room. A scattered build does: 8 unmerged singles fill every slot, and then every further take needs a removal first.</p>
+      <p><b>Implication:</b> the punishment is mild for a focused player who slips once, and compounds for a player who keeps sampling. Impatience is punished by repetition more than by any single pick.</p>
+    </section>
+
+    <section>
+      <h2>What softens the cost</h2>
+      <ul>
+        <li><b>Visible opponents.</b> Seeing rosters, merged pieces included, lets a player judge the build before committing. This is the main defense against the "sounds good" pick, and it works only if the player reads it.</li>
+        <li><b>Round-up on merges.</b> Small numbers gain most (1 becomes 2, 3 becomes 5), so an early merge of cheap pieces recovers some ground.</li>
+        <li><b>A wrong piece may still fight.</b> Kept in a spare slot it may carry weight until the end.</li>
+      </ul>
+    </section>
+
+    <section class="full">
+      <h2>Cost summary against a run with no mistake</h2>
+      <table>
+        <tr><th>Player response</th><th>Choices spent</th><th>Net loss</th><th>Share of 9</th><th>Slot effect</th></tr>
+        <tr><td>Take off-build piece, keep it</td><td>1 wasted</td><td>1</td><td>11%</td><td>Slot held by dead weight; matters once slots are full</td></tr>
+        <tr><td>Take, then remove, then refill with build piece</td><td>1 wasted + 1 remove</td><td>2</td><td>22%</td><td>Blank for at least one fight</td></tr>
+        <tr><td>Take, remove, refill delayed by weak offers</td><td>2 + further waiting</td><td>2 or more</td><td>22%+</td><td>Blank for several fights; depends on offer odds</td></tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Verdict for the producer</h2>
+      <p>The economy does punish impatience, in a clean and legible way: no hidden currency, one visible cost. It punishes harder than the stated 1/9. If the aim is "a mistake hurts but does not end the run", a 2-of-9 cost with a one-fight Blank sits near that line. If the aim is a gentle rebound, the second-merge cliff is the part to soften.</p>
+    </section>
+
+    <section>
+      <h2>Open questions and assumptions</h2>
+      <ul>
+        <li>Offer rules: how often do the three offers include a piece that fits the build? This sets Blank duration.</li>
+        <li>Is the choice count fixed at 9 or "about"? The cliff sits exactly at 9; at 10 or 11 one slip is survivable.</li>
+        <li>How much does a Blank cost in a fight? Not specified, so the fight impact is unquantified.</li>
+        <li>Figures above are counting arguments from the stated rules, not playtest data. Worth a simulation or a paper run of ten players before tuning.</li>
+      </ul>
+    </section>
+  </div>
+</main>
+</body>
+</html>

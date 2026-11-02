@@ -1,0 +1,145 @@
+---
+name: one-page-design
+description: Use when someone asks for a one-page design, a one-pager, a design poster or placemat, a design on one sheet, something to hang on a wall or hand out in a meeting, or says a design document is too long or nobody reads it; also when a deliverable is specified as a one-page design. Not for reports, slide decks or dashboards.
+---
+
+# One-page design
+
+## Overview
+
+A one-page design is one continuous surface, as large as the design needs,
+with nothing hidden behind navigation, built around a picture of the thing
+itself with the words hung off it. The method is Stone Librande's. The
+page's shape comes from the design's shape; no two pages share a layout.
+
+**Core principle: depict, then annotate.** A diagram describes a system
+from outside. A depiction shows the thing. Draw the level, the island, the
+castle, the O and the X on the floor; then hang the words off the drawing.
+
+## When to use
+
+- Someone wants a design others will actually read, on a wall or a table.
+- A design document has grown past what anyone reads.
+- A fleet or team deliverable is specified as a one-page design.
+
+Not for: status reports, slide decks, dashboards, API references.
+
+## The method
+
+1. **Name the one thing this page must communicate.** That is the title.
+   If it cannot be named in a sentence, stop: there is no page to make yet.
+2. **Find the design's native shape.** Ask what a photo of this design
+   would look like, and plan to draw that. Use the Shapes table in
+   `grammar.md`: a space becomes a plan or isometric view; an object, the
+   object; a journey over time, a map with a time ruler; a procedure,
+   circled moments on the world; a set of like things, cards; two things
+   crossed, a matrix; things that affect each other, a triangle with its
+   axes on its edges. Screen flow, and only screen flow, is a flowchart.
+   Most pages combine two shapes. If no shape fits on one surface, say so
+   to the person: the design is probably too complex.
+3. **Build the centre first**, before any prose, by one of two routes:
+   - **Route A, commission it.** Fill `brief-template.md` and hand it to
+     whoever draws (a model, an agent, a person). Embed the PNG in the
+     `<img>` as a `data:` URI, so the HTML stays one self-contained file,
+     and keep the brief beside it as an HTML comment. The image must
+     carry no text; if it comes back with text, re-commission, do not
+     accept it. Use route A for scenes and objects.
+   - **Route B, draw it.** Inline SVG from `kit.md`. Use route B when no
+     illustrator is available, or when the picture must stay exact and
+     editable: a map with positions, a matrix, a card grid.
+   Either way every label, number, leader line, card and legend is HTML or
+   SVG over the picture, never inside it.
+4. **Hang the words off the picture, in three tiers.** Tier one reads
+   across the room: the title and the big labels on the depiction. Tier
+   two at arm's length: callouts tied to the picture by leader lines or
+   shared numbers, cards with one anatomy. Tier three is fine print: parameters in small
+   italics, formulas in a monospace box. SVG font sizes are in viewBox
+   units: at 100 per inch the floor is 8.4. Anything that would need a
+   fourth tier comes off the page. Draw time and difficulty (a ruler, dividers,
+   zones) instead of describing them.
+5. **Date it, size it, hand it over.** Start from `scaffold.html`. Set the
+   surface size in inches on `:root` (`--w`, `--h`); the poster and the
+   print CSS read it. Begin at the size that shows the centre legibly,
+   grow until the tiers fit, stop. Date in the bottom-right. Run the
+   fit-check:
+
+   ```bash
+   python3 scripts/fit-check.py page.html --preview page.png
+   ```
+
+   Fix every finding. Open the preview PNG and check that nothing is cut
+   at the edges and no two elements overlap: the surface clips at print,
+   and the fit-check cannot see that. Deliver the HTML file. To print it,
+   print to PDF at the declared size, then print the PDF on a plotter, or
+   use a PDF reader's poster or tile option for a desk printer.
+
+## The page, stated as a contract
+
+A finished page has, and a reader can point to each:
+
+- a title, top-left, that states the point of the page;
+- a date, bottom-right;
+- one depiction holding the middle, drawn or commissioned, of the thing
+  itself;
+- callouts in the margins, each tied to the depiction by a leader line or
+  a shared number;
+- a legend if any symbol repeats;
+- repeated things as cards with identical anatomy;
+- **required:** each callout and card carries an italic story line, roman
+  rule text and a small italic parameter line, where the design has them.
+  Callouts and cards set in one register fail this item;
+- **required:** a depiction covering half the surface or more, wider than
+  all but the title; margin text at 11 pt or less; at most eight callouts,
+  each pointing at the depiction; at most three card sets;
+- time and difficulty drawn, where the design has them;
+- one surface: no links, tabs, collapsed, hidden or hover-only content;
+- a size in inches declared on `:root` (`--w`, `--h`), which the poster
+  and the print CSS read;
+- no external fonts, scripts or stylesheets.
+
+If the fit-check reports the surface above 44 inches, the design is too
+complex for one page. Cut tiers or split the design; never shrink the
+fine print below 6 pt.
+
+### The margin budget
+
+The depiction's bounding box covers at least half the surface, and apart
+from the title it is the widest thing on the page. A drawn panel of its
+width, set against it, is part of it; any other panel is a card set. The
+title and the depiction's own labels are the only tier-one text; all
+margin text, card and callout headings included, is tier two or smaller,
+11 pt or less. The page has at most eight callouts, and every callout's
+leader ends on the depiction itself. Everything else that must be on the
+page belongs to one of at most three card sets, placed along one or two
+edges.
+
+## Quick reference
+
+| Need | Use |
+|---|---|
+| the vocabulary of these pages | `grammar.md` |
+| SVG and HTML parts to copy | `kit.md` |
+| a brief for an illustrator | `brief-template.md` |
+| the surface and print CSS | `scaffold.html` |
+| the squint test | `python3 scripts/fit-check.py` |
+| what a good page looks like | `examples/librande/README.md` and the slides |
+
+## Common mistakes
+
+- **Headed sections and bullet lists.** A document on a poster. Step 2:
+  find the shape and draw it.
+- **Boxes and arrows for everything.** Flowcharts are for screen flow
+  only. Draw a loop in the world.
+- **Text baked into a generated image.** Labels go over it.
+- **Shrinking the font to fit.** Below 6 pt, cut or grow the surface.
+- **A fixed sheet size.** The surface fits the design.
+- **Leaving the date off.** Copies cannot be told apart.
+- **A sequence as a list of sections.** A turn or run as numbered
+  sections "in the order of play". Step 2: draw the level, island or
+  castle; put the order on it as circled moments.
+- **The answer in a text box.** The claim restated in prose beside the
+  drawing, no date, px sizes. The title states it, the depiction
+  shows it; date and inches are contract slots.
+- **Margins fuller than the picture.** Spend the margin budget.
+- **Registers defined, never used.** Every line roman. Fill the register
+  slot.

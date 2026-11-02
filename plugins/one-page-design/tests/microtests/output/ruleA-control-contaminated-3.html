@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merge-and-sell economy: what an impatient pick costs</title>
+<!--
+  Depiction: Route B (inline SVG, generated from a small simulation of the stated rules).
+  Three runs of nine choices, drawn as the eight-slot roster after every choice.
+-->
+<style>
+  :root {
+    --ink:#1f2328; --paper:#fbfaf7; --rule:#8a8f98; --accent:#c0392b;
+    --soft-1:#dfe9e3; --soft-2:#e8e3d4; --soft-3:#dde3ee;
+    --w:20in; --h:12.8in;
+  }
+  @page { size: var(--w) var(--h); margin:0; }
+  html, body { margin:0; background:#d9d9d9; }
+  body { overflow:auto; }
+  .poster { position:relative; width:var(--w); height:var(--h); margin:0.5in auto; background:var(--paper);
+    color:var(--ink); font-family:Georgia,"Times New Roman",serif; box-shadow:0 2px 12px rgba(0,0,0,.25); overflow:hidden; }
+  @media print { html, body { background:none; } .poster { margin:0; box-shadow:none; } }
+  .t1 { font-size:28pt; font-weight:700; letter-spacing:.01em; line-height:1.15; }
+  .t2 { font-size:11pt; }
+  .story { font-style:italic; }
+  .param { font-style:italic; font-size:7pt; color:#444; }
+  .formula { font-family:"Courier New",monospace; font-size:8pt; border:1px solid var(--rule); padding:4px 6px; background:#fff; }
+  .title { position:absolute; top:0.4in; left:0.5in; margin:0; width:12.3in; }
+  .date { position:absolute; bottom:0.3in; right:0.5in; font-size:9pt; color:#555; }
+  .callout { position:absolute; width:3.0in; }
+  .callout h3 { margin:0 0 3px; font-size:11pt; }
+  .callout p { margin:0 0 3px; font-size:9pt; line-height:1.3; }
+  .n { display:inline-block; width:17px; height:17px; border:2px solid var(--accent); border-radius:50%; text-align:center;
+        line-height:17px; font-size:9pt; font-weight:700; color:var(--accent); margin-right:5px; }
+  .box { position:absolute; border:1px solid var(--rule); padding:6px 9px; background:#fff; font-size:9pt; line-height:1.3; }
+  .box h3 { margin:0 0 3px; font-size:11pt; }
+  .box p { margin:0 0 3px; }
+  table.m { border-collapse:collapse; font-size:9pt; }
+  table.m th, table.m td { border:1px solid var(--rule); padding:3px 7px; text-align:center; }
+  table.m td.hl, table.m th.hl { background:#f3c9c3; font-weight:700; }
+  svg .leader { stroke:var(--rule); stroke-width:.6; fill:none; }
+</style>
+</head>
+<body>
+<main class="poster">
+  <h1 class="title t1">Impatient picks cost one choice in nine to undo, two in nine in all, and in a nine-choice run that is exactly one merged piece</h1>
+
+  <svg viewBox="0 0 2000 1280" width="100%" height="100%" style="position:absolute;inset:0" aria-hidden="true">
+<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#eee"/><line x1="0" y1="0" x2="0" y2="6" stroke="#aaa" stroke-width="1.5"/></pattern></defs>
+<text x="30" y="316" font-size="18" text-anchor="start" font-weight="700" fill="var(--ink)" >Patient</text>
+<text x="30" y="334" font-size="11" text-anchor="start" font-weight="400" fill="var(--ink)" font-style="italic">Every pick belongs to the build</text>
+<text x="315.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >1: take A</text>
+<rect x="264" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="315.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="264" y="374" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="396" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="418" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >2: take A</text>
+<rect x="374" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="374" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="396" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="418" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >3: take A, 3 merge</text>
+<rect x="484" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="535.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="484" y="374" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="389" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="484" y="396" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="411" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="484" y="418" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >4: take B</text>
+<rect x="594" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="645.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="594" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="594" y="396" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="411" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="594" y="418" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >5: take B</text>
+<rect x="704" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="755.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="704" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="704" y="396" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="411" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="704" y="418" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >6: take B, 3 merge</text>
+<rect x="814" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="865.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="814" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="865.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="814" y="396" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="411" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="814" y="418" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="433" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="814" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >7: take C</text>
+<rect x="924" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="975.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="924" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="975.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="924" y="396" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="411" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="924" y="418" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="433" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="924" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >8: take C</text>
+<rect x="1034" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1034" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1034" y="396" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="411" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1034" y="418" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="433" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1034" y="440" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="340" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >9: take C, 3 merge</text>
+<rect x="1144" y="352" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="367" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1144" y="374" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="389" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1144" y="396" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="411" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C★</text>
+<rect x="1144" y="418" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="433" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1144" y="440" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="455" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1144" y="462" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="484" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="506" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="252" y="366" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 1</text>
+<text x="252" y="388" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 2</text>
+<text x="252" y="410" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 3</text>
+<text x="252" y="432" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 4</text>
+<text x="252" y="454" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 5</text>
+<text x="252" y="476" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 6</text>
+<text x="252" y="498" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 7</text>
+<text x="252" y="520" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 8</text>
+<text x="260" y="544" font-size="12" text-anchor="start" font-weight="400" fill="#333" font-style="italic">Ends with 3 merged pieces. Choices wasted: 0 of 9. Most slots filled at once: 4 of 8.</text>
+<text x="30" y="601" font-size="18" text-anchor="start" font-weight="700" fill="var(--ink)" >Impatient, kept</text>
+<text x="30" y="619" font-size="11" text-anchor="start" font-weight="400" fill="var(--ink)" font-style="italic">Takes Z at choice 3, never removes it</text>
+<text x="315.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >1: take A</text>
+<rect x="264" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="315.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="264" y="659" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="681" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="703" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >2: take A</text>
+<rect x="374" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="659" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="681" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="703" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="625" font-size="12" text-anchor="middle" font-weight="700" fill="var(--accent)" >3: take Z</text>
+<rect x="484" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="484" y="659" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="484" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="484" y="703" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >4: take A, 3 merge</text>
+<rect x="594" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="645.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="594" y="659" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="674" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="594" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="594" y="703" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="718" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="594" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >5: take B</text>
+<rect x="704" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="755.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="704" y="659" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="704" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="704" y="703" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="718" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="704" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >6: take B</text>
+<rect x="814" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="865.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="814" y="659" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="814" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="814" y="703" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="718" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="814" y="725" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >7: take B, 3 merge</text>
+<rect x="924" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="975.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="924" y="659" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="975.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="924" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="924" y="703" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="718" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="924" y="725" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="740" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="924" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >8: take C</text>
+<rect x="1034" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1034" y="659" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1034" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="1034" y="703" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="718" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1034" y="725" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="740" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1034" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="625" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >9: take C</text>
+<rect x="1144" y="637" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="652" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1144" y="659" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="674" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1144" y="681" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="696" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="1144" y="703" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="718" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1144" y="725" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="740" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1144" y="747" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="769" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="791" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="252" y="651" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 1</text>
+<text x="252" y="673" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 2</text>
+<text x="252" y="695" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 3</text>
+<text x="252" y="717" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 4</text>
+<text x="252" y="739" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 5</text>
+<text x="252" y="761" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 6</text>
+<text x="252" y="783" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 7</text>
+<text x="252" y="805" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 8</text>
+<text x="260" y="829" font-size="12" text-anchor="start" font-weight="400" fill="#333" font-style="italic">Ends with 2 merged pieces. Choices wasted: 1 of 9. Most slots filled at once: 5 of 8.</text>
+<text x="30" y="886" font-size="18" text-anchor="start" font-weight="700" fill="var(--ink)" >Impatient, undone</text>
+<text x="30" y="904" font-size="11" text-anchor="start" font-weight="400" fill="var(--ink)" font-style="italic">Takes Z at choice 3, removes it at choice 4</text>
+<text x="315.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >1: take A</text>
+<rect x="264" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="315.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="264" y="944" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="966" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="264" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >2: take A</text>
+<rect x="374" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="944" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="425.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="374" y="966" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="374" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="910" font-size="12" text-anchor="middle" font-weight="700" fill="var(--accent)" >3: take Z</text>
+<rect x="484" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="484" y="944" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="484" y="966" width="102" height="20" fill="#f3c9c3" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="535.0" y="981" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >Z</text>
+<rect x="484" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="484" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="910" font-size="12" text-anchor="middle" font-weight="700" fill="var(--accent)" >4: remove Z</text>
+<rect x="594" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="594" y="944" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A</text>
+<rect x="594" y="966" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="645.0" y="981" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="594" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="594" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >5: take A, 3 merge</text>
+<rect x="704" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="755.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="704" y="944" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="959" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="704" y="966" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="755.0" y="981" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="704" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="704" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >6: take B</text>
+<rect x="814" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="865.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="814" y="944" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="814" y="966" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="865.0" y="981" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="814" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="814" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >7: take B</text>
+<rect x="924" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="975.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="924" y="944" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="924" y="966" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="975.0" y="981" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B</text>
+<rect x="924" y="988" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="924" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >8: take B, 3 merge</text>
+<rect x="1034" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1034" y="944" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1085.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1034" y="966" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="981" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1034" y="988" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1085.0" y="1003" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1034" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1034" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="910" font-size="12" text-anchor="middle" font-weight="400" fill="var(--ink)" >9: take C</text>
+<rect x="1144" y="922" width="102" height="20" fill="var(--soft-1)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="937" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >A★</text>
+<rect x="1144" y="944" width="102" height="20" fill="var(--soft-3)" stroke="var(--ink)" stroke-width="2.2"/>
+<text x="1195.0" y="959" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >B★</text>
+<rect x="1144" y="966" width="102" height="20" fill="var(--soft-2)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="981" font-size="14" text-anchor="middle" font-weight="700" fill="var(--ink)" >C</text>
+<rect x="1144" y="988" width="102" height="20" fill="url(#hatch)" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="1195.0" y="1003" font-size="12" text-anchor="middle" font-weight="400" fill="#666" >blank</text>
+<rect x="1144" y="1010" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="1032" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="1054" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<rect x="1144" y="1076" width="102" height="20" fill="#fff" stroke="var(--ink)" stroke-width="0.8"/>
+<text x="252" y="936" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 1</text>
+<text x="252" y="958" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 2</text>
+<text x="252" y="980" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 3</text>
+<text x="252" y="1002" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 4</text>
+<text x="252" y="1024" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 5</text>
+<text x="252" y="1046" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 6</text>
+<text x="252" y="1068" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 7</text>
+<text x="252" y="1090" font-size="10" text-anchor="end" font-weight="400" fill="#555" >slot 8</text>
+<text x="260" y="1114" font-size="12" text-anchor="start" font-weight="400" fill="#333" font-style="italic">Ends with 2 merged pieces. Choices wasted: 2 of 9. Most slots filled at once: 3 of 8.</text>
+<line x1="260" y1="1175" x2="1250" y2="1175" stroke="var(--rule)"/>
+<line x1="260" y1="1169" x2="260" y2="1181" stroke="var(--rule)"/>
+<line x1="370" y1="1169" x2="370" y2="1181" stroke="var(--rule)"/>
+<line x1="480" y1="1169" x2="480" y2="1181" stroke="var(--rule)"/>
+<line x1="590" y1="1169" x2="590" y2="1181" stroke="var(--rule)"/>
+<line x1="700" y1="1169" x2="700" y2="1181" stroke="var(--rule)"/>
+<line x1="810" y1="1169" x2="810" y2="1181" stroke="var(--rule)"/>
+<line x1="920" y1="1169" x2="920" y2="1181" stroke="var(--rule)"/>
+<line x1="1030" y1="1169" x2="1030" y2="1181" stroke="var(--rule)"/>
+<line x1="1140" y1="1169" x2="1140" y2="1181" stroke="var(--rule)"/>
+<line x1="1250" y1="1169" x2="1250" y2="1181" stroke="var(--rule)"/>
+<text x="315.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 1</text>
+<text x="425.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 2</text>
+<text x="535.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 3</text>
+<text x="645.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 4</text>
+<text x="755.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 5</text>
+<text x="865.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 6</text>
+<text x="975.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 7</text>
+<text x="1085.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 8</text>
+<text x="1195.0" y="1197" font-size="12" text-anchor="middle" font-weight="400" fill="#555" >choice 9</text>
+<text x="755.0" y="1217" font-size="11" text-anchor="middle" font-weight="400" fill="#555" >one tick = one win = one choice = 1/9 of the run (each column is the roster after that choice; a fight sits between columns)</text>
+<rect x="482" y="965" width="106" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>
+<rect x="592" y="965" width="106" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>
+<rect x="482" y="680" width="106" height="22" fill="none" stroke="var(--accent)" stroke-width="3"/>
+<circle cx="588" cy="954" r="11" fill="#fff" stroke="var(--accent)" stroke-width="2"/><text x="588" y="958" font-size="12" font-weight="700" text-anchor="middle" fill="var(--accent)">1</text><circle cx="698" cy="954" r="11" fill="#fff" stroke="var(--accent)" stroke-width="2"/><text x="698" y="958" font-size="12" font-weight="700" text-anchor="middle" fill="var(--accent)">2</text><circle cx="808" cy="954" r="11" fill="#fff" stroke="var(--accent)" stroke-width="2"/><text x="808" y="958" font-size="12" font-weight="700" text-anchor="middle" fill="var(--accent)">3</text><circle cx="588" cy="669" r="11" fill="#fff" stroke="var(--accent)" stroke-width="2"/><text x="588" y="673" font-size="12" font-weight="700" text-anchor="middle" fill="var(--accent)">5</text><circle cx="246" cy="540" r="11" fill="#fff" stroke="var(--accent)" stroke-width="2"/><text x="246" y="544" font-size="12" font-weight="700" text-anchor="middle" fill="var(--accent)">4</text>
+  </svg>
+
+  <div class="box" style="left:0.5in; top:1.85in; width:12.2in">
+    <p class="story" style="font-size:11pt">Verdict for the producer: the economy punishes impatience, but by a flat tax, not a spiral. Nothing compounds, because there is no currency to lose.</p>
+    <p>The sting is the triple. Nine choices buy exactly three merges (9 / 3), so the run has no slack: waste any one choice and the third merged piece never completes. Undoing the mistake costs one more choice, yet ends in the same place as keeping it. The Blank it leaves is nearly free: slots are not the scarce thing, choices are (never more than 5 of 8 slots in use below).</p>
+  </div>
+
+  <div class="box" style="left:13.2in; top:0.45in; width:6.3in">
+    <h3>Legend</h3>
+    <p><b>A B C</b> build pieces (green, blue, tan) &nbsp;<b>A&#9733;</b> merged piece, heavy outline &nbsp;<b style="color:var(--accent)">Z</b> off-build piece taken because it "sounds good" (red)</p>
+    <p>Hatched = Blank, does nothing. White = never used. A column is the roster after that choice. Red ring = the impatient pick.</p>
+  </div>
+
+  <div class="callout" style="left:13.2in; top:2.2in">
+    <h3><span class="n">1</span>The pick</h3>
+    <p class="story">"Z sounds good."</p>
+    <p>Choice 3 goes to a piece the build will never merge. It is spent whether or not Z is ever removed: 1 of 9, gone.</p>
+  </div>
+  <div class="callout" style="left:13.2in; top:4.0in">
+    <h3><span class="n">2</span>The undo</h3>
+    <p>Remove is a choice too, and it replaces the take. Choice 4 builds nothing. This is the "one ninth to undo". Counting the pick, the mistake costs 2 of 9.</p>
+  </div>
+  <div class="callout" style="left:13.2in; top:5.8in">
+    <h3><span class="n">3</span>The Blank</h3>
+    <p>The slot is Blank after choice 4 and through one fight. Choice 5 refills it, so it sits idle for one fight only. During it Z was never helping the build anyway, so the real loss is close to nothing.</p>
+  </div>
+  <div class="callout" style="left:16.4in; top:2.2in">
+    <h3><span class="n">4</span>The cliff</h3>
+    <p>The patient run ends with three merged pieces and spends all nine choices doing it. Each merged piece is worth three choices, so every lost choice lands on the last piece.</p>
+  </div>
+  <div class="callout" style="left:16.4in; top:4.0in">
+    <h3><span class="n">5</span>Keeping it</h3>
+    <p>Leaving Z in the roster wastes only the pick (1 of 9), and it ends with the same two merged pieces as the undone run. Removing pays off only when the board is full or Z hurts, and the run here never gets past 5 of 8 slots.</p>
+  </div>
+
+  <div class="box" style="left:16.4in; top:6.15in; width:3.1in">
+    <h3>Merged pieces at the end</h3>
+    <table class="m">
+      <tr><th>Run length</th><th>8</th><th class="hl">9</th><th>10</th><th>11</th></tr>
+      <tr><th>Patient</th><td>2</td><td class="hl">3</td><td>3</td><td>3</td></tr>
+      <tr><th>Kept (-1)</th><td>2</td><td class="hl">2</td><td>3</td><td>3</td></tr>
+      <tr><th>Undone (-2)</th><td>2</td><td class="hl">2</td><td>2</td><td>3</td></tr>
+    </table>
+    <p class="param">Choices in the run, for a build of three triples. The cost vanishes if the run is one or two choices longer than nine: "about nine" is the number to pin down.</p>
+  </div>
+
+  <div class="box" style="left:13.2in; top:8.6in; width:6.3in">
+    <h3>Assumed here, please confirm</h3>
+    <p class="param" style="font-size:8pt">The offer always holds a build piece. A Blank counts as an empty slot you may take into. A merged piece lands in the lowest of the three slots. A kept off-build piece does nothing harmful. Opponents' visible rosters (merged pieces included) let a player see what is worth chasing, which should make Z picks rarer; this page does not price that. Rounding up (x1.5) helps small numbers most: 1 becomes 2, 2 becomes 3, 3 becomes 5.</p>
+    <p class="formula">merged pieces = floor((choices - wasted) / 3); wasted = 1 kept, 2 undone</p>
+  </div>
+
+  <div class="box" style="left:13.2in; top:11.0in; width:6.3in">
+    <h3>What to decide</h3>
+    <p>If a flat 2-in-9 tax on a mistake feels right, change nothing. If it feels harsh, lengthen the run to ten or give one free removal. If it feels soft, nothing in this economy punishes keeping dead weight: add a cost to a full board.</p>
+  </div>
+
+  <footer class="date">Proposal &middot; 2026-11-01</footer>
+</main>
+</body>
+</html>
