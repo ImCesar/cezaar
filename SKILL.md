@@ -66,8 +66,10 @@ Not for: status reports, slide decks, dashboards, API references.
    python3 scripts/fit-check.py page.html --preview page.png
    ```
 
-   Fix every finding. Deliver the HTML file; it prints as one piece on a
-   plotter and tiles on a desk printer.
+   Fix every finding. Open the preview PNG and check that nothing is cut
+   at the edges and no two elements overlap: the surface clips at print,
+   and the fit-check cannot see that. Deliver the HTML file; it prints as
+   one piece on a plotter and tiles on a desk printer.
 
 ## The page, stated as a contract
 
