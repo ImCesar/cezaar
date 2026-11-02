@@ -123,8 +123,11 @@ keep them simple, not to retreat to boxes.
 
 `scaffold.html`: one poster element whose width and height are set per
 design, in inches. Print CSS sets the page size to exactly those
-dimensions so a plotter prints it as one piece and a desk printer tiles
-it. Screen CSS shows it at true proportions with zoom and pan. A header
+dimensions, so the page prints to PDF at the declared size. Print the
+PDF on a plotter, or use a PDF reader's poster or tile option for a desk
+printer. (Corrected 2026-11-01: this sentence first said a desk printer
+tiles the page; it does not, since browsers print an oversized page as one
+PDF page that a desk printer scales down or crops.) Screen CSS shows it at true proportions with zoom and pan. A header
 band holds title and date. Nothing else is fixed: no sections, no columns,
 no placeholder text. Self-contained: no external scripts or fonts.
 

@@ -69,8 +69,9 @@ Not for: status reports, slide decks, dashboards, API references.
 
    Fix every finding. Open the preview PNG and check that nothing is cut
    at the edges and no two elements overlap: the surface clips at print,
-   and the fit-check cannot see that. Deliver the HTML file; it prints as
-   one piece on a plotter and tiles on a desk printer.
+   and the fit-check cannot see that. Deliver the HTML file. To print it,
+   print to PDF at the declared size, then print the PDF on a plotter, or
+   use a PDF reader's poster or tile option for a desk printer.
 
 ## The page, stated as a contract
 
