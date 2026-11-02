@@ -13,7 +13,7 @@ itself with the words hung off it. The method is Stone Librande's. The
 page's shape comes from the design's shape; no two pages share a layout.
 
 **Core principle: depict, then annotate.** A diagram describes a system
-from outside. A depiction shows the thing. Draw the tower, the island, the
+from outside. A depiction shows the thing. Draw the level, the island, the
 castle, the O and the X on the floor; then hang the words off the drawing.
 
 ## When to use
@@ -57,9 +57,10 @@ Not for: status reports, slide decks, dashboards, API references.
    fourth tier comes off the page. Draw time and difficulty (a ruler, dividers,
    zones) instead of describing them.
 5. **Date it, size it, hand it over.** Start from `scaffold.html`. Set the
-   surface size in inches on `:root` (`--w`, `--h`); the poster reads it, and so does the print CSS: begin at the size that
-   shows the centre legibly, grow until the tiers fit, stop. Date in the
-   bottom-right. Run the fit-check:
+   surface size in inches on `:root` (`--w`, `--h`); the poster and the
+   print CSS read it. Begin at the size that shows the centre legibly,
+   grow until the tiers fit, stop. Date in the bottom-right. Run the
+   fit-check:
 
    ```bash
    python3 scripts/fit-check.py page.html --preview page.png
@@ -88,7 +89,8 @@ A finished page has, and a reader can point to each:
   each pointing at the depiction; at most three card sets;
 - time and difficulty drawn, where the design has them;
 - one surface: no links, tabs, collapsed, hidden or hover-only content;
-- a size in inches on the poster, and print CSS to match;
+- a size in inches declared on `:root` (`--w`, `--h`), which the poster
+  and the print CSS read;
 - no external fonts, scripts or stylesheets.
 
 If the fit-check reports the surface above 44 inches, the design is too
@@ -120,24 +122,20 @@ edges.
 
 ## Common mistakes
 
-- **Headed sections and bullet lists.** That is a document on a poster,
-  not a one-page design. The fix is step 2: find the shape and draw it.
+- **Headed sections and bullet lists.** A document on a poster. Step 2:
+  find the shape and draw it.
 - **Boxes and arrows for everything.** Flowcharts are for screen flow
-  only. A loop in the world is drawn in the world.
-- **Text baked into a generated image.** Misspelt, unsearchable,
-  uneditable. Labels go over the picture.
-- **Shrinking the font to fit.** Below 6 pt, cut content or grow the
-  surface.
-- **A fixed sheet size.** The surface fits the design, not the printer.
-- **Leaving the date off.** Printed copies cannot be told apart.
-- **Tables and prose for a game with a world.** The no-skill run chose a
-  scrolling page of tables so a reader could "follow the order of play",
-  and drew nothing: no tower, no strip, no centre. Draw the thing first.
-- **Drawing the timeline but telling the claim.** The no-skill run drew
-  one SVG strip, then put the verdict in a text box above it, left the
-  date off, rewrote the claim in prose and sized the page in px with no
-  print CSS. The title states the claim; the drawing shows it.
-- **Margins fuller than the picture.** One run hung twenty cards round the
-  tower. Spend the margin budget.
-- **Registers defined, never used.** One run set every parameter in roman.
-  Fill the required register slot.
+  only. Draw a loop in the world.
+- **Text baked into a generated image.** Labels go over it.
+- **Shrinking the font to fit.** Below 6 pt, cut or grow the surface.
+- **A fixed sheet size.** The surface fits the design.
+- **Leaving the date off.** Copies cannot be told apart.
+- **A sequence as a list of sections.** A turn or run as numbered
+  sections "in the order of play". Step 2: draw the level, island or
+  castle; put the order on it as circled moments.
+- **The answer in a text box.** The claim restated in prose beside the
+  drawing, no date, px sizes. The title states it, the depiction
+  shows it; date and inches are contract slots.
+- **Margins fuller than the picture.** Spend the margin budget.
+- **Registers defined, never used.** Every line roman. Fill the register
+  slot.
