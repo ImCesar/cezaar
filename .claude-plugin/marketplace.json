@@ -17,7 +17,13 @@
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["orchestration", "herdr", "agents", "delegation", "validation"]
+      "keywords": [
+        "orchestration",
+        "herdr",
+        "agents",
+        "delegation",
+        "validation"
+      ]
     },
     {
       "name": "cesarpowers",
@@ -29,7 +35,11 @@
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["workflow", "development", "skills"]
+      "keywords": [
+        "workflow",
+        "development",
+        "skills"
+      ]
     },
     {
       "name": "superpowers",
@@ -61,19 +71,30 @@
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["github", "dashboard", "project-management", "status"]
+      "keywords": [
+        "github",
+        "dashboard",
+        "project-management",
+        "status"
+      ]
     },
     {
       "name": "obsidian-brain",
       "source": "./plugins/obsidian-brain",
-      "description": "Scaffold and interact with an opinionated Obsidian vault — capture ideas, track todos, journal, reflect, and generate performance reviews.",
+      "description": "Scaffold and interact with an opinionated Obsidian vault \u2014 capture ideas, track todos, journal, reflect, and generate performance reviews.",
       "version": "1.0.0",
       "category": "productivity",
       "author": {
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["obsidian", "productivity", "capture", "journal", "review"]
+      "keywords": [
+        "obsidian",
+        "productivity",
+        "capture",
+        "journal",
+        "review"
+      ]
     },
     {
       "name": "crucible",
@@ -85,7 +106,14 @@
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["thinking", "brainstorming", "problem-solving", "decision-making", "multi-agent", "solution-design"]
+      "keywords": [
+        "thinking",
+        "brainstorming",
+        "problem-solving",
+        "decision-making",
+        "multi-agent",
+        "solution-design"
+      ]
     },
     {
       "name": "staff-coach",
@@ -97,7 +125,31 @@
         "name": "Cesar Avitia"
       },
       "repository": "https://github.com/ImCesar/cezaar",
-      "keywords": ["staff-engineer", "system-design", "architecture", "learning", "coaching"]
+      "keywords": [
+        "staff-engineer",
+        "system-design",
+        "architecture",
+        "learning",
+        "coaching"
+      ]
+    },
+    {
+      "name": "one-page-design",
+      "source": "./plugins/one-page-design",
+      "description": "Turns any design into a Stone Librande-style one-page document: one printable HTML surface, a depiction in the middle, the words hung off it. Ships a visual grammar, a drawing kit, an illustrator brief and a fit-check script.",
+      "version": "0.1.0",
+      "category": "design",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": [
+        "design",
+        "one-page",
+        "game-design",
+        "documentation",
+        "poster"
+      ]
     }
   ]
 }
