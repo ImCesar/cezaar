@@ -17,3 +17,14 @@ For B, does `fit-check` report zero navigation or hidden content? Read
 every output; do not score by grep alone. Record the counts and the
 variance: if the five skill runs land on five different shapes, the wording
 is not binding yet.
+
+## Control isolation
+
+The installed skill is offered to every subagent in this harness, so control
+runs must be made with the symlink at
+`/Users/cesar/.claude/skills/one-page-design` moved aside (`mv` it to
+`.one-page-design.off`, restore it after, verify with `ls -la`) and with the
+line "Do not invoke any skills; work from this brief alone." appended. The
+first five controls in the 2026-11-01 run were contaminated and are kept as
+`*-contaminated-*.html`. (The final controls that run used the wording "Do
+not load or follow any skill." with the symlink moved aside.)
