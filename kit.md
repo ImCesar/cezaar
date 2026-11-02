@@ -1,15 +1,14 @@
 # Drawing kit
 
 Inline SVG and HTML you copy and adapt. Everything uses the scaffold's
-classes. Coordinates are in a 100-unit-per-inch viewBox so a 17 x 11 in
-poster is `viewBox="0 0 1700 1100"`. Place a full-surface SVG first for
+classes. Coordinates are in a 100-unit-per-inch viewBox that must match the surface declared on `:root`: a 17 x 11 in poster is `viewBox="0 0 1700 1100"`; if you change `--w`/`--h`, change the viewBox to match. Place a full-surface SVG first for
 leader lines and drawings, then absolutely positioned HTML on top for
 text.
 
 ## Full-surface drawing layer
 
 ```html
-<svg viewBox="0 0 1700 1100" width="17in" height="11in"
+<svg viewBox="0 0 1700 1100" width="100%" height="100%"
      style="position:absolute;inset:0" aria-hidden="true">
   <!-- drawings and leader lines go here -->
 </svg>
