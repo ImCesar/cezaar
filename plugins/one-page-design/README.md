@@ -2,11 +2,10 @@
 
 A skill that turns any design into a Librande-style one-page document: one
 printable HTML surface, a depiction in the middle, the words hung off it.
-Install the `one-page-design` plugin from the cezaar marketplace, then ask for a one-page design; the skill is `skills/one-page-design/SKILL.md` with its grammar, kit, brief template, scaffold, fit-check script and the Librande slides beside it. Spec and plan
-are in `docs/`. Reference slides and what each teaches are in
-`skills/one-page-design/examples/librande/`. Tests: `python3 -m pytest tests/` for the script;
-`tests/baselines/` and `tests/results/` hold the skill's own
-before-and-after runs.
+Install the `one-page-design` plugin from the cezaar marketplace, then ask for a one-page design; the skill is `skills/one-page-design/SKILL.md` with its grammar, kit, brief template, scaffold, fit-check script and the Librande slides beside it. Reference slides and what each teaches are in
+`skills/one-page-design/examples/librande/`. Tests: `python3 -m pytest tests/` for the script. The skill's design spec,
+plan and the before-and-after scenario records that validated it live in
+its standalone repository, not here.
 
 ## Not yet tested
 
