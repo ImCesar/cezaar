@@ -8,6 +8,13 @@ are in `docs/`. Reference slides and what each teaches are in
 `tests/baselines/` and `tests/results/` hold the skill's own
 before-and-after runs.
 
+## Not yet tested
+
+Route A, the commissioned illustration, has not been run in this repo's
+tests. No illustrator is configured here, and the brief is written to work
+with any illustrator rather than one model, so there was none to call. Every
+recorded run uses route B, the hand-drawn SVG.
+
 ## Follow-ups
 
 - **Render-based out-of-bounds check.** The scaffold's poster clips anything

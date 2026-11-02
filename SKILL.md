@@ -39,9 +39,10 @@ Not for: status reports, slide decks, dashboards, API references.
    to the person: the design is probably too complex.
 3. **Build the centre first**, before any prose, by one of two routes:
    - **Route A, commission it.** Fill `brief-template.md` and hand it to
-     whoever draws (a model, an agent, a person). Place the PNG with
-     `<img>` and keep the brief beside it as an HTML comment. The image
-     must carry no text; if it comes back with text, re-commission, do not
+     whoever draws (a model, an agent, a person). Embed the PNG in the
+     `<img>` as a `data:` URI, so the HTML stays one self-contained file,
+     and keep the brief beside it as an HTML comment. The image must
+     carry no text; if it comes back with text, re-commission, do not
      accept it. Use route A for scenes and objects.
    - **Route B, draw it.** Inline SVG from `kit.md`. Use route B when no
      illustrator is available, or when the picture must stay exact and
