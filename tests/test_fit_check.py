@@ -169,3 +169,26 @@ def test_flags_more_than_eight_callouts():
     r = run(_with_callouts(9))
     assert r.returncode == 1
     assert "callouts: 9" in r.stdout.splitlines()
+
+
+LAYER = ('<svg viewBox="{vb}" width="100%" height="100%" '
+         'style="position:absolute;inset:0">{body}</svg>')
+
+
+def test_flags_viewbox_off_scale_and_reads_svg_text_at_true_size():
+    # 2600 x 1700 on a 17 x 11 in surface: about 155 units per inch, not 100.
+    html = GOOD.replace('<p class="t3">fine print</p>', LAYER.format(
+        vb="0 0 2600 1700", body='<text x="10" y="10" font-size="8">bottom</text>'))
+    findings, _ = fit_check.check(html)
+    assert ("svg viewBox 2600 x 1700 does not match the surface at 100 units per inch "
+            "(expected 1700 x 1100)") in findings
+    # 8 units at 1700/11 units per inch is 3.7 pt, not the 5.8 pt that 100 per inch gives.
+    assert any("svg text below floor" in f and 'font-size="8"' in f and "3.7pt" in f
+               for f in findings)
+
+
+def test_viewbox_at_100_units_per_inch_passes():
+    html = GOOD.replace('<p class="t3">fine print</p>', LAYER.format(
+        vb="0 0 1700 1100", body='<text x="10" y="10" font-size="9">ruler</text>'))
+    findings, _ = fit_check.check(html)
+    assert findings == []
