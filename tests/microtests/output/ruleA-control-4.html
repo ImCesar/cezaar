@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Merge-and-sell economy: does it punish impatient picks?</title>
+<style>
+@page{size:A4;margin:10mm}
+body{font:13px/1.4 system-ui,sans-serif;color:#1c1c1c;max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:21px;margin:0 0 4px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 6px;color:#444}
+.verdict{background:#fff4d6;border-left:5px solid #c77d00;padding:8px 12px;margin:8px 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+section{margin-bottom:10px}
+table{border-collapse:collapse;width:100%}
+td,th{border:1px solid #bbb;padding:3px 6px;text-align:left;vertical-align:top}
+th{background:#eee}
+.tl{display:flex;gap:3px;margin:4px 0}
+.tl div{flex:1;text-align:center;padding:5px 0;font-size:11px;border:1px solid #888;background:#e8f1e8}
+.tl .bad{background:#f6c9c9}.tl .blank{background:#ddd;color:#555}.tl .ok{background:#cfe3f7}
+ul{margin:0;padding-left:18px}
+.small{font-size:11px;color:#555}
+@media print{body{padding:0}}
+</style></head><body>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<div class="small">One-page design for the producer. Rules as briefed; numbers below are derived from them, not playtested.</div>
+
+<div class="verdict"><b>Short answer: yes, and the "one ninth" figure understates it.</b>
+Undoing an impatient pick takes one of about nine choices (1/9, about 11%). But the pick itself also spent a choice that did nothing for the build. Total waste is about <b>2 of 9 choices (about 22%)</b> if the piece is removed, and about 1 of 9 plus a dead slot for the rest of the run if it is kept. The slot is Blank for exactly one fight after removal, and refilling it costs a further choice that the build would have spent anyway.</div>
+
+<div class="grid">
+<section><h2>The rules in play</h2>
+<ul>
+<li>8 slots. After each win: take 1 of 3 offered pieces into an empty slot, <i>or</i> remove 1 piece. Never both.</li>
+<li>3 identical pieces auto-merge into 1, all numbers x1.5 rounded up; the 2 freed slots become Blanks.</li>
+<li>A Blank does nothing. A removed piece becomes a Blank. No currency.</li>
+<li>About 9 choices per run. Opponent rosters, merges included, are visible before each fight.</li>
+</ul>
+<p class="small">Rounding up: 1 to 2, 2 to 3, 3 to 5, 4 to 6, 10 to 15. Small stats gain proportionally more.</p>
+</section>
+
+<section><h2>Why choices are the only currency</h2>
+<ul>
+<li>One tier-2 piece needs 3 copies = 3 choices. One tier-3 piece needs 9 copies = <b>all 9 choices</b>.</li>
+<li>So a run has zero slack for a tier-3 build, and about one spare choice for a tier-2-heavy build (for example two tier-2 pieces = 6 choices, 3 left).</li>
+<li>Every non-build pick or removal comes straight out of that budget.</li>
+</ul></section>
+</div>
+
+<section><h2>The cost of one impatient pick, step by step</h2>
+<table>
+<tr><th>Step</th><th>Choice used</th><th>Effect</th></tr>
+<tr><td>Win N: take the "sounds good" piece</td><td>1 (wasted)</td><td>Slot holds an off-build piece. Fight N+1 runs with it.</td></tr>
+<tr><td>Win N+1: remove it</td><td>1 (undo)</td><td>Slot becomes Blank. No pick this turn.</td></tr>
+<tr><td>Fight N+2</td><td>0</td><td>Slot is Blank for this one fight.</td></tr>
+<tr><td>Win N+2: take a build piece</td><td>1 (normal use)</td><td>Slot is filled again. Not a loss; it is what the choice was for.</td></tr>
+</table>
+<div class="tl">
+<div class="bad">Win N: bad pick</div><div class="bad">Win N+1: remove</div><div class="blank">Fight: slot Blank</div><div class="ok">Win N+2: build pick</div>
+</div>
+<p class="small">Net: 2 choices (about 22% of a 9-choice run) produce no build progress. The brief's "one ninth" counts only the removal row.</p>
+</section>
+
+<div class="grid">
+<section><h2>Alternatives to removing</h2>
+<table>
+<tr><th>Option</th><th>Cost</th></tr>
+<tr><td>Remove at once</td><td>2 of 9 choices total; 1 fight with a Blank slot.</td></tr>
+<tr><td>Keep it</td><td>1 of 9 choices (the pick); one of 8 slots is dead to the end. Fine early, hurts once slots fill.</td></tr>
+<tr><td>Build around it</td><td>Zero if it later merges, but that diverts copies from the planned build.</td></tr>
+<tr><td>Let a merge absorb it</td><td>Merges free slots as Blanks, so a dud can sit until slot pressure appears, then be removed.</td></tr>
+</table></section>
+
+<section><h2>What softens or sharpens the punishment</h2>
+<ul>
+<li><b>Softens:</b> slot pressure is low early. Eight slots against nine choices only bite after merges stall; a dud held until then costs nothing extra.</li>
+<li><b>Softens:</b> visible opponent rosters let a player see a piece's value before taking it, which makes impatience a choice, not an accident.</li>
+<li><b>Sharpens:</b> no currency means no way to buy back a lost choice.</li>
+<li><b>Sharpens:</b> late in the run, a removal turn can be the last chance to take a build piece.</li>
+<li><b>Sharpens:</b> the pick is a hidden-cost trap because the removal turn feels like "fixing" something rather than losing a turn.</li>
+</ul></section>
+</div>
+
+<section><h2>Open questions and what to test</h2>
+<ul>
+<li>This analysis assumes each offer of 3 contains a build piece. If offers often do not, a "wrong" pick may be the best available and the cost drops. Needs offer-table data.</li>
+<li>Unspecified: does a Blank count as an empty slot for taking a piece? (Assumed yes.) Does a removal during a fight window ever happen? (Assumed no, only after wins.)</li>
+<li>Playtest metric: win rate and final power of runs with exactly one removal vs. zero removals. If the gap is under about 10 points, the economy is gentler than this arithmetic suggests.</li>
+<li>Design lever if too harsh: allow remove-and-take on the same win, or add one extra choice per run. If too soft: nothing needed.</li>
+</ul></section>
+
+<div class="small">Bottom line for the producer: the economy does punish impatient picks, at about double the figure in the brief. The pain is in lost choices, not in the single Blank slot, which lasts one fight.</div>
+</body></html>

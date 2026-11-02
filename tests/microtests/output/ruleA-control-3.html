@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Merge-and-sell economy: does it punish impatient picks?</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{font:14px/1.45 system-ui,sans-serif;color:#1b1b1b;max-width:1000px;margin:16px auto;padding:0 16px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:14px 0 4px;border-bottom:1px solid #ccc}
+.v{background:#fff4d6;border-left:5px solid #c88a00;padding:8px 12px;margin:8px 0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{border:1px solid #ccc;padding:3px 6px;text-align:left}
+.row{display:flex;gap:3px;margin:2px 0;align-items:center}.row b{width:92px;font-size:12px}
+.c{width:28px;height:22px;text-align:center;font-size:11px;line-height:22px;border:1px solid #999}
+.b{background:#cfe8cf}.j{background:#f4b6b6}.x{background:#ddd;color:#777}.u{background:#fff}
+ul{margin:4px 0;padding-left:18px}small{color:#555}
+@media print{body{margin:0}}
+</style></head><body>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<small>Design one-pager for production. Rules: 8 slots, 3 offers per win, take one piece or remove one (never both), 3 identical pieces merge to one at 1.5x (rounded up) and free 2 Blank slots, no currency, about 9 choices per run, opponent rosters visible.</small>
+
+<div class="v"><b>Verdict: yes, it punishes impatience, but the brief's number is too small.</b>
+The "one ninth" is only the removal. The impatient pick also spent a choice, so the run loses <b>2 of 9 choices (about 22%)</b> to one mistake, and the slot is Blank only if the player pays for the removal. Whether the penalty bites at all depends on slot pressure, which this economy mostly relieves (see below).</div>
+
+<h2>Choice accounting for one impatient pick</h2>
+<div class="cols"><div>
+<table>
+<tr><th>Choice</th><th>Action</th><th>Build value</th></tr>
+<tr><td>N</td><td>Take off-build piece</td><td>0 (a build piece went untaken)</td></tr>
+<tr><td>N+1</td><td>Remove it (slot becomes Blank)</td><td>0 (a choice spent to undo)</td></tr>
+<tr><td>N+2 at earliest</td><td>Fill the Blank with a build piece</td><td>1 (normal pick)</td></tr>
+</table>
+<p>Clean run: 9 choices, 9 build picks. Impatient run with undo: 9 choices, 7 build picks. Cost: pick 1/9 + removal 1/9 = <b>2/9</b>. The "1/9 to undo" holds for the removal alone. The Blank cannot be refilled in the same choice (take and remove are exclusive), so it sits through at least the rest of that reward and is only useful if a later offer has a build piece.</p>
+</div><div>
+<div class="row"><b>Clean</b><span class="c b">1</span><span class="c b">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
+<div class="row"><b>Impatient, undo</b><span class="c j">1</span><span class="c x">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
+<div class="row"><b>Impatient, keep</b><span class="c j">1</span><span class="c b">2</span><span class="c b">3</span><span class="c b">4</span><span class="c b">5</span><span class="c b">6</span><span class="c b">7</span><span class="c b">8</span><span class="c b">9</span></div>
+<small>green = build pick, red = off-build pick, grey = removal. Keeping the junk costs 1/9 of picks and a held slot instead of 2/9.</small>
+</div></div>
+
+<h2>The cost is conditional on slot pressure</h2>
+<ul>
+<li><b>Merges free slots.</b> Nine perfect picks form three triples: 9 pieces become 3, leaving 6 Blanks. A tight build never fills 8 slots, so the junk piece can simply stay and the removal is never needed. The real cost is then 1/9 (the wasted pick) plus a broken triple.</li>
+<li><b>Triples are the real casualty.</b> Three copies are needed per merge. A wasted pick can leave a triple short at run end, forfeiting the 1.5x step (for example a stat of 3 becomes 5, 2 becomes 3, 1 becomes 2, so small numbers gain the most in relative terms). With only 9 choices there is almost no slack: three triples use all nine.</li>
+<li><b>Wide or two-build runs fill the 8 slots.</b> Only there does the removal become forced, giving the full 2/9.</li>
+<li><b>The junk piece is not inert.</b> Unlike a Blank it has stats, so it may still help a fight; the penalty is smaller for a piece that is merely off-build than for a dead one.</li>
+</ul>
+
+<h2>Mitigations already in the rules</h2>
+<ul><li>Visible opponent rosters, including merged pieces, let players see what builds beat what, which reduces "sounds good" picks.</li>
+<li>No currency means there is no refund: removal gives nothing back, so the penalty is not softened.</li></ul>
+
+<h2>What the producer should decide</h2>
+<ul>
+<li>Is a 22% choice loss per mistake intended? It is harsh given run length; one mistake can cost a whole third triple.</li>
+<li>Options: lengthen the run to 10 to 12 choices, offer 4 pieces, or let removal and take happen together at a cost. All soften the penalty.</li>
+<li>Playtest: record how often slots are full at choice 9 and how often a run ends with a triple one piece short. If rarely full, rewrite the claim as "costs a triple, not a slot".</li>
+</ul>
+<small>Assumptions: about 9 choices, one pick per choice, all picks either on-build or off-build, no Blank-dependent effects. Numbers are arithmetic from the rules, not playtest data.</small>
+</body></html>

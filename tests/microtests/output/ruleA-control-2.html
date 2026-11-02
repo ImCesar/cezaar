@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Merge-and-sell economy: does it punish impatient picks?</title>
+<style>
+@page{size:letter;margin:.4in}
+body{font:12px/1.4 Georgia,serif;color:#1c1c1c;max-width:8in;margin:.3in auto;padding:0 .2in}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 4px;border-bottom:1px solid #999}
+p{margin:4px 0}
+.v{background:#f3efe2;border-left:4px solid #8a5a00;padding:6px 10px;margin:8px 0}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th,td{border:1px solid #bbb;padding:3px 6px;text-align:left;vertical-align:top}
+th{background:#eee}
+.cols{display:flex;gap:16px}.cols>div{flex:1}
+ul{margin:4px 0;padding-left:16px}
+.s{display:inline-block;width:14px;height:14px;border:1px solid #333;margin-right:2px;vertical-align:middle}
+.g{background:#8fbf8f}.j{background:#d98080}.b{background:#fff}
+</style></head><body>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<p>For the producer. Rules: 8 slots; after each win take one of 3 offered pieces into an empty slot, or remove one piece, never both; 3 matching pieces merge into one at x1.5 (rounded up) and two slots become Blanks; no currency; about 9 choices per run; opponent rosters visible before each fight.</p>
+
+<div class="v"><b>Verdict: yes, it punishes, but the brief's "one ninth" understates it.</b>
+Undoing a bad pick costs one choice (1/9, about 11%). The bad pick itself was also a choice that bought nothing, so the full loss is two choices (2/9, about 22%) once the roster is full. If the roster still has empty slots, you can skip the undo and pay only the wasted pick (1/9) plus the slot it blocks.</div>
+
+<h2>Cost of one impatient pick, in a 9-choice run</h2>
+<table>
+<tr><th>Case</th><th>Choices spent on the build</th><th>Choices lost</th><th>What the player sees</th></tr>
+<tr><td>Patient: every pick fits the build</td><td>9 of 9</td><td>0</td><td>Baseline.</td></tr>
+<tr><td>Impatient pick, roster has room, junk left in place</td><td>8 of 9</td><td>1 (11%)</td><td>One slot holds a piece that does not help. Capacity falls from 8 to 7 until a merge frees slots.</td></tr>
+<tr><td>Impatient pick, roster full, junk removed</td><td>7 of 9</td><td>2 (22%)</td><td>One choice to take the junk, one to remove it. The freed slot is a Blank and stays one for at least one fight, until the next reward fills it.</td></tr>
+<tr><td>Same, but the removal happens on the last choice</td><td>7 of 9</td><td>2 (22%)</td><td>The slot is Blank for the rest of the run; the removal bought nothing.</td></tr>
+</table>
+<p style="margin-top:4px">Slots after the mistake (full case): <span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s j"></span> junk taken, then <span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s g"></span><span class="s b"></span> removed to Blank, waiting for the next reward.</p>
+
+<div class="cols"><div>
+<h2>Why the cost is larger than it looks</h2>
+<ul>
+<li>A merge needs 3 matching picks to get x1.5, so one stray pick delays a merge by a third of its input.</li>
+<li>Rounding up helps small numbers most (1 becomes 2, 3 becomes 5), so early merges of low-value pieces are strong and a delayed first merge hurts.</li>
+<li>With no currency there is no way to buy the loss back; the only exchange rate is choices.</li>
+<li>Remove and take are exclusive, so every cleanup is a turn with no growth.</li>
+</ul>
+<h2>Why it is smaller than it looks</h2>
+<ul>
+<li>Merges turn 3 pieces into 1 and free 2 slots, so a full roster is rarer than 8 slots and 9 picks suggest. Many players never need the removal.</li>
+<li>A Blank does nothing, but neither does an off-build piece; the slot is lost either way.</li>
+<li>Visible opponent rosters let a patient player see what they will face and pick for it, which reduces the temptation to grab what "sounds good".</li>
+</ul></div>
+<div>
+<h2>Assumptions behind the numbers</h2>
+<ul>
+<li>"About nine" choices: at 8 choices one loss is 12.5%, at 10 it is 10%. The 1/9 figure is a midpoint.</li>
+<li>An off-build piece has no value. If it gives a small real effect, the loss is lower.</li>
+<li>Only the first fight after each choice is affected by the slot state.</li>
+<li>Offers are random; the player cannot always find an on-build piece among the three. Forced compromises are not impatience and are not counted here.</li>
+</ul>
+<h2>What to check before deciding</h2>
+<ul>
+<li>How often does a run reach 8 filled slots before choice 9? If rarely, the removal cost is mostly theoretical and the real cost is 1/9.</li>
+<li>Do three offers usually contain an on-build piece? If not, the economy punishes bad luck as hard as impatience.</li>
+<li>Does a Blank slot after removal cost a fight? Compare win rates with 7 and 8 live pieces.</li>
+</ul>
+<h2>Decision for the producer</h2>
+<p>Keep the economy if the aim is to make each choice weigh about a tenth to a fifth of the run. If that feels too harsh for new players, the cheapest change is to let a removal and a take share one reward, which would cut the full-roster loss from 2/9 to 1/9.</p>
+</div></div>
+</body></html>

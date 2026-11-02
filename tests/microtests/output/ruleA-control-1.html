@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Merge-and-sell economy: does it punish impatient picks?</title>
+<style>
+@page{size:letter;margin:.4in}
+body{font:12px/1.4 system-ui,sans-serif;color:#1c1c1c;max-width:960px;margin:12px auto;padding:0 14px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em;color:#444}
+.ans{background:#f3efe2;border-left:4px solid #8a6d00;padding:6px 10px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:3px 6px;text-align:left;vertical-align:top}th{background:#eee}
+.run{display:flex;gap:3px;margin:4px 0}.run div{flex:1;text-align:center;padding:4px 0;border:1px solid #888;font-size:11px}
+.p{background:#f6c9c9}.u{background:#f2e3a0}.g{background:#d5ead2}
+p,ul{margin:3px 0}ul{padding-left:18px}
+</style></head><body>
+<h1>Merge-and-sell economy: does it punish impatient picks?</h1>
+<p class="ans"><b>Short answer: yes, but the claim undercounts.</b> Undoing a stray pick costs one of about nine choices (1/9, 11%). The stray pick itself spent another choice, so a pick that is taken and then undone costs 2/9 (22%). If you do not undo it, it costs one of eight slots for the rest of the run. Either way, a stray is worth about one third of a merge, since a merge needs three choices.</p>
+
+<h2>Rules that drive the result</h2>
+<ul>
+<li>8 slots. Each win gives one action: take 1 of 3 offered pieces into an empty slot, or remove one piece. Never both.</li>
+<li>3 identical pieces merge into 1 with all numbers x1.5, rounded up. The 2 freed slots become Blanks. Removed pieces also become Blanks. Blanks do nothing. No currency.</li>
+<li>About 9 choices per run. Opponent rosters, including merges, are visible before each fight.</li>
+</ul>
+
+<h2>The same run, three ways (9 choices, each box is one win)</h2>
+<p>Patient build, picks A, A, A, B, B, B, ...:</p>
+<div class="run"><div class="g">A</div><div class="g">A</div><div class="g">A merge</div><div class="g">B</div><div class="g">B</div><div class="g">B merge</div><div class="g">C</div><div class="g">C</div><div class="g">C merge</div></div>
+<p>Impatient pick at choice 3, then undone (X is the stray):</p>
+<div class="run"><div class="g">A</div><div class="g">A</div><div class="p">X</div><div class="u">remove X</div><div class="g">A merge</div><div class="g">B</div><div class="g">B</div><div class="g">B merge</div><div class="g">C</div></div>
+<p>Result: the third merge (C) is cut short. The run loses 2 choices, not 1: the wasted pick and the removal.</p>
+
+<div class="cols"><div>
+<h2>What the stray pick costs</h2>
+<table><tr><th>Cost</th><th>Size</th></tr>
+<tr><td>The pick (a choice not spent on the build)</td><td>1/9</td></tr>
+<tr><td>The removal (a choice that adds nothing)</td><td>1/9</td></tr>
+<tr><td>Blank slot after removal, until the next reward</td><td>1 fight, if next offer has a useful piece</td></tr>
+<tr><td>If never removed: slot held by dead piece</td><td>1/8 of capacity, all remaining fights</td></tr>
+</table></div><div>
+<h2>Timing changes the bill</h2>
+<table><tr><th>Stray taken</th><th>Effect</th></tr>
+<tr><td>Early (1-3)</td><td>Cheap to leave: empty slots remain. Removal can wait until slots run short. Hurts via lost merge progress and a weaker fight roster.</td></tr>
+<tr><td>Mid (4-6)</td><td>Board is near full. Removal is forced soon. Full 2/9.</td></tr>
+<tr><td>Late (7-9)</td><td>Worst case. If the removal is choice 9, the Blank is never refilled. A stray also cannot finish a merge in time.</td></tr>
+</table></div></div>
+
+<h2>Why slots matter more than the count suggests</h2>
+<ul>
+<li>Nine choices against eight slots means almost no spare room. Only merges free space (each frees 2), so a stray delays the first merge's relief.</li>
+<li>Merging consumes 3 slots and returns 1 piece, so a stray tends to sit exactly where the next merge needed space.</li>
+<li>Rounding up (x1.5, ceil) favors small numbers: 1 becomes 2 (+100%), 10 becomes 15 (+50%). Low-number strays gain little from being merged later.</li>
+</ul>
+
+<h2>What softens the punishment</h2>
+<ul>
+<li>Visible opponent rosters let the player pick for the next fight instead of for "sounds good". The information exists, so the punishment is avoidable.</li>
+<li>A stray that happens to counter an upcoming opponent is not a loss. The claim only holds for pieces that fit neither the build nor the matchup.</li>
+<li>Three offers per win make an on-build piece likely only if offers are not random across a large pool (see open questions).</li>
+</ul>
+
+<h2>Verdict and open questions for the producer</h2>
+<p><b>Verdict:</b> the economy punishes impatient picks at about 2/9 of the run, harder late. It is a real but moderate penalty, not a run-ending one. Because there is no currency, the penalty cannot be softened by a refund or sale.</p>
+<ul>
+<li>How large is the piece pool, and how often do the 3 offers include a build piece? If rarely, patience is also punished, since waiting means no pick.</li>
+<li>Is a no-action option allowed? If not, a player with a full board and a bad offer must remove something good.</li>
+<li>Do Blanks appear in opponent rosters or count for anything? This is untested here.</li>
+<li>Playtest: measure win rate by turn of first stray, to check the timing table. The numbers above are derived from the rules, not measured.</li>
+</ul>
+</body></html>

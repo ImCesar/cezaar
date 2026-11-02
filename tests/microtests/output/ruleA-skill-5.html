@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Merge-and-sell economy: what an impatient pick costs</title>
+<!--
+  Route B (drawn): the picture is the roster itself. Three runs of nine choices,
+  eight slots each, simulated by hand from the stated rules (piece placement
+  inside a column is a drawing choice). No external fonts, scripts or styles.
+-->
+<style>
+  :root {
+    --ink: #1f2328; --paper: #fbfaf7; --rule: #8a8f98; --accent: #c0392b;
+    --soft-1: #dfe9e3; --soft-2: #e8e3d4; --soft-3: #dde3ee;
+    --w: 20in; --h: 13in;
+  }
+  @page { size: var(--w) var(--h); margin: 0; }
+  html, body { margin: 0; background: #d9d9d9; }
+  body { overflow: auto; }
+  .poster { position: relative; width: var(--w); height: var(--h); margin: 0.5in auto; background: var(--paper);
+    color: var(--ink); font-family: Georgia, "Times New Roman", serif; box-shadow: 0 2px 12px rgba(0,0,0,.25); overflow: hidden; }
+  @media print { html, body { background: none; } .poster { margin: 0; box-shadow: none; } }
+  .t1 { font-size: 28pt; font-weight: 700; letter-spacing: .01em; line-height: 1.1; }
+  .t2 { font-size: 11pt; }
+  .t3 { font-size: 7pt; }
+  .story { font-style: italic; }
+  .rule { font-style: normal; }
+  .param { font-style: italic; font-size: 7pt; color: #444; }
+  .title { position: absolute; top: 0.4in; left: 0.5in; margin: 0; width: 13.2in; }
+  .sub { position: absolute; top: 1.22in; left: 0.5in; width: 12.4in; margin: 0; }
+  .date { position: absolute; bottom: 0.3in; right: 0.5in; font-size: 9pt; color: #555; }
+  .callout { position: absolute; width: 2.7in; }
+  .callout h3 { margin: 0 0 3px; font-size: 10.5pt; }
+  .callout p { margin: 0 0 4px; font-size: 9pt; line-height: 1.25; }
+  .callout p.param { font-size: 7pt; }
+  .n { display:inline-block; width:15px; height:15px; border:1.5px solid var(--ink); border-radius:50%; text-align:center; line-height:15px; font-size:8.5pt; font-weight:700; margin-right:4px; }
+  .verdict { position:absolute; left:13.9in; top:1.2in; width:5.6in; border:2px solid var(--accent); background:#fff; padding:6px 10px; }
+  .verdict p { margin: 0 0 4px; font-size: 10pt; line-height: 1.25; }
+  .verdict h2 { margin: 0 0 4px; font-size: 13pt; }
+  .card { position: static; width: .78in; border: 1px solid var(--ink); border-radius: 8px; padding: 3px 5px; background: #fff; }
+  .card .head { font-size: 8.5pt; font-weight: 700; }
+  .card .sub2 { font-size: 7pt; color: #2b5fa8; }
+  .card .row { font-size: 7.5pt; }
+  .ladder { display:flex; align-items:center; gap:4px; margin: 3px 0 5px; }
+  .ladder .arr { font-size: 7pt; text-align:center; width:.45in; line-height:1.1; }
+  .legend { position:absolute; border:1px solid var(--rule); padding:5px 8px; background:#fff; font-size:8pt; line-height:1.5; }
+  .lane { position:absolute; left:0.5in; width:2.35in; }
+  .lane h3 { margin:0 0 3px; font-size:12pt; }
+  .lane p { margin:0; font-size:9pt; line-height:1.25; }
+  .end { position:absolute; left:11.9in; width:1.8in; font-size:8pt; line-height:1.25; }
+  .end b { font-size:9pt; }
+  svg .leader { stroke: var(--rule); stroke-width: 0.6; fill: none; }
+  svg .outline { stroke: var(--ink); stroke-width: 1; }
+</style>
+</head>
+<body>
+<main class="poster">
+  <h1 class="title t1">An impatient pick costs 2 of 9 choices to take back, not 1</h1>
+  <p class="sub t2 story">The ninth is the removal. The pick that needed removing already spent a ninth, and neither can go to the build.</p>
+
+  <svg viewBox="0 0 2000 1300" width="100%" height="100%" style="position:absolute;inset:0" aria-hidden="true">
+<g font-size="10" fill="#555">
+<line x1="300" y1="205" x2="1155" y2="205" stroke="var(--rule)"/>
+<line x1="347" y1="199" x2="347" y2="211" stroke="var(--rule)"/><text x="347" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 1</text>
+<line x1="442" y1="199" x2="442" y2="211" stroke="var(--rule)"/><text x="442" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 2</text>
+<line x1="537" y1="199" x2="537" y2="211" stroke="var(--rule)"/><text x="537" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 3</text>
+<line x1="632" y1="199" x2="632" y2="211" stroke="var(--rule)"/><text x="632" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 4</text>
+<line x1="727" y1="199" x2="727" y2="211" stroke="var(--rule)"/><text x="727" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 5</text>
+<line x1="822" y1="199" x2="822" y2="211" stroke="var(--rule)"/><text x="822" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 6</text>
+<line x1="917" y1="199" x2="917" y2="211" stroke="var(--rule)"/><text x="917" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 7</text>
+<line x1="1012" y1="199" x2="1012" y2="211" stroke="var(--rule)"/><text x="1012" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 8</text>
+<line x1="1107" y1="199" x2="1107" y2="211" stroke="var(--rule)"/><text x="1107" y="190" text-anchor="middle" font-weight="700" font-size="12" fill="var(--ink)">choice 9</text>
+<line x1="300" y1="215" x2="300" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<line x1="395" y1="215" x2="395" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="395" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="490" y1="215" x2="490" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="490" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="585" y1="215" x2="585" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="585" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="680" y1="215" x2="680" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="680" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="775" y1="215" x2="775" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="775" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="870" y1="215" x2="870" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="870" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="965" y1="215" x2="965" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="965" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="1060" y1="215" x2="1060" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="1060" y="226" text-anchor="middle" font-style="italic">fight</text>
+<line x1="1155" y1="215" x2="1155" y2="1170" stroke="#9ab" stroke-dasharray="3 5" stroke-width=".8"/>
+<text x="300" y="160" font-style="italic" font-size="11">time runs left to right: win, choose one thing (take or remove), fight, repeat</text></g>
+<text x="347" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="311" y="270" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="347" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="311" y="297" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="442" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="406" y="270" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="297" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="537" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="501" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="537" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="501" y="297" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="632" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="596" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="632" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="596" y="297" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="632" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="596" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="727" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="691" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="727" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="691" y="297" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="727" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="691" y="324" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="727" y="340.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="691" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="822" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="786" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="822" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="786" y="297" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="822" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="786" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="917" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="881" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="917" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="881" y="297" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="917" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="881" y="324" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="917" y="340.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="881" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1012" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="976" y="270" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="297" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="313.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="324" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1012" y="340.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="976" y="351" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1012" y="367.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="976" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1107" y="264" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="1071" y="270" width="72" height="24" fill="#6fae8c" class="outline" rx="3"/><text x="1107" y="286.5" text-anchor="middle" font-size="13" font-weight="700">A++</text>
+<rect x="1071" y="297" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="324" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="351" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="378" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="405" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="432" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="459" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1190" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1205" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1220" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1235" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1250" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1265" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1280" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1295" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1310" y="280" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<text x="347" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="311" y="610" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="347" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="311" y="637" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="442" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="406" y="610" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="637" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="537" y="604" font-size="10" text-anchor="middle" font-weight="700" fill="#c0392b">take X</text>
+<rect x="501" y="610" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="537" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="501" y="637" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="537" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="501" y="664" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="537" y="680.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="501" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="632" y="604" font-size="10" text-anchor="middle" font-weight="700" fill="#c0392b">remove X</text>
+<rect x="596" y="610" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="632" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="596" y="637" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="632" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="596" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="727" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="691" y="610" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="727" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="691" y="637" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="822" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="786" y="610" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="822" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="786" y="637" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="822" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="786" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="917" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="881" y="610" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="917" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="881" y="637" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="917" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="881" y="664" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="917" y="680.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="881" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1012" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="976" y="610" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="637" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="664" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1107" y="604" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="1071" y="610" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1107" y="626.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="1071" y="637" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1107" y="653.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="1071" y="664" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1107" y="680.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="1071" y="691" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="718" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="745" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="772" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="799" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1190" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1205" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1220" y="620" width="13" height="22" fill="#c0392b" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1235" y="620" width="13" height="22" fill="#fff" stroke="#c0392b" stroke-width="1.8"/>
+<text x="1241.5" y="636" text-anchor="middle" font-size="12" font-weight="700" fill="#c0392b">x</text>
+<rect x="1250" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1265" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1280" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1295" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1310" y="620" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<text x="347" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="311" y="950" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="347" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="311" y="977" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1004" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="311" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="442" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="406" y="950" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="977" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="442" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="406" y="1004" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="406" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="537" y="944" font-size="10" text-anchor="middle" font-weight="700" fill="#c0392b">take X</text>
+<rect x="501" y="950" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="537" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="501" y="977" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="537" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="501" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="537" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="501" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="501" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="632" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="596" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="632" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="596" y="977" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="632" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="596" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="596" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="727" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="691" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="727" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="691" y="977" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="727" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="691" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="727" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="691" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="691" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="822" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="786" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="822" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="786" y="977" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="822" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="786" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="822" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="786" y="1031" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="822" y="1047.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="786" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="786" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="917" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A, merges</text>
+<rect x="881" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="917" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="881" y="977" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="917" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="881" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="917" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="881" y="1031" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="881" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1012" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="976" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="977" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1012" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="976" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="1012" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="976" y="1031" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1012" y="1047.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="976" y="1058" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="976" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<text x="1107" y="944" font-size="10" text-anchor="middle" font-weight="400" fill="#444">take A</text>
+<rect x="1071" y="950" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1107" y="966.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="1071" y="977" width="72" height="24" fill="#b3d1bf" class="outline" rx="3"/><text x="1107" y="993.5" text-anchor="middle" font-size="13" font-weight="700">A+</text>
+<rect x="1071" y="1004" width="72" height="24" fill="#f3c9c3" class="outline" stroke="#c0392b" stroke-width="1.6" rx="3"/><text x="1107" y="1020.5" text-anchor="middle" font-size="13" font-weight="700" fill="#c0392b">X</text>
+<rect x="1071" y="1031" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1107" y="1047.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="1071" y="1058" width="72" height="24" fill="#dfe9e3" class="outline" rx="3"/><text x="1107" y="1074.5" text-anchor="middle" font-size="13" font-weight="700">A</text>
+<rect x="1071" y="1085" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="1112" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1071" y="1139" width="72" height="24" fill="none" stroke="#9aa0a8" stroke-dasharray="4 3" rx="3"/>
+<rect x="1190" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1205" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1220" y="960" width="13" height="22" fill="#c0392b" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1235" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1250" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1265" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1280" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1295" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<rect x="1310" y="960" width="13" height="22" fill="#8fc2a3" stroke="var(--ink)" stroke-width="1"/>
+<circle cx="579" cy="676" r="10" fill="#fff" class="outline"/><text x="579" y="680" text-anchor="middle" font-size="12" font-weight="700">1</text>
+<circle cx="674" cy="676" r="10" fill="#fff" class="outline"/><text x="674" y="680" text-anchor="middle" font-size="12" font-weight="700">2</text>
+<circle cx="1161" cy="282" r="10" fill="#fff" class="outline"/><text x="1161" y="286" text-anchor="middle" font-size="12" font-weight="700">3</text>
+<circle cx="1054" cy="417" r="10" fill="#fff" class="outline"/><text x="1054" y="421" text-anchor="middle" font-size="12" font-weight="700">4</text>
+<circle cx="579" cy="282" r="10" fill="#fff" class="outline"/><text x="579" y="286" text-anchor="middle" font-size="12" font-weight="700">5</text>
+<circle cx="395" cy="240" r="10" fill="#fff" class="outline"/><text x="395" y="244" text-anchor="middle" font-size="12" font-weight="700">6</text>
+<rect x="497" y="660" width="80" height="32" rx="6" fill="none" stroke="#c0392b" stroke-width="2.2"/>
+  </svg>
+
+  <div class="lane" style="top:2.55in"><h3>Patient: only the build</h3><p class="story">Every offer, the build piece A. Nine takes.</p></div>
+  <div class="lane" style="top:5.95in"><h3>Impatient, then undone</h3><p class="story">Takes X at choice 3 because it sounds good, then pays a choice to remove it.</p></div>
+  <div class="lane" style="top:9.35in"><h3>Impatient, left alone</h3><p class="story">Takes X at choice 3 and lives with it.</p></div>
+
+  <div class="end" style="top:2.0in;left:11.9in;width:1.9in"><b>Choice budget</b><br>green build take, red X take, outlined x removal</div>
+  <div class="end" style="top:3.15in"><b>0 of 9 wasted.</b><br>Ends on one A++. 7 slots Blank.</div>
+  <div class="end" style="top:6.55in"><b>2 of 9 wasted.</b><br>Ends on A+, A+, A. No A++.</div>
+  <div class="end" style="top:9.95in"><b>1 of 9 wasted.</b><br>Ends on A+, A+, A, A, X. No A++.</div>
+
+  <section class="verdict">
+    <h2>Does it punish impatient picks? Yes, in outcome far more than in slots.</h2>
+    <p><b>In choices:</b> 1 of 9 if you keep the wrong piece, 2 of 9 if you pay to remove it. The brief's one ninth is the removal alone.</p>
+    <p><b>In outcome:</b> nine choices is exactly the 3 x 3 copies a top merge needs. One off-build take, kept or removed, closes it.</p>
+    <p><b>In slots:</b> almost nothing. A focused build never fills the roster, so the Blank is rarely felt.</p>
+  </section>
+
+  <div class="callout" style="left:13.9in; top:4.35in"><h3><span class="n">1</span>The claim, checked</h3>
+    <p class="rule">Taking X spends a choice: 1/9, 11%. Removing it spends another. Together 2/9, 22%. Only the second is the brief's "one ninth".</p>
+    <p class="param">At 8 choices the pair costs 25%, at 10 it costs 20%. Run length is "about nine".</p></div>
+  <div class="callout" style="left:13.9in; top:6.15in"><h3><span class="n">2</span>The slot sits Blank for one fight</h3>
+    <p class="rule">Remove is a whole choice, so the next fight is played one piece short. The choice after it can refill the slot. That refill is a build take you would make anyway, so it adds no choice cost.</p>
+    <p class="param">How much the short fight hurts depends on piece strength. The rules alone do not say.</p></div>
+  <div class="callout" style="left:13.9in; top:8.45in"><h3><span class="n">3</span>The top merge needs all nine</h3>
+    <p class="rule">Three copies make A+. Three A+ make A++. That is 9 copies in 9 choices. Lane 1 ends on one A++. Lanes 2 and 3 end with two A+ and loose pieces.</p>
+    <p class="param">Assumes the build piece is offered every time. The spec does not say it is.</p></div>
+
+  <div class="callout" style="left:16.8in; top:4.35in"><h3><span class="n">4</span>Slots rarely bind</h3>
+    <p class="rule">Of 8 slots, lane 1 never holds more than 4 pieces and lane 3 never more than 5. Removal only pays when the roster is full or X does harm. Otherwise leaving it costs 1 choice and undoing it costs 2.</p>
+    <p class="param">Scattered builds fill faster: eight different takes with no merge fill all 8 slots.</p></div>
+  <div class="callout" style="left:16.8in; top:6.7in"><h3><span class="n">5</span>Rounding up favours merging</h3>
+    <div class="ladder">
+      <div class="card"><div class="head">Blade</div><div class="sub2">tier 0</div><div class="row">attack 3</div><div class="row">health 4</div></div>
+      <div class="arr">x1.5<br>up</div>
+      <div class="card"><div class="head">Blade+</div><div class="sub2">tier 1</div><div class="row">attack 5</div><div class="row">health 6</div></div>
+      <div class="arr">x1.5<br>up</div>
+      <div class="card"><div class="head">Blade++</div><div class="sub2">tier 2</div><div class="row">attack 8</div><div class="row">health 9</div></div>
+    </div>
+    <p class="rule">Attack 3 becomes 8 over two merges: x2.67, not x2.25. Small numbers gain most, so a missed merge costs more than 1/9 of the choices suggests.</p>
+    <p class="param">Example numbers, not from the game.</p></div>
+  <div class="callout" style="left:16.8in; top:9.75in"><h3><span class="n">6</span>Opponents are visible</h3>
+    <p class="rule">Their rosters, merged pieces included, show before each fight. A missed merge is therefore legible: the player can see the gap.</p>
+    <p class="param">Open: is that visible when choosing, or only before the fight?</p></div>
+
+  <div class="callout" style="left:13.9in; top:10.55in; width:2.7in"><h3>Ask the designer before shipping</h3>
+    <p class="rule">Does an off-build piece act in fights, help or hinder? It moves the cost of leaving it. Do Blanks count as empty slots for a take? Assumed yes. Does every offer of three include a build piece?</p></div>
+
+  <div class="legend" style="left:0.5in; bottom:0.45in">
+    <b>A</b> build piece, <b>A+</b> one merge, <b>A++</b> two merges (darker green) &middot;
+    <b style="color:#c0392b">X</b> off-build piece (red) &middot; dashed box: Blank (empty slot) &middot;
+    red ring: the impatient pick &middot; numbered circles match the notes on the right &middot;
+    8 slots per column, one column per choice
+  </div>
+  <footer class="date">Proposal &middot; 2026-11-01</footer>
+</main>
+</body>
+</html>
