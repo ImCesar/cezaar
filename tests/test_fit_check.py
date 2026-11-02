@@ -12,11 +12,12 @@ fit_check = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(fit_check)
 
 GOOD = """<!doctype html><html><head><style>
+:root { --w: 17in; --h: 11in }
 @page { size: 17in 11in; margin: 0 }
 .poster { width: var(--w); height: var(--h) }
 .t3 { font-size: 7pt }
 </style></head><body>
-<main class="poster" style="--w:17in;--h:11in">
+<main class="poster">
 <h1 class="t1">Why the stack is shared</h1>
 <p class="t3">fine print</p>
 <footer class="date">2026-11-01</footer>
@@ -56,6 +57,21 @@ def test_flags_navigation_and_hidden_content():
     assert "hidden attribute" in joined
 
 
+def test_flags_size_only_on_poster():
+    html = GOOD.replace(":root { --w: 17in; --h: 11in }", "").replace(
+        '<main class="poster">', '<main class="poster" style="--w:17in;--h:11in">')
+    findings, size = fit_check.check(html)
+    assert size is None
+    assert any("size on poster only" in f for f in findings)
+
+
+def test_flags_size_declared_twice_differently():
+    html = GOOD.replace('<main class="poster">', '<main class="poster" style="--w:20in;--h:8in">')
+    findings, size = fit_check.check(html)
+    assert size == (17.0, 11.0)
+    assert any("declared twice" in f for f in findings)
+
+
 def test_flags_hover_only_text():
     html = GOOD.replace("</style>", ".note:hover .more { display:block }</style>")
     findings, _ = fit_check.check(html)
@@ -71,6 +87,19 @@ def test_flags_text_below_floor():
     assert any("4px" in f for f in findings2)
 
 
+def test_flags_leading_dot_and_shorthand_sizes():
+    html = GOOD.replace(".t3 { font-size: 7pt }", ".t3 { font-size: .5pt } .x { font: italic 4px/1.2 serif }")
+    findings, _ = fit_check.check(html)
+    assert any(".5pt" in f for f in findings)
+    assert any("4px" in f for f in findings)
+
+
+def test_flags_relative_font_units():
+    html = GOOD.replace(".t3 { font-size: 7pt }", ".t3 { font-size: 0.8em }")
+    findings, _ = fit_check.check(html)
+    assert any("not checkable at print" in f for f in findings)
+
+
 def test_flags_external_resources():
     html = GOOD.replace("<head>",
         '<head><link rel="stylesheet" href="https://fonts.googleapis.com/x">'
@@ -80,7 +109,7 @@ def test_flags_external_resources():
 
 
 def test_warns_above_plotter_width():
-    html = GOOD.replace("--w:17in;--h:11in", "--w:60in;--h:11in")
+    html = GOOD.replace("--w: 17in; --h: 11in", "--w: 60in; --h: 11in")
     findings, size = fit_check.check(html)
     assert size == (60.0, 11.0)
     assert any("44" in f and "plotter" in f for f in findings)
@@ -93,7 +122,7 @@ def test_missing_poster_is_a_finding():
 
 
 def test_exit_code_one_with_findings():
-    r = run(GOOD.replace("--w:17in;--h:11in", "--w:60in;--h:11in"))
+    r = run(GOOD.replace("--w: 17in; --h: 11in", "--w: 60in; --h: 11in"))
     assert r.returncode == 1
 
 
@@ -105,3 +134,4 @@ def test_scaffold_has_fixed_surface_and_print_size():
     assert "@page" in html and "size: var(--w) var(--h)" in html
     assert "overflow: auto" in html  # the viewport pans; the surface never reflows
     assert "<script src" not in html and "<link" not in html
+    assert 'class="poster" style=' not in html

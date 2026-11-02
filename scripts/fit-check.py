@@ -23,7 +23,9 @@ PX_PER_PT = 96 / 72
 PLOTTER_IN = 44.0
 
 _LEN = re.compile(r"(\d+(?:\.\d+)?)\s*(in|cm|mm|pt|px)")
-_FONT = re.compile(r"font-size\s*:\s*(\d+(?:\.\d+)?)\s*(pt|px)", re.I)
+_FONT = re.compile(r"font-size\s*:\s*(\d*\.?\d+)\s*(pt|px|em|rem|%)", re.I)
+_FONT_SHORTHAND = re.compile(
+    r"\bfont\s*:\s*[^;{}]*?(\d*\.?\d+)\s*(pt|px)(?:\s*/\s*[\d.]+[a-z%]*)?\s+", re.I)
 _VAR = re.compile(r"--(w|h)\s*:\s*(\d+(?:\.\d+)?)\s*(in|cm|mm)")
 
 
@@ -35,7 +37,7 @@ class _Walker(HTMLParser):
     def __init__(self):
         super().__init__()
         self.findings = []
-        self.size = None
+        self.poster_size = None
         self.poster_seen = False
         self._in_style = False
         self.styles = []
@@ -53,10 +55,8 @@ class _Walker(HTMLParser):
                     w = v
                 else:
                     h = v
-            if w is None or h is None:
-                self.findings.append("poster: --w and --h must be set in inches on <main class=\"poster\">")
-            else:
-                self.size = (w, h)
+            if w is not None and h is not None:
+                self.poster_size = (w, h)
         if tag == "a" and a.get("href"):
             self.findings.append(f"link: <a href=\"{a['href']}\"> is navigation; put the content on the page")
         if tag == "details":
@@ -76,6 +76,8 @@ class _Walker(HTMLParser):
                 self.findings.append(f"external resource: <{tag}> {src}")
         for m in _FONT.finditer(style):
             self._font(m, f"inline on <{tag}>")
+        for m in _FONT_SHORTHAND.finditer(style):
+            self._font(m, f"inline on <{tag}>")
         if tag == "style":
             self._in_style = True
 
@@ -89,10 +91,23 @@ class _Walker(HTMLParser):
 
     def _font(self, m, where):
         v, unit = float(m.group(1)), m.group(2).lower()
+        if unit in ("em", "rem", "%"):
+            self.findings.append(
+                f"font-size in {unit} ({where}): not checkable at print; use pt or px")
+            return
         pt = v if unit == "pt" else v / PX_PER_PT
         if pt < self.floor:
             self.findings.append(
                 f"text below floor: {m.group(1)}{unit} ({pt:.1f}pt) {where}; floor is {self.floor}pt")
+
+
+def _root_size(css):
+    size = None
+    for block in re.findall(r":root\s*\{([^}]*)\}", css):
+        vals = {m.group(1): _inches(float(m.group(2)), m.group(3)) for m in _VAR.finditer(block)}
+        if "w" in vals and "h" in vals:
+            size = (vals["w"], vals["h"])
+    return size
 
 
 def check(html, floor_pt=6.0, max_in=PLOTTER_IN):
@@ -102,18 +117,31 @@ def check(html, floor_pt=6.0, max_in=PLOTTER_IN):
     css = "\n".join(w.styles)
     for m in _FONT.finditer(css):
         w._font(m, "in a <style> block")
+    for m in _FONT_SHORTHAND.finditer(css):
+        w._font(m, "in a <style> block")
     if not w.poster_seen:
         w.findings.append("poster: no <main class=\"poster\"> element found")
+    root = _root_size(css)
+    poster = w.poster_size
+    if root is None and poster is None:
+        w.findings.append("poster: --w and --h must be set in inches on :root")
+    elif root is None:
+        w.findings.append("size on poster only: declare --w and --h on :root so @page can read them")
+    elif poster is not None and poster != root:
+        w.findings.append(
+            f"size declared twice and differs: :root {root[0]:g} x {root[1]:g} in, "
+            f"poster {poster[0]:g} x {poster[1]:g} in")
     if ":hover" in css:
         w.findings.append(":hover rule in <style>: hover-only content is hidden content")
     if re.search(r"display\s*:\s*none", css):
         w.findings.append("display:none in <style>")
-    if w.size:
-        sw, sh = w.size
+    size = root
+    if size:
+        sw, sh = size
         if sw > max_in or sh > max_in:
             w.findings.append(
                 f"surface {sw:g} x {sh:g} in exceeds a {max_in:g} in plotter roll; the design may be too complex for one page")
-    return w.findings, w.size
+    return w.findings, size
 
 
 def _preview(path, size, out):

@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-page design</title>
 <!--
-  one-page-design scaffold. The surface is sized to the content, in inches,
-  on the <main class="poster"> element's --w and --h. Print CSS makes the
-  page exactly that size. Nothing inside the poster is fixed: compose it
-  per design (see SKILL.md). Keep everything inline: no external fonts,
-  scripts or stylesheets.
+  one-page-design scaffold. The surface size is set once, on :root (--w and
+  --h, in inches). @page and .poster both read it, so print matches the
+  screen. Never put a size on the poster element. Nothing inside the poster
+  is fixed: compose it per design (see SKILL.md). Keep everything inline: no
+  external fonts, scripts or stylesheets.
 -->
 <style>
   :root {
@@ -68,7 +68,7 @@
 </style>
 </head>
 <body>
-<main class="poster" style="--w:17in;--h:11in">
+<main class="poster">
   <h1 class="title t1">Title that states the point of the page</h1>
   <!-- centre: the depiction goes here, built before any prose -->
   <!-- margins: callouts, cards, legend, tied to the depiction -->
