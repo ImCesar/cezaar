@@ -6,6 +6,8 @@ Static checks on a single HTML file:
   - navigation or hidden content (links, details, hidden, display:none,
     visibility:hidden, :hover rules, iframes, overflow scroll inside)
   - text below the legibility floor (font-size in pt or px)
+  - SVG text below the floor: a unitless font-size inside <svg> is in
+    viewBox units, read at the kit's 100 units per inch (0.72 pt per unit)
   - external resources (link/script/img with http(s) src)
   - a surface wider or taller than a plotter roll (44 in)
 Optional: --preview out.png renders with headless Chrome if present.
@@ -20,12 +22,16 @@ import sys
 from html.parser import HTMLParser
 
 PX_PER_PT = 96 / 72
+PT_PER_SVG_UNIT = 72 / 100  # the kit draws at 100 viewBox units per inch
 PLOTTER_IN = 44.0
 
 _LEN = re.compile(r"(\d+(?:\.\d+)?)\s*(in|cm|mm|pt|px)")
 _FONT = re.compile(r"font-size\s*:\s*(\d*\.?\d+)\s*(pt|px|em|rem|%)", re.I)
 _FONT_SHORTHAND = re.compile(
     r"\bfont\s*:\s*[^;{}]*?(\d*\.?\d+)\s*(pt|px)(?:\s*/\s*[\d.]+[a-z%]*)?\s+", re.I)
+_SVG_BARE = re.compile(r"^\s*(\d*\.?\d+)\s*$")
+_SVG_STYLE_BARE = re.compile(r"font-size\s*:\s*(\d*\.?\d+)\s*(?=;|$)", re.I)
+_SVG_ATTR_UNIT = re.compile(r"^\s*(\d*\.?\d+)\s*(pt|px)\s*$", re.I)
 _VAR = re.compile(r"--(w|h)\s*:\s*(\d+(?:\.\d+)?)\s*(in|cm|mm)")
 
 
@@ -40,6 +46,7 @@ class _Walker(HTMLParser):
         self.poster_size = None
         self.poster_seen = False
         self._in_style = False
+        self._svg_depth = 0
         self.styles = []
 
     def handle_starttag(self, tag, attrs):
@@ -78,12 +85,37 @@ class _Walker(HTMLParser):
             self._font(m, f"inline on <{tag}>")
         for m in _FONT_SHORTHAND.finditer(style):
             self._font(m, f"inline on <{tag}>")
+        if tag == "svg":
+            self._svg_depth += 1
+        if self._svg_depth:
+            self._svg_font(tag, a.get("font-size"), style)
         if tag == "style":
             self._in_style = True
 
     def handle_endtag(self, tag):
         if tag == "style":
             self._in_style = False
+        if tag == "svg" and self._svg_depth:
+            self._svg_depth -= 1
+
+    def _svg_font(self, tag, attr, style):
+        sizes = []
+        if attr is not None:
+            m = _SVG_BARE.match(attr)
+            if m:
+                sizes.append((m.group(1), f'font-size="{attr.strip()}"'))
+            else:
+                m = _SVG_ATTR_UNIT.match(attr)
+                if m:
+                    self._font(m, f"attribute on <{tag}>")
+        for m in _SVG_STYLE_BARE.finditer(style):
+            sizes.append((m.group(1), f'style="font-size:{m.group(1)}"'))
+        for value, source in sizes:
+            pt = float(value) * PT_PER_SVG_UNIT
+            if pt < self.floor:
+                self.findings.append(
+                    f"svg text below floor: {source} ({pt:.1f}pt at 100 units/in) "
+                    f"on <{tag}>; floor is {self.floor:g}pt")
 
     def handle_data(self, data):
         if self._in_style:

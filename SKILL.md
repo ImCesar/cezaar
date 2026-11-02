@@ -52,8 +52,9 @@ Not for: status reports, slide decks, dashboards, API references.
    across the room: title, big labels, legend. Tier two at arm's length:
    callouts tied to the picture by leader lines or shared numbers, cards
    with one anatomy. Tier three is fine print: parameters in small
-   italics, formulas in a monospace box. Anything that would need a fourth
-   tier comes off the page. Draw time and difficulty (a ruler, dividers,
+   italics, formulas in a monospace box. SVG font sizes are in viewBox
+   units: at 100 per inch the floor is 8.4. Anything that would need a
+   fourth tier comes off the page. Draw time and difficulty (a ruler, dividers,
    zones) instead of describing them.
 5. **Date it, size it, hand it over.** Start from `scaffold.html`. Set the
    surface size in inches on `:root` (`--w`, `--h`); the poster reads it, and so does the print CSS: begin at the size that
@@ -79,7 +80,9 @@ A finished page has, and a reader can point to each:
   a shared number;
 - a legend if any symbol repeats;
 - repeated things as cards with identical anatomy;
-- three text registers: italic story, roman rules, small italic parameters;
+- **required:** each callout and card carries an italic story line, roman
+  rule text and a small italic parameter line, where the design has them.
+  Callouts and cards set in one register fail this item;
 - time and difficulty drawn, where the design has them;
 - one surface: no links, tabs, collapsed, hidden or hover-only content;
 - a size in inches on the poster, and print CSS to match;
@@ -88,6 +91,14 @@ A finished page has, and a reader can point to each:
 If the fit-check reports the surface above 44 inches, the design is too
 complex for one page. Cut tiers or split the design; never shrink the
 fine print below 6 pt.
+
+### The margin budget
+
+The depiction and its tier-one labels take the larger part of the surface.
+Every callout points at one spot on the depiction. A fact that cannot be
+pointed to is a card in a set or comes off the page. The eye has one
+entry point: the title, then the depiction, whose labels outsize
+everything in the margins.
 
 ## Quick reference
 
@@ -119,3 +130,7 @@ fine print below 6 pt.
   one SVG strip, then put the verdict in a text box above it, left the
   date off, rewrote the claim in prose and sized the page in px with no
   print CSS. The title states the claim; the drawing shows it.
+- **Margins fuller than the picture.** One run hung twenty cards round the
+  tower. Spend the margin budget.
+- **Registers defined, never used.** One run set every parameter in roman.
+  Fill the required register slot.

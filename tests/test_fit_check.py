@@ -135,3 +135,18 @@ def test_scaffold_has_fixed_surface_and_print_size():
     assert "overflow: auto" in html  # the viewport pans; the surface never reflows
     assert "<script src" not in html and "<link" not in html
     assert 'class="poster" style=' not in html
+
+
+def test_flags_svg_text_below_floor():
+    html = GOOD.replace('<p class="t3">fine print</p>',
+        '<svg viewBox="0 0 1700 1100"><text x="10" y="10" font-size="8">bottom</text></svg>')
+    findings, _ = fit_check.check(html)
+    assert any("svg text below floor" in f and 'font-size="8"' in f for f in findings)
+
+
+def test_svg_text_at_floor_passes():
+    html = GOOD.replace('<p class="t3">fine print</p>',
+        '<svg viewBox="0 0 1700 1100"><text x="10" y="10" font-size="12">bottom</text>'
+        '<text x="10" y="30" style="font-size:12">half</text></svg>')
+    findings, _ = fit_check.check(html)
+    assert findings == []
