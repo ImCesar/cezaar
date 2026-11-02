@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pog Roguelike: one page design</title>
+<style>
+  :root {
+    --ink: #1f2328; --paper: #fbfaf7; --rule: #8a8f98; --accent: #c0392b;
+    --soft-1: #dfe9e3; --soft-2: #e8e3d4; --soft-3: #dde3ee;
+    --w: 26in; --h: 15in;
+  }
+  @page { size: var(--w) var(--h); margin: 0; }
+  html, body { margin: 0; background: #d9d9d9; }
+  body { overflow: auto; }
+  .poster { position: relative; width: var(--w); height: var(--h); margin: 0.5in auto; background: var(--paper); color: var(--ink);
+    font-family: Georgia, "Times New Roman", serif; box-shadow: 0 2px 12px rgba(0,0,0,.25); overflow: hidden; }
+  @media print { html, body { background: none; } .poster { margin: 0; box-shadow: none; } }
+  .t1 { font-size: 28pt; font-weight: 700; letter-spacing: .01em; }
+  .story { font-style: italic; }
+  .rule { font-style: normal; }
+  .param { font-style: italic; font-size: 7pt; color: #444; }
+  .title { position: absolute; top: 0.3in; left: 0.5in; margin: 0; width: 22in; line-height: 1.1; }
+  .date { position: absolute; bottom: 0.3in; right: 0.5in; font-size: 9pt; color: #555; }
+  .callout { position: absolute; width: 3.4in; }
+  .callout h3 { margin: 0 0 2px; font-size: 10pt; }
+  .callout p { margin: 0 0 3px; font-size: 9pt; }
+  .callout p.story { font-size: 9pt; }
+  .callout p.param { font-size: 7pt; }
+  .card { position: absolute; width: 1.85in; border: 1px solid var(--ink); border-radius: 8px; padding: 4px 6px; background: #fff; box-sizing: border-box; height: 1.35in; }
+  .card .head { font-size: 10pt; font-weight: 700; }
+  .card .sub { font-size: 7.5pt; color: #2b5fa8; margin-bottom: 2px; }
+  .card p { margin: 0 0 2px; font-size: 8pt; line-height: 1.2; }
+  .card p.param { font-size: 7pt; }
+  .legend { position: absolute; border: 1px solid var(--rule); padding: 5px 7px; background: #fff; font-size: 8pt; line-height: 1.5; box-sizing: border-box; }
+  svg text { font-family: Georgia, "Times New Roman", serif; }
+  svg .leader { stroke: #555; stroke-width: 1.4; fill: none; }
+</style>
+</head>
+<body>
+<main class="poster">
+  <h1 class="title t1">One shared tower, one slam: every pog that lands face up fires for the slammer, whoever put it there.</h1>
+<svg viewBox="0 0 2600 1500" width="100%" height="100%" style="position:absolute;inset:0" aria-label="The Pog Roguelike: one slam, drawn">
+<defs>
+<symbol id="i-strike" viewBox="0 0 24 24"><polygon points="12,1 15,9 23,9 17,14 19,22 12,17 5,22 7,14 1,9 9,9" fill="#f2b84b" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<symbol id="i-heal" viewBox="0 0 24 24"><path d="M9,3 h6 v6 h6 v6 h-6 v6 h-6 v-6 h-6 v-6 h6 z" fill="#7fc08a" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<symbol id="i-poison" viewBox="0 0 24 24"><path d="M12,2 C17,9 20,13 20,16 a8,8 0 0 1 -16,0 C4,13 7,9 12,2 Z" fill="#a78bc9" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<symbol id="i-guard" viewBox="0 0 24 24"><path d="M12,2 L21,5 V12 C21,18 16,21 12,23 C8,21 3,18 3,12 V5 Z" fill="#9fc5ea" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<symbol id="i-drain" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#d98aa0" stroke="#1f2328" stroke-width="1.3"/><path d="M7,9 L12,16 L17,9" fill="none" stroke="#1f2328" stroke-width="2"/></symbol>
+<symbol id="i-recoil" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#f0b090" stroke="#1f2328" stroke-width="1.3"/><path d="M4,12 H20 M4,12 l4,-4 M4,12 l4,4 M20,12 l-4,-4 M20,12 l-4,4" fill="none" stroke="#1f2328" stroke-width="1.8"/></symbol>
+<symbol id="i-deep" viewBox="0 0 24 24"><path d="M8,2 h8 v9 h5 l-9,11 l-9,-11 h5 z" fill="#d6c27a" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<symbol id="i-capstone" viewBox="0 0 24 24"><path d="M3,20 V9 L8,14 L12,5 L16,14 L21,9 V20 Z" fill="#c9c9d4" stroke="#1f2328" stroke-width="1.3"/></symbol>
+<marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f2328"/></marker>
+<marker id="arrR" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c0392b"/></marker>
+</defs>
+<rect x="420" y="130" width="1800" height="1100" rx="14" fill="#f4f1e8" stroke="#1f2328" stroke-width="1.2"/>
+<rect x="440" y="150" width="210" height="24" rx="5" fill="#fff" stroke="#1f2328"/><rect x="440" y="150" width="147" height="24" rx="5" fill="#8fb8e0"/>
+<text x="448" y="168" font-size="16" text-anchor="start" font-weight="700" fill="#1f2328" style="" >YOU</text>
+<rect x="665" y="150" width="210" height="24" rx="5" fill="#fff" stroke="#1f2328"/><rect x="665" y="150" width="210" height="24" rx="5" fill="#f0b070"/>
+<text x="673" y="168" font-size="16" text-anchor="start" font-weight="700" fill="#1f2328" style="" >AI OPPONENT</text>
+<text x="1250" y="174" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >TURNS ALTERNATE</text>
+<circle cx="1480" cy="165" r="15" fill="#2b6cb0" stroke="#c0392b" stroke-width="3"/>
+<text x="1480" y="170" font-size="12" text-anchor="middle" font-weight="700" fill="#fff" style="" >you</text>
+<line x1="1498" y1="165" x2="1530" y2="165" stroke="#1f2328" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="1550" cy="165" r="15" fill="#c9732a" stroke="#1f2328" stroke-width="1"/>
+<text x="1550" y="170" font-size="12" text-anchor="middle" font-weight="700" fill="#fff" style="" >AI</text>
+<line x1="1568" y1="165" x2="1600" y2="165" stroke="#1f2328" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="1620" cy="165" r="15" fill="#2b6cb0" stroke="#1f2328" stroke-width="1"/>
+<text x="1620" y="170" font-size="12" text-anchor="middle" font-weight="700" fill="#fff" style="" >you</text>
+<line x1="1638" y1="165" x2="1670" y2="165" stroke="#1f2328" stroke-width="1.5" marker-end="url(#arr)"/>
+<circle cx="1690" cy="165" r="15" fill="#c9732a" stroke="#1f2328" stroke-width="1"/>
+<text x="1690" y="170" font-size="12" text-anchor="middle" font-weight="700" fill="#fff" style="" >AI</text>
+<text x="1722" y="170" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >... until one is dead</text>
+<circle cx="466" cy="224" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-capstone" x="453.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="518" cy="224" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="505.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="570" cy="224" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="557.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="622" cy="224" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-heal" x="609.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="466" cy="276" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-guard" x="453.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="518" cy="276" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-deep" x="505.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="570" cy="276" r="22" fill="#eee" stroke="#2b6cb0" stroke-width="3.5" stroke-dasharray="4 3"/>
+<circle cx="622" cy="276" r="22" fill="#eee" stroke="#2b6cb0" stroke-width="3.5" stroke-dasharray="4 3"/>
+<circle cx="691" cy="224" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-strike" x="678.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="743" cy="224" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-strike" x="730.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="795" cy="224" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-poison" x="782.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="847" cy="224" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-poison" x="834.35" y="211.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="691" cy="276" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-drain" x="678.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="743" cy="276" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-recoil" x="730.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="795" cy="276" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-heal" x="782.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<circle cx="847" cy="276" r="22" fill="#fff" stroke="#c9732a" stroke-width="3.5"/>
+<use href="#i-deep" x="834.35" y="263.35" width="25.299999999999997" height="25.299999999999997"/>
+<path d="M545,304 V345 H876 M770,304 V345" fill="none" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="440" y="374" font-size="15" text-anchor="start" font-weight="700" fill="#1f2328" style="" >TWO ROSTERS OF 8, ONE STACK OF 16</text>
+<line x1="1070" y1="282" x2="1070" y2="326" stroke="#c0392b" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#arrR)"/>
+<rect x="1058" y="168" width="24" height="26" rx="4" fill="#cfd4dc" stroke="#1f2328" stroke-width="1.5"/>
+<rect x="990" y="192" width="160" height="38" rx="8" fill="#cfd4dc" stroke="#1f2328" stroke-width="1.5"/>
+<path d="M990,230 A80,45 0 0 0 1150,230 Z" fill="#dfe3ea" stroke="#1f2328" stroke-width="1.5"/>
+<text x="1165" y="208" font-size="22" text-anchor="start" font-weight="700" fill="#c0392b" style="" >AIM</text>
+<text x="1165" y="226" font-size="13" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >mouse or stick</text>
+<path d="M880,880 A140,34 0 0 0 1160,880 L1160,916 A140,34 0 0 1 880,916 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,844 A140,34 0 0 0 1160,844 L1160,880 A140,34 0 0 1 880,880 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,808 A140,34 0 0 0 1160,808 L1160,844 A140,34 0 0 1 880,844 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,772 A140,34 0 0 0 1160,772 L1160,808 A140,34 0 0 1 880,808 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,736 A140,34 0 0 0 1160,736 L1160,772 A140,34 0 0 1 880,772 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,700 A140,34 0 0 0 1160,700 L1160,736 A140,34 0 0 1 880,736 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,664 A140,34 0 0 0 1160,664 L1160,700 A140,34 0 0 1 880,700 Z" fill="#b9d3ee" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,628 A140,34 0 0 0 1160,628 L1160,664 A140,34 0 0 1 880,664 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,592 A140,34 0 0 0 1160,592 L1160,628 A140,34 0 0 1 880,628 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,556 A140,34 0 0 0 1160,556 L1160,592 A140,34 0 0 1 880,592 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,520 A140,34 0 0 0 1160,520 L1160,556 A140,34 0 0 1 880,556 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,484 A140,34 0 0 0 1160,484 L1160,520 A140,34 0 0 1 880,520 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,448 A140,34 0 0 0 1160,448 L1160,484 A140,34 0 0 1 880,484 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,412 A140,34 0 0 0 1160,412 L1160,448 A140,34 0 0 1 880,448 Z" fill="#b9d3ee" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,376 A140,34 0 0 0 1160,376 L1160,412 A140,34 0 0 1 880,412 Z" fill="#f0b070" stroke="#1f2328" stroke-width="1"/>
+<path d="M880,340 A140,34 0 0 0 1160,340 L1160,376 A140,34 0 0 1 880,376 Z" fill="#8fb8e0" stroke="#1f2328" stroke-width="1"/>
+<ellipse cx="1020" cy="340" rx="140" ry="34" fill="#b9d3ee" stroke="#1f2328" stroke-width="1.2"/>
+<use href="#i-capstone" x="937.0" y="317.0" width="46" height="46"/>
+<circle cx="1070" cy="342" r="15" fill="none" stroke="#c0392b" stroke-width="2.5"/><path d="M1048,342 H1092 M1070,320 V364" stroke="#c0392b" stroke-width="2"/>
+<path d="M880,340 A140,34 0 0 0 1160,340 L1160,376 A140,34 0 0 1 880,376 Z" fill="none" stroke="#c0392b" stroke-width="3.5"/>
+<path d="M868,400 a9,9 0 1 1 0,-16" fill="none" stroke="#c0392b" stroke-width="2.5" marker-end="url(#arrR)"/>
+<path d="M880,376 A140,34 0 0 0 1160,376 L1160,412 A140,34 0 0 1 880,412 Z" fill="none" stroke="#c0392b" stroke-width="3.5"/>
+<path d="M868,436 a9,9 0 1 1 0,-16" fill="none" stroke="#c0392b" stroke-width="2.5" marker-end="url(#arrR)"/>
+<path d="M880,448 A140,34 0 0 0 1160,448 L1160,484 A140,34 0 0 1 880,484 Z" fill="none" stroke="#c0392b" stroke-width="3.5"/>
+<path d="M868,508 a9,9 0 1 1 0,-16" fill="none" stroke="#c0392b" stroke-width="2.5" marker-end="url(#arrR)"/>
+<path d="M880,484 A140,34 0 0 0 1160,484 L1160,520 A140,34 0 0 1 880,520 Z" fill="none" stroke="#c0392b" stroke-width="3.5"/>
+<path d="M868,544 a9,9 0 1 1 0,-16" fill="none" stroke="#c0392b" stroke-width="2.5" marker-end="url(#arrR)"/>
+<line x1="740" y1="662" x2="1640" y2="662" stroke="#6b7280" stroke-width="1.2" stroke-dasharray="7 5"/>
+<text x="730" y="668" font-size="14" text-anchor="end" font-weight="400" fill="#444" style="font-style:italic;" >bottom half</text>
+<text x="1020" y="985" font-size="18" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >THE TOWER: 16 POGS</text>
+<path d="M1204,375 H1190 V553 H1204" fill="none" stroke="#c0392b" stroke-width="3"/>
+<text x="1176" y="464" font-size="14" text-anchor="middle" font-weight="700" fill="#c0392b" style="" transform="rotate(-90 1176 464)">DOME REACHES ABOUT 5</text>
+<text x="1215" y="362" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >THE STRIP, TOP TO BOTTOM</text>
+<rect x="1215" y="375" width="420" height="34" fill="#f8e3a0" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="1215" y="375" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="397" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >1</text>
+<use href="#i-capstone" x="1268.0" y="380.0" width="24" height="24"/>
+<text x="1304" y="398" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Capstone</text>
+<text x="1626" y="398" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >2</text>
+<rect x="1215" y="411" width="420" height="34" fill="#f8e3a0" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="1215" y="411" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="433" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >2</text>
+<use href="#i-strike" x="1268.0" y="416.0" width="24" height="24"/>
+<text x="1304" y="434" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Strike</text>
+<text x="1626" y="434" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >4</text>
+<rect x="1215" y="447" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="447" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="469" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >3</text>
+<circle cx="1280" cy="464" r="11" fill="none" stroke="#888" stroke-dasharray="3 2"/>
+<text x="1304" y="470" font-size="17" text-anchor="start" font-weight="400" fill="#777" style="font-style:italic;" >Blank</text>
+<rect x="1215" y="483" width="420" height="34" fill="#f8e3a0" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="1215" y="483" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="505" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >4</text>
+<use href="#i-poison" x="1268.0" y="488.0" width="24" height="24"/>
+<text x="1304" y="506" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Poison</text>
+<text x="1626" y="506" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >3</text>
+<rect x="1215" y="519" width="420" height="34" fill="#f8e3a0" stroke="#c0392b" stroke-width="2.5"/>
+<rect x="1215" y="519" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="541" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >5</text>
+<use href="#i-heal" x="1268.0" y="524.0" width="24" height="24"/>
+<text x="1304" y="542" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Heal</text>
+<text x="1626" y="542" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >3</text>
+<rect x="1215" y="555" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="555" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="577" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >6</text>
+<use href="#i-guard" x="1268.0" y="560.0" width="24" height="24"/>
+<text x="1304" y="578" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Guard</text>
+<text x="1626" y="578" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >3</text>
+<rect x="1535" y="562" width="20" height="20" rx="4" fill="#fff" stroke="#1f2328"/>
+<text x="1545" y="577" font-size="14" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >H</text>
+<rect x="1215" y="591" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="591" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="613" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >7</text>
+<use href="#i-drain" x="1268.0" y="596.0" width="24" height="24"/>
+<text x="1304" y="614" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Drain</text>
+<text x="1626" y="614" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >2</text>
+<rect x="1215" y="627" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="627" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="649" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >8</text>
+<use href="#i-strike" x="1268.0" y="632.0" width="24" height="24"/>
+<text x="1304" y="650" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Strike</text>
+<text x="1626" y="650" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >4</text>
+<rect x="1535" y="634" width="20" height="20" rx="4" fill="#fff" stroke="#1f2328"/>
+<text x="1545" y="649" font-size="14" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >S</text>
+<rect x="1215" y="663" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="663" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="685" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >9</text>
+<use href="#i-recoil" x="1268.0" y="668.0" width="24" height="24"/>
+<text x="1304" y="686" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Recoil</text>
+<text x="1626" y="686" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >6 / 2</text>
+<rect x="1215" y="699" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="699" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="721" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >10</text>
+<circle cx="1280" cy="716" r="11" fill="none" stroke="#888" stroke-dasharray="3 2"/>
+<text x="1304" y="722" font-size="17" text-anchor="start" font-weight="400" fill="#777" style="font-style:italic;" >Blank</text>
+<rect x="1215" y="735" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="735" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="757" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >11</text>
+<use href="#i-deep" x="1268.0" y="740.0" width="24" height="24"/>
+<text x="1304" y="758" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Deep Strike</text>
+<text x="1626" y="758" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >8 (4×2)</text>
+<rect x="1215" y="771" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="771" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="793" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >12</text>
+<use href="#i-heal" x="1268.0" y="776.0" width="24" height="24"/>
+<text x="1304" y="794" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Heal</text>
+<text x="1626" y="794" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >3</text>
+<rect x="1215" y="807" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="807" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="829" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >13</text>
+<use href="#i-strike" x="1268.0" y="812.0" width="24" height="24"/>
+<text x="1304" y="830" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Strike</text>
+<text x="1626" y="830" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >4</text>
+<rect x="1535" y="814" width="20" height="20" rx="4" fill="#fff" stroke="#1f2328"/>
+<text x="1545" y="829" font-size="14" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >T</text>
+<rect x="1215" y="843" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="843" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="865" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >14</text>
+<use href="#i-poison" x="1268.0" y="848.0" width="24" height="24"/>
+<text x="1304" y="866" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Poison</text>
+<text x="1626" y="866" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >3</text>
+<rect x="1215" y="879" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="879" width="12" height="34" fill="#c9732a"/>
+<text x="1246" y="901" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >15</text>
+<use href="#i-deep" x="1268.0" y="884.0" width="24" height="24"/>
+<text x="1304" y="902" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Deep Strike</text>
+<text x="1626" y="902" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >8 (4×2)</text>
+<rect x="1215" y="915" width="420" height="34" fill="#fff" stroke="#9aa0a8" stroke-width="1"/>
+<rect x="1215" y="915" width="12" height="34" fill="#2b6cb0"/>
+<text x="1246" y="937" font-size="14" text-anchor="middle" font-weight="400" fill="#555" style="" >16</text>
+<use href="#i-strike" x="1268.0" y="920.0" width="24" height="24"/>
+<text x="1304" y="938" font-size="17" text-anchor="start" font-weight="400" fill="#1f2328" style="" >Strike</text>
+<text x="1626" y="938" font-size="18" text-anchor="end" font-weight="700" fill="#1f2328" style="" >4</text>
+<text x="1665" y="362" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >RESOLVES TOP-DOWN, ONE AT A TIME</text>
+<line x1="1637" y1="392" x2="1665" y2="392" stroke="#c0392b" stroke-width="1.5"/>
+<rect x="1665" y="376" width="195" height="32" rx="16" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<circle cx="1685" cy="392" r="11" fill="#c0392b"/>
+<text x="1685" y="397" font-size="14" text-anchor="middle" font-weight="700" fill="#fff" style="" >1</text>
+<text x="1706" y="399" font-size="15" text-anchor="start" font-weight="700" fill="#c9732a" style="" >THEM</text>
+<text x="1850" y="400" font-size="24" text-anchor="end" font-weight="700" fill="#c0392b" style="" >−2</text>
+<line x1="1637" y1="428" x2="1665" y2="428" stroke="#c0392b" stroke-width="1.5"/>
+<rect x="1665" y="412" width="195" height="32" rx="16" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<circle cx="1685" cy="428" r="11" fill="#c0392b"/>
+<text x="1685" y="433" font-size="14" text-anchor="middle" font-weight="700" fill="#fff" style="" >2</text>
+<text x="1706" y="435" font-size="15" text-anchor="start" font-weight="700" fill="#c9732a" style="" >THEM</text>
+<text x="1850" y="436" font-size="24" text-anchor="end" font-weight="700" fill="#c0392b" style="" >−4</text>
+<line x1="1637" y1="500" x2="1665" y2="500" stroke="#c0392b" stroke-width="1.5"/>
+<rect x="1665" y="484" width="195" height="32" rx="16" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<circle cx="1685" cy="500" r="11" fill="#c0392b"/>
+<text x="1685" y="505" font-size="14" text-anchor="middle" font-weight="700" fill="#fff" style="" >3</text>
+<text x="1706" y="507" font-size="15" text-anchor="start" font-weight="700" fill="#2b6cb0" style="" >YOU</text>
+<text x="1850" y="508" font-size="24" text-anchor="end" font-weight="700" fill="#c0392b" style="" >−3</text>
+<line x1="1637" y1="536" x2="1665" y2="536" stroke="#c0392b" stroke-width="1.5"/>
+<rect x="1665" y="520" width="195" height="32" rx="16" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<circle cx="1685" cy="536" r="11" fill="#c0392b"/>
+<text x="1685" y="541" font-size="14" text-anchor="middle" font-weight="700" fill="#fff" style="" >4</text>
+<text x="1706" y="543" font-size="15" text-anchor="start" font-weight="700" fill="#2b6cb0" style="" >YOU</text>
+<text x="1850" y="544" font-size="24" text-anchor="end" font-weight="700" fill="#c0392b" style="" >+3</text>
+<rect x="1665" y="575" width="535" height="150" rx="10" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<text x="1681" y="602" font-size="16" text-anchor="start" font-weight="700" fill="#1f2328" style="" >SUMMARY CARD</text>
+<text x="1681" y="640" font-size="28" text-anchor="start" font-weight="700" fill="#c9732a" style="" >THEM −6</text>
+<text x="1850" y="640" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >Capstone 2 + Strike 4</text>
+<text x="1681" y="682" font-size="28" text-anchor="start" font-weight="700" fill="#2b6cb0" style="" >YOU ±0</text>
+<text x="1850" y="682" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >Heal +3, Poison −3</text>
+<text x="1681" y="712" font-size="14" text-anchor="start" font-weight="400" fill="#444" style="font-style:italic;" >Their Strike hit them; their Poison and Heal landed on you.</text>
+<text x="1665" y="758" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >3 SECOND TURN BUDGET</text>
+<rect x="1665" y="768" width="178.33333333333334" height="30" fill="#dfe9e3" stroke="#1f2328"/>
+<text x="1754.1666666666667" y="789" font-size="15" text-anchor="middle" font-weight="400" fill="#1f2328" style="" >drop</text>
+<rect x="1843.3333333333333" y="768" width="249.66666666666666" height="30" fill="#f8e3a0" stroke="#1f2328"/>
+<text x="1968.1666666666665" y="789" font-size="15" text-anchor="middle" font-weight="400" fill="#1f2328" style="" >4 pops</text>
+<rect x="2093.0" y="768" width="107.0" height="30" fill="#dde3ee" stroke="#1f2328"/>
+<text x="2146.5" y="789" font-size="15" text-anchor="middle" font-weight="400" fill="#1f2328" style="" >card</text>
+<text x="1665.0" y="818" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >0 s</text>
+<text x="1843.3333333333333" y="818" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >1 s</text>
+<text x="2021.6666666666667" y="818" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >2 s</text>
+<text x="2200.0" y="818" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >3 s</text>
+<path d="M1690,872 A24,8 0 0 0 1738,872 L1738,884 A24,8 0 0 1 1690,884 Z" fill="#8fb8e0" stroke="#1f2328"/><ellipse cx="1714" cy="872" rx="24" ry="8" fill="#b9d3ee" stroke="#1f2328"/>
+<path d="M1696,846 A18,10 0 0 0 1732,846 Z" fill="#dfe3ea" stroke="#1f2328"/><rect x="1696" y="834" width="36" height="12" fill="#cfd4dc" stroke="#1f2328"/>
+<text x="1760" y="860" font-size="17" text-anchor="start" font-weight="700" fill="#c0392b" style="" >DUD: nothing flipped,</text>
+<text x="1760" y="882" font-size="17" text-anchor="start" font-weight="700" fill="#c0392b" style="" >the slammer loses 1 health</text>
+<text x="1665" y="945" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >BETWEEN SLAMS</text>
+<path d="M1705,1095 A55,14 0 0 0 1815,1095 L1815,1104 A55,14 0 0 1 1705,1104 Z" fill="#8fb8e0" stroke="#1f2328"/>
+<path d="M1705,1104 A55,14 0 0 0 1815,1104 L1815,1113 A55,14 0 0 1 1705,1113 Z" fill="#f0b070" stroke="#1f2328"/>
+<path d="M1705,1113 A55,14 0 0 0 1815,1113 L1815,1122 A55,14 0 0 1 1705,1122 Z" fill="#8fb8e0" stroke="#1f2328"/>
+<path d="M1705,1122 A55,14 0 0 0 1815,1122 L1815,1131 A55,14 0 0 1 1705,1131 Z" fill="#f0b070" stroke="#1f2328"/>
+<path d="M1705,1131 A55,14 0 0 0 1815,1131 L1815,1140 A55,14 0 0 1 1705,1140 Z" fill="#8fb8e0" stroke="#1f2328"/>
+<ellipse cx="1760" cy="1095" rx="55" ry="14" fill="#f0b070" stroke="#1f2328"/>
+<path d="M2045,1095 A55,14 0 0 0 2155,1095 L2155,1104 A55,14 0 0 1 2045,1104 Z" fill="#d8d8d8" stroke="#1f2328"/>
+<path d="M2045,1104 A55,14 0 0 0 2155,1104 L2155,1113 A55,14 0 0 1 2045,1113 Z" fill="#eee" stroke="#1f2328"/>
+<path d="M2045,1113 A55,14 0 0 0 2155,1113 L2155,1122 A55,14 0 0 1 2045,1122 Z" fill="#d8d8d8" stroke="#1f2328"/>
+<path d="M2045,1122 A55,14 0 0 0 2155,1122 L2155,1131 A55,14 0 0 1 2045,1131 Z" fill="#eee" stroke="#1f2328"/>
+<path d="M2045,1131 A55,14 0 0 0 2155,1131 L2155,1140 A55,14 0 0 1 2045,1140 Z" fill="#d8d8d8" stroke="#1f2328"/>
+<ellipse cx="2100" cy="1095" rx="55" ry="14" fill="#eee" stroke="#1f2328"/>
+<text x="1760" y="1200" font-size="19" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >PILE</text>
+<text x="2100" y="1200" font-size="19" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >DISCARD</text>
+<path d="M1760,992 V1070" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="1775" y="1012" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >did not flip:</text>
+<text x="1775" y="1030" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >shuffled in, fresh pile</text>
+<path d="M2100,992 V1070" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<text x="2115" y="1012" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >flipped:</text>
+<text x="2115" y="1030" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >off to discard</text>
+<path d="M2060,1178 Q1930,1226 1800,1178" fill="none" stroke="#c0392b" stroke-width="2" marker-end="url(#arrR)"/>
+<text x="1930" y="1128" font-size="14" text-anchor="middle" font-weight="700" fill="#1f2328" style="" >pile low:</text>
+<text x="1930" y="1146" font-size="14" text-anchor="middle" font-weight="400" fill="#1f2328" style="" >discard shuffles back</text>
+<text x="1930" y="1164" font-size="14" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >Heal −1 each time</text>
+<rect x="440" y="695" width="420" height="295" rx="10" fill="#dfe9e3" stroke="#1f2328"/>
+<text x="456" y="722" font-size="17" text-anchor="start" font-weight="700" fill="#1f2328" style="" >AFTER EACH FIGHT, EITHER:</text>
+<circle cx="500" cy="775" r="24" fill="#fff" stroke="#777" stroke-width="3.5"/>
+<use href="#i-heal" x="486.2" y="761.2" width="27.599999999999998" height="27.599999999999998"/>
+<circle cx="570" cy="775" r="24" fill="#fff" stroke="#777" stroke-width="3.5"/>
+<use href="#i-guard" x="556.2" y="761.2" width="27.599999999999998" height="27.599999999999998"/>
+<circle cx="640" cy="775" r="24" fill="#fff" stroke="#777" stroke-width="3.5"/>
+<use href="#i-capstone" x="626.2" y="761.2" width="27.599999999999998" height="27.599999999999998"/>
+<line x1="672" y1="775" x2="716" y2="775" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<circle cx="752" cy="775" r="24" fill="#fff" stroke="#2b6cb0" stroke-width="3" stroke-dasharray="5 4"/>
+<text x="456" y="822" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >take one of three, into an empty slot</text>
+<text x="456" y="850" font-size="16" text-anchor="start" font-weight="700" fill="#c0392b" style="" >OR</text>
+<circle cx="520" cy="885" r="22" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-poison" x="507.35" y="872.35" width="25.299999999999997" height="25.299999999999997"/>
+<path d="M504,869 L536,901 M536,869 L504,901" stroke="#c0392b" stroke-width="4"/>
+<text x="556" y="891" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >remove one. Never both.</text>
+<circle cx="478" cy="955" r="17" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="468.225" y="945.225" width="19.549999999999997" height="19.549999999999997"/>
+<circle cx="516" cy="955" r="17" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="506.225" y="945.225" width="19.549999999999997" height="19.549999999999997"/>
+<circle cx="554" cy="955" r="17" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="544.225" y="945.225" width="19.549999999999997" height="19.549999999999997"/>
+<line x1="578" y1="955" x2="610" y2="955" stroke="#1f2328" stroke-width="1.6" marker-end="url(#arr)"/>
+<circle cx="648" cy="955" r="24" fill="#fff" stroke="#2b6cb0" stroke-width="3.5"/>
+<use href="#i-strike" x="634.2" y="941.2" width="27.599999999999998" height="27.599999999999998"/>
+<text x="684" y="951" font-size="14" text-anchor="start" font-weight="700" fill="#1f2328" style="" >3 copies merge, ×1.5</text>
+<text x="684" y="970" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >and free two slots</text>
+<text x="560" y="1012" font-size="16" text-anchor="start" font-weight="700" fill="#1f2328" style="" >YOUR SLAMMERS: OWN UP TO THREE, CHOOSE ONE PER FIGHT, AFTER SEEING THEIR ROSTER</text>
+<rect x="560" y="1028" width="320" height="200" rx="10" fill="#fff" stroke="#c0392b" stroke-width="3.5"/>
+<g transform="translate(560,1028)">
+<rect x="54" y="18" width="24" height="26" rx="4" fill="#cfd4dc" stroke="#1f2328"/>
+<rect x="26" y="44" width="80" height="22" rx="6" fill="#cfd4dc" stroke="#1f2328"/><path d="M26,66 A40,28 0 0 0 106,66 Z" fill="#dfe3ea" stroke="#1f2328"/>
+</g>
+<text x="700" y="1072" font-size="28" text-anchor="start" font-weight="700" fill="#1f2328" style="" >DOME</text>
+<text x="700" y="1096" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >flips the top few</text>
+<text x="700" y="1120" font-size="14" text-anchor="start" font-weight="700" fill="#c0392b" style="" >chosen for this slam</text>
+<text x="576" y="1156" font-size="13" text-anchor="start" font-weight="400" fill="#444" style="" >usual reach from the aim point</text>
+<rect x="576" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="593" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="610" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="627" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="644" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="661" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="678" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="695" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="712" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="729" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="746" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="763" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="780" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="797" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="814" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="831" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="576" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="593" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="610" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="627" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="644" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="661" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="678" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="695" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="712" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="729" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="746" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="763" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="780" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="797" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="814" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="831" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<text x="576" y="1206" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >top</text>
+<text x="846" y="1206" font-size="12" text-anchor="end" font-weight="400" fill="#555" style="" >bottom</text>
+<text x="854" y="1174" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >L</text>
+<text x="854" y="1187" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >R</text>
+<rect x="900" y="1028" width="320" height="200" rx="10" fill="#fff" stroke="#1f2328" stroke-width="1.2"/>
+<g transform="translate(900,1028)">
+<rect x="54" y="18" width="24" height="26" rx="4" fill="#cfd4dc" stroke="#1f2328"/>
+<g transform="rotate(-14 66 72)"><rect x="26" y="46" width="80" height="14" rx="5" fill="#cfd4dc" stroke="#1f2328"/><ellipse cx="66" cy="74" rx="46" ry="20" fill="#dfe3ea" stroke="#1f2328"/><ellipse cx="66" cy="74" rx="24" ry="9" fill="#fff" stroke="#1f2328"/></g>
+</g>
+<text x="1040" y="1072" font-size="28" text-anchor="start" font-weight="700" fill="#1f2328" style="" >RING</text>
+<text x="1040" y="1096" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >hollow, tips one side</text>
+<text x="916" y="1156" font-size="13" text-anchor="start" font-weight="400" fill="#444" style="" >usual reach from the aim point</text>
+<rect x="916" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="933" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="950" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="967" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="984" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1001" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1018" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1035" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1052" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1069" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1086" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1103" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1120" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1137" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1154" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1171" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="916" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="933" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="950" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="967" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="984" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1001" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1018" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1035" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1052" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1069" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1086" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1103" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1120" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1137" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1154" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1171" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<text x="916" y="1206" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >top</text>
+<text x="1186" y="1206" font-size="12" text-anchor="end" font-weight="400" fill="#555" style="" >bottom</text>
+<text x="1194" y="1174" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >L</text>
+<text x="1194" y="1187" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >R</text>
+<rect x="1240" y="1028" width="320" height="200" rx="10" fill="#fff" stroke="#1f2328" stroke-width="1.2"/>
+<g transform="translate(1240,1028)">
+<rect x="54" y="18" width="24" height="26" rx="4" fill="#cfd4dc" stroke="#1f2328"/>
+<rect x="14" y="48" width="104" height="14" rx="5" fill="#cfd4dc" stroke="#1f2328"/><rect x="10" y="62" width="112" height="14" rx="3" fill="#dfe3ea" stroke="#1f2328"/>
+</g>
+<text x="1380" y="1072" font-size="28" text-anchor="start" font-weight="700" fill="#1f2328" style="" >FLAT</text>
+<text x="1380" y="1096" font-size="15" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >broad, reaches deep</text>
+<text x="1256" y="1156" font-size="13" text-anchor="start" font-weight="400" fill="#444" style="" >usual reach from the aim point</text>
+<rect x="1256" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1273" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1290" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1307" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1324" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1341" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1358" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1375" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1392" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1409" y="1164" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1426" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1443" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1460" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1477" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1494" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1511" y="1164" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1256" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1273" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1290" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1307" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1324" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1341" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1358" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1375" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1392" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1409" y="1177" width="16" height="11" fill="#c0392b" fill-opacity="0.75" stroke="#777" stroke-width=".8"/>
+<rect x="1426" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1443" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1460" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1477" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1494" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<rect x="1511" y="1177" width="16" height="11" fill="#fff" fill-opacity="1" stroke="#777" stroke-width=".8"/>
+<text x="1256" y="1206" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >top</text>
+<text x="1526" y="1206" font-size="12" text-anchor="end" font-weight="400" fill="#555" style="" >bottom</text>
+<text x="1534" y="1174" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >L</text>
+<text x="1534" y="1187" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >R</text>
+<rect x="420" y="1262" width="1800" height="215" rx="14" fill="#fff" stroke="#1f2328" stroke-width="1.2"/>
+<rect x="428" y="1300" width="590" height="132" fill="#eef3ee"/><rect x="1018" y="1300" width="560" height="132" fill="#f3ecd9"/><rect x="1578" y="1300" width="634" height="132" fill="#f0dcd6"/>
+<text x="440" y="1292" font-size="19" text-anchor="start" font-weight="700" fill="#1f2328" style="" >THE RUN: ABOUT 12 STOPS, BRANCHING, 40 TO 50 MINUTES</text>
+<text x="436" y="1428" font-size="13" text-anchor="start" font-weight="400" fill="#555" style="font-style:italic;" >easier</text>
+<text x="1026" y="1428" font-size="13" text-anchor="start" font-weight="400" fill="#555" style="font-style:italic;" >rising</text>
+<text x="1586" y="1428" font-size="13" text-anchor="start" font-weight="400" fill="#555" style="font-style:italic;" >hard, then the boss</text>
+<line x1="560" y1="1366" x2="687" y2="1328" stroke="#c0392b" stroke-width="4"/>
+<line x1="560" y1="1366" x2="687" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="687" y1="1328" x2="814" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="687" y1="1328" x2="814" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<line x1="687" y1="1404" x2="814" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="687" y1="1404" x2="814" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="814" y1="1328" x2="941" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="814" y1="1366" x2="941" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="814" y1="1366" x2="941" y2="1404" stroke="#c0392b" stroke-width="4"/>
+<line x1="814" y1="1404" x2="941" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="941" y1="1328" x2="1068" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="941" y1="1328" x2="1068" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="941" y1="1404" x2="1068" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<line x1="941" y1="1404" x2="1068" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1068" y1="1328" x2="1195" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1068" y1="1366" x2="1195" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<line x1="1068" y1="1366" x2="1195" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1068" y1="1404" x2="1195" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1068" y1="1404" x2="1195" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1195" y1="1366" x2="1322" y2="1328" stroke="#c0392b" stroke-width="4"/>
+<line x1="1195" y1="1366" x2="1322" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1195" y1="1366" x2="1322" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1195" y1="1404" x2="1322" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1195" y1="1404" x2="1322" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1322" y1="1328" x2="1449" y2="1328" stroke="#c0392b" stroke-width="4"/>
+<line x1="1322" y1="1366" x2="1449" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1322" y1="1366" x2="1449" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1322" y1="1404" x2="1449" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1449" y1="1328" x2="1576" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1449" y1="1328" x2="1576" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<line x1="1449" y1="1404" x2="1576" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1449" y1="1404" x2="1576" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1576" y1="1328" x2="1703" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1576" y1="1366" x2="1703" y2="1328" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1576" y1="1366" x2="1703" y2="1404" stroke="#c0392b" stroke-width="4"/>
+<line x1="1576" y1="1404" x2="1703" y2="1404" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1703" y1="1328" x2="1830" y2="1366" stroke="#9aa0a8" stroke-width="1.2"/>
+<line x1="1703" y1="1404" x2="1830" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<line x1="1830" y1="1366" x2="1957" y2="1366" stroke="#c0392b" stroke-width="4"/>
+<circle cx="560" cy="1366" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="687" cy="1328" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="687" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="814,1311 831,1328 814,1345 797,1328" fill="#c0392b" stroke="#1f2328" stroke-width="1.5"/>
+<rect x="802" y="1354" width="24" height="24" fill="#f2b84b" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="814" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="941" cy="1328" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="941,1389 955,1415 927,1415" fill="#7fc08a" stroke="#1f2328" stroke-width="1.5"/>
+<rect x="1056" y="1316" width="24" height="24" fill="#f2b84b" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1068" cy="1366" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1068,1387 1085,1404 1068,1421 1051,1404" fill="#c0392b" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1195" cy="1366" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1195" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1322,1313 1336,1339 1308,1339" fill="#7fc08a" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1322" cy="1366" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1322,1387 1339,1404 1322,1421 1305,1404" fill="#c0392b" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1449" cy="1328" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1449" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1576,1311 1593,1328 1576,1345 1559,1328" fill="#c0392b" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1576,1351 1590,1377 1562,1377" fill="#7fc08a" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1576" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<rect x="1691" y="1316" width="24" height="24" fill="#f2b84b" stroke="#1f2328" stroke-width="1.5"/>
+<circle cx="1703" cy="1404" r="13" fill="#fff" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1830,1351 1844,1377 1816,1377" fill="#7fc08a" stroke="#1f2328" stroke-width="1.5"/>
+<polygon points="1957,1340 1965,1357 1983,1358 1969,1370 1974,1388 1957,1378 1940,1388 1945,1370 1931,1358 1949,1357" fill="#c0392b" stroke="#1f2328" stroke-width="2"/>
+<circle cx="1110" cy="1288" r="9" fill="#fff" stroke="#1f2328"/>
+<text x="1124" y="1293" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >fight</text>
+<polygon points="1200,1277 1211,1288 1200,1299 1189,1288" fill="#c0392b" stroke="#1f2328"/>
+<text x="1218" y="1293" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >elite</text>
+<rect x="1280" y="1279" width="18" height="18" fill="#f2b84b" stroke="#1f2328"/>
+<text x="1304" y="1293" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >shop: charms, slammers</text>
+<polygon points="1490,1278 1500,1297 1480,1297" fill="#7fc08a" stroke="#1f2328"/>
+<text x="1508" y="1293" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="" >rest: heals 30%</text>
+<text x="1660" y="1293" font-size="14" text-anchor="start" font-weight="400" fill="#1f2328" style="font-style:italic;" >health carries over</text>
+<line x1="530" y1="1448" x2="2105" y2="1448" stroke="#555"/><rect x="1790.0" y="1442" width="315.0" height="6" fill="#c0392b" fill-opacity=".6"/>
+<line x1="530.0" y1="1444" x2="530.0" y2="1452" stroke="#555"/>
+<text x="530.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >0</text>
+<line x1="687.5" y1="1444" x2="687.5" y2="1452" stroke="#555"/>
+<text x="687.5" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >5</text>
+<line x1="845.0" y1="1444" x2="845.0" y2="1452" stroke="#555"/>
+<text x="845.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >10</text>
+<line x1="1002.5" y1="1444" x2="1002.5" y2="1452" stroke="#555"/>
+<text x="1002.5" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >15</text>
+<line x1="1160.0" y1="1444" x2="1160.0" y2="1452" stroke="#555"/>
+<text x="1160.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >20</text>
+<line x1="1317.5" y1="1444" x2="1317.5" y2="1452" stroke="#555"/>
+<text x="1317.5" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >25</text>
+<line x1="1475.0" y1="1444" x2="1475.0" y2="1452" stroke="#555"/>
+<text x="1475.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >30</text>
+<line x1="1632.5" y1="1444" x2="1632.5" y2="1452" stroke="#555"/>
+<text x="1632.5" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >35</text>
+<line x1="1790.0" y1="1444" x2="1790.0" y2="1452" stroke="#555"/>
+<text x="1790.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >40</text>
+<line x1="1947.5" y1="1444" x2="1947.5" y2="1452" stroke="#555"/>
+<text x="1947.5" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >45</text>
+<line x1="2105.0" y1="1444" x2="2105.0" y2="1452" stroke="#555"/>
+<text x="2105.0" y="1468" font-size="12" text-anchor="middle" font-weight="400" fill="#555" style="" >50</text>
+<text x="2115" y="1468" font-size="12" text-anchor="start" font-weight="400" fill="#555" style="" >minutes</text>
+<path class="leader" d="M2240,240 L1150,240"/>
+<circle cx="1150" cy="240" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="1150" y="245" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >1</text>
+<path class="leader" d="M405,250 L438,250"/>
+<circle cx="438" cy="250" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="438" y="255" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >2</text>
+<path class="leader" d="M405,960 L428,960 L444,930"/>
+<circle cx="444" cy="930" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="444" y="935" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >3</text>
+<path class="leader" d="M2240,570 L2226,464 L1640,464"/>
+<circle cx="1640" cy="464" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="1640" y="469" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >4</text>
+<path class="leader" d="M2240,390 L2226,428 L1884,428"/>
+<circle cx="1884" cy="428" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="1884" y="433" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >5</text>
+<path class="leader" d="M2240,1125 L2160,1125"/>
+<circle cx="2160" cy="1125" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="2160" y="1130" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >6</text>
+<path class="leader" d="M405,1120 L558,1120"/>
+<circle cx="558" cy="1120" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="558" y="1125" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >7</text>
+<path class="leader" d="M2240,1370 L1984,1370"/>
+<circle cx="1984" cy="1370" r="13" fill="#fff" stroke="#c0392b" stroke-width="2"/>
+<text x="1984" y="1375" font-size="15" text-anchor="middle" font-weight="700" fill="#c0392b" style="" >8</text>
+</svg>
+<div class="legend" style="left:0.2in;top:3.05in;width:3.9in;border:none;background:none;padding:0"><b style="font-size:10pt">EFFECTS: placeholder numbers, one card each</b></div>
+<div class="card ec" style="left:0.2in;top:3.35in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-strike" width="14" height="14"/></svg> Strike 4</div><div class="sub">lands on them</div><p class="story">The honest hit.</p><p class="rule">Deals 4 to the slammer's opponent.</p><p class="param">value 4 · placeholder</p></div>
+<div class="card ec" style="left:2.18in;top:3.35in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-heal" width="14" height="14"/></svg> Heal 3</div><div class="sub">lands on you</div><p class="story">A breath between blows.</p><p class="rule">The slammer heals 3. Loses 1 point per reshuffle.</p><p class="param">3, then 2, 1, 0</p></div>
+<div class="card ec" style="left:0.2in;top:4.8in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-poison" width="14" height="14"/></svg> Poison 3</div><div class="sub">hurts the slammer</div><p class="story">Sweet now, sour later.</p><p class="rule">The slammer takes 3, whoever put the pog in.</p><p class="param">value 3 · placeholder</p></div>
+<div class="card ec" style="left:2.18in;top:4.8in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-guard" width="14" height="14"/></svg> Guard 3</div><div class="sub">shields the slammer</div><p class="story">Hold the line.</p><p class="rule">The slammer absorbs the next 3 damage.</p><p class="param">value 3 · placeholder</p></div>
+<div class="card ec" style="left:0.2in;top:6.25in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-drain" width="14" height="14"/></svg> Drain 2</div><div class="sub">both sides</div><p class="story">Takes what it needs.</p><p class="rule">The opponent loses 2 and the slammer heals 2.</p><p class="param">value 2 · placeholder</p></div>
+<div class="card ec" style="left:2.18in;top:6.25in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-recoil" width="14" height="14"/></svg> Recoil</div><div class="sub">costs the slammer</div><p class="story">Hits hard. Hits back.</p><p class="rule">The opponent loses 6, the slammer loses 2.</p><p class="param">−6 them / −2 you</p></div>
+<div class="card ec" style="left:0.2in;top:7.699999999999999in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-deep" width="14" height="14"/></svg> Deep Strike 4</div><div class="sub">bottom half</div><p class="story">The long way down.</p><p class="rule">Strike 4, doubled if it sits in the bottom half (rows 9 to 16).</p><p class="param">4, or 8 low</p></div>
+<div class="card ec" style="left:2.18in;top:7.699999999999999in"><div class="head"><svg width="14" height="14" style="vertical-align:-2px"><use href="#i-capstone" width="14" height="14"/></svg> Capstone +2</div><div class="sub">top only</div><p class="story">Crowns the stack.</p><p class="rule">Adds 2 damage only if this pog is on top.</p><p class="param">+2 · placeholder</p></div>
+<div class="callout" style="left:22.4in;top:1.45in"><h3>1. Aim and drop</h3><p class="story">You choose where. Physics chooses the rest.</p><p class="rule">Aim with mouse or stick and the slammer drops with real physics. Pogs that land face up fire for the slammer, whoever put them in the stack, and can help or hurt.</p><p class="param">Guards against long animations: drop, pops and card share a 3 s turn budget.</p></div>
+<div class="callout" style="left:0.2in;top:1.45in"><h3>2. Both rosters, one stack</h3><p class="story">Their weak pog is in your tower too.</p><p class="rule">Each side fields eight slots. Both are shuffled into one stack, always 16 high. An empty slot holds a Blank pog with no effect, so the height never changes.</p><p class="param">Guards against an obvious best shot: every aim point cuts through both sides.</p></div>
+<div class="callout" style="left:0.2in;top:9.3in"><h3>3. After a fight: take or remove</h3><p class="story">Every fix costs a slot or a pog.</p><p class="rule">Take one of three offered pogs into an empty slot, or remove one. Never both. Three copies of a pog merge into one stronger pog (numbers ×1.5) and free two slots.</p><p class="param">Offer 3 · merge 3 to 1 · ×1.5 · placeholders.</p></div>
+<div class="callout" style="left:22.4in;top:4.85in"><h3>4. Read the strip</h3><p class="story">Every pog, top to bottom, no surprises.</p><p class="rule">The strip beside the tower lists each pog with icon, value and contributor colour. The bracket shows how deep the chosen slammer usually reaches from the aim point.</p><p class="param">Guards against unreadable outcomes. Reach is usual, never promised.</p></div>
+<div class="callout" style="left:22.4in;top:3.1in"><h3>5. Resolve top-down</h3><p class="story">One at a time, so you can follow the fight.</p><p class="rule">Each flipped pog resolves in turn, top to bottom, with its number popping up, then a summary card. A slam that flips nothing is a dud and costs the slammer 1 health.</p><p class="param">Guards against poison stalls. About 0.35 s per pop.</p></div>
+<div class="callout" style="left:22.4in;top:9.95in"><h3>6. Reshuffle</h3><p class="story">The pile remembers.</p><p class="rule">Pogs that did not flip are shuffled into a fresh pile. When the pile runs low, the discard is shuffled back in. Every Heal loses 1 point each reshuffle.</p><p class="param">Guards against shared healing prolonging fights.</p></div>
+<div class="callout" style="left:0.2in;top:10.95in"><h3>7. Choose a slammer</h3><p class="story">Read their roster, then pick your tool.</p><p class="rule">Dome flips the top few, Ring is hollow and tips one side, Flat is broad and reaches deep. You own up to three and choose one before each fight, after seeing the opponent's roster.</p><p class="param">Guards against an obvious best shot. Reach numbers are placeholders.</p></div>
+<div class="callout" style="left:22.4in;top:12.95in"><h3>8. The run</h3><p class="story">Forty minutes, one health bar.</p><p class="rule">About 12 stops, branching, ending in a boss. Charms are number-only, three slots, and fire only on the holder's own slam. Shops sell charms and slammers.</p><p class="param">Guards against conversion items erasing trade-offs.</p></div>
+<div class="legend" style="left:22.4in;top:6.7in;width:3.4in"><b style="font-size:10pt">LEGEND</b><br><svg width="12" height="12"><rect width="12" height="12" fill="#2b6cb0"/></svg> you put the pog in &nbsp; <svg width="12" height="12"><rect width="12" height="12" fill="#c9732a"/></svg> they did<br><svg width="12" height="12"><rect width="12" height="12" fill="#f8e3a0" stroke="#c0392b" stroke-width="2"/></svg> flipped face up: fires for the slammer<br><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="none" stroke="#888" stroke-dasharray="3 2"/></svg> Blank: no effect<br><b>H</b> heavy · <b>S</b> slick · <b>T</b> sticky: physics tags on a pog<br><i>All numbers are placeholders for tuning.</i></div>
+  <footer class="date">Design proposal · 2026-11-01</footer>
+</main>
+</body>
+</html>

@@ -105,3 +105,61 @@ Not met.
 - **Round 1 gaps.** The empty top-left of round 1 is gone, because the five moments fill it. The reviewer's "reference sheet with a picture in the middle" still describes the page.
 
 Round 3 was not run. The controller's rule triggers round 3 on a failed anatomy row or a fit-check finding, and there are none. The margin-budget recipe did not bind on this run; see the Task 8 report.
+
+## Round 3 (measurable margin budget)
+
+Changes under test:
+- **Margin budget.** "The margin budget" is rewritten with numbers. The depiction's box covers at least half the surface and is the widest thing on the page. The title and the depiction's labels are the only tier-one text, and margin text is 11 pt or less. There are at most eight callouts, each with a leader ending on the depiction, and at most three card sets along one or two edges.
+- **Contract.** The contract carries the same numbers as a required item.
+- **Step 4.** Tier one in step 4 now reads "the title and the big labels on the depiction"; the legend was dropped from it to match.
+- **Fit-check.** Fit-check reports `callouts: N` and flags more than 8. On the round 2 page it now gives `- callouts: 11 exceeds 8` and exits 1.
+
+Run: one fresh `general-purpose` subagent on model `sonnet`, with the same prompt as round 2 and the round 3 output path. Its reply did not come back to me, so this record is scored from the HTML and the PNG only.
+
+Output: output/2026-11-01-pog-roguelike-with-skill-round3.html, 626 lines. Preview: output/2026-11-01-pog-roguelike-with-skill-round3.png.
+
+Fit-check, verbatim, exit code 0:
+```
+callouts: 8
+surface: 26.0 x 15.0 in
+preview: tests/results/output/2026-11-01-pog-roguelike-with-skill-round3.png
+```
+Findings: 0.
+
+Shape chosen: one framed scene of a single slam fills the middle of the sheet. It holds both rosters above the tower, the 16-disc tower with the Dome slammer and its aim mark, and the strip of rows 1 to 16. It also holds the top-down results with a summary card, the take-or-remove panel, the three slammer cards and the pile and discard. Under it, in a framed band of the same width, is the 12-stop run map on a minutes ruler. Eight numbered callouts sit in the left and right margins, three on the left and five on the right. Eight effect cards stack along the left edge and the legend sits on the right. This shape differs from rounds 1 and 2. There, the tower stood in a column between two margins of cards and text. Here the drawing is one wide scene, and the margins are narrow strips.
+
+Centre of the PNG: a blue and orange tower of 16 discs with the grey Dome slammer above it and a red aim mark on the top disc. Red curved arrows show the flipped discs, and a "DOME REACHES ABOUT 5" bracket spans the top rows. The strip highlights rows 1, 2, 4 and 5 with "THEM −2", "THEM −4", "YOU −3" and "YOU +3", and a summary card reads "THEM −6 / YOU ±0".
+
+| Anatomy item | Present? | Evidence |
+|---|---|---|
+| Title states the point of the page | Yes | `<h1 class="title t1">One shared tower, one slam: every pog that lands face up fires for the slammer, whoever put it there.</h1>`, `.title { top: 0.3in; left: 0.5in; ...}`. |
+| Date on the page | Yes | `<footer class="date">Design proposal · 2026-11-01</footer>`, `.date { bottom: 0.3in; right: 0.5in; ...}`. |
+| One depiction holding the middle | Yes | `<svg viewBox="0 0 2600 1500" ...>` with the scene frame `<rect x="420" y="130" width="1800" height="1100" ...>` holding the tower, strip and slammer. The run map is in `<rect x="420" y="1262" width="1800" height="215" ...>`. |
+| Callouts tied to the depiction (leader lines or numbers) | Yes | 8 `<div class="callout">` numbered "1. Aim and drop" to "8. The run", and 8 `<path class="leader">` ending on numbered circles in the drawing. For example, `M2240,240 L1150,240` runs from callout 1 to the slammer and `M2240,1125 L2160,1125` from callout 6 to the discard pile. |
+| Legend for reused symbols | Yes | `<div class="legend" ...><b ...>LEGEND</b>`: you put the pog in, they did, flipped face up, Blank, H heavy, S slick, T sticky, "All numbers are placeholders for tuning." The run map has its own key: fight, elite, shop, rest. |
+| Three text registers (every callout and card carries an italic story line, roman rule text and a small italic parameter line where the design has them) | Yes | `class="story"`, `class="rule"` and `class="param"` each occur 16 times, one per callout (8) and per effect card (8). Example: `<p class="story">The honest hit.</p><p class="rule">Deals 4 to the slammer's opponent.</p><p class="param">value 4 · placeholder</p>`. The three SVG slammer cards carry an italic line ("flips the top few") and a drawn reach bar in place of a parameter line. |
+| Repeated things as identical cards (same box anatomy, same slots filled) | Yes | 8 `<div class="card ec">`, each with an icon and name in `.head`, a `.sub` target line, then story, rule and param. Three slammer cards in the SVG share one anatomy: a drawing, a name, an italic line and a 16-cell reach bar from top to bottom. |
+| Time or difficulty drawn, not described | Yes | The run map sits on a 0 to 50 minute ruler with zones "easier", "rising" and "hard, then the boss", and a red bar over 40 to 50. A "3 SECOND TURN BUDGET" bar is split into drop, "4 pops" and card. |
+| One surface, no navigation, nothing hidden | Yes | One `<main class="poster">`. There is no `<a>`, `<details>` or `<script>`, and fit-check is clean. |
+| Surface sized in inches with print CSS | Yes | `--w: 26in; --h: 15in;`, `@page { size: var(--w) var(--h); margin: 0; }`, and an `@media print` rule. |
+| Self-contained (no external resources) | Yes | No `http` strings, no `<link>` and no `<script>`. |
+
+Score: 11 of 11 present.
+
+### Margin budget, by measurement
+
+Coordinates are viewBox units at 100 per inch on a 26 x 15 in surface, which is 390 sq in.
+
+| Predicate | Measured | Met? |
+|---|---|---|
+| Depiction box at least half the surface | Scene frame alone: 1800 x 1100 units, 18 x 11 in, 198 sq in, 50.8%. Scene and run map together: x 420 to 2220, y 130 to 1477, 18 x 13.5 in, 242 sq in, 62%. | Yes |
+| Depiction is the widest thing on the page | The scene frame and the run band are both 18 in wide. The title is set in a 22 in box and its text runs about 20.5 in in the PNG. | Partly: the title is wider |
+| Title and depiction labels are the only tier-one text; margin text 11 pt or less | Largest margin text: 10 pt. That covers `.callout h3` and `.card .head` at 10pt and the two inline `font-size:10pt` labels "EFFECTS: placeholder numbers, one card each" and "LEGEND". Callout body text is 9pt, card body 8pt and params 7pt. The largest labels inside the scene are 28 units, 20.2 pt ("DOME", "THEM −6"), and the run map heading is 19 units, 13.7 pt. | Yes |
+| At most eight callouts, each leader ending on the depiction | `callouts: 8`. Seven leaders end inside the scene frame: at the slammer, the rosters, the take-or-remove panel, strip row 3, the results, the discard and the Dome card. Leader 8 ends on the boss in the run map. | Yes if the run map counts as part of the depiction; 7 of 8 if only the scene frame does |
+| At most three card sets, along one or two edges | Two sets. The 8 effect cards stack along the left edge, and the 3 slammer cards sit along the bottom of the scene frame. | Yes |
+
+Judgement: met on measurement. Two points are open for the final review:
+- **Title width.** The title is wider than the depiction, which goes against "the widest thing on the page" if the title counts. The recipe does not say whether it does.
+- **Run map.** Whether the run map is part of the depiction decides whether the box predicate reads 62% or 50.8%. It also decides whether callout 8 ends on the depiction. Under both readings the box is at least half the surface.
+
+Against round 2: callouts went from 11 to 8 and the largest margin text from 15 pt to 10 pt. The central drawing went from about 21% of the surface to 50.8%. Round 3 is the last round; the controller ruled out a round 4.

@@ -61,3 +61,9 @@ The updated fit-check, which also checks unitless SVG font sizes at 100 units pe
 surface: 17.0 x 11.0 in
 ```
 Findings: 0. Scenario 2 was not re-run.
+
+After the callout count was added in round 3 of scenario 1, the same check gives, verbatim, exit code 0:
+```
+callouts: 3
+surface: 17.0 x 11.0 in
+```
