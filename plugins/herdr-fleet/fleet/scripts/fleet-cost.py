@@ -30,9 +30,10 @@ model ID is reported and left unpriced rather than priced at some default.
 
 Usage: python3 scripts/fleet-cost.py [--reprice MODEL] [--flat-cache-writes]
                                      [--projects DIR] RUN
-  RUN      an archived run directory, an archive timestamp, or `current`
-           ($FLEET_HOME/.herdr-fleet, FLEET_HOME defaulting to this repo, as
-           the wrapper does)
+  RUN      a run directory, a run id (looked up under runs/ then archive/),
+           an archive timestamp (pre-#23 archives), or `current`
+           ($FLEET_HOME/.herdr-fleet/runs/$FLEET_RUN; both variables as the
+           wrapper reads them; FLEET_RUN unset -> exit 2 naming it)
 Exit 0 = report written, 2 = the report could not run (no manifest, etc).
 """
 import argparse
@@ -85,7 +86,7 @@ SPAWN_STATUSES = ("ready", "unverified", "blocked-on-trust")
 # 0.7-2.2s before its row. A window opens this much before its spawn row.
 BOOT_SLACK = datetime.timedelta(seconds=120)
 
-BRIEF_ID = re.compile(r"\.herdr-fleet/workers/([^/\s]+)/brief\.md")
+BRIEF_ID = re.compile(r"/workers/([^/\s]+)/brief\.md")
 
 # Role families for the totals. The personas are cezaar#40 section 2.4's
 # roster, so the first run on the new personas is sorted without an edit.
@@ -139,19 +140,23 @@ def project_dir_names(path):
 # ---------------------------------------------------------------- the run
 
 def resolve_run(arg):
+    home = os.environ.get("FLEET_HOME") or os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))
+    state = os.path.join(home, ".herdr-fleet")
     if arg == "current":
-        home = os.environ.get("FLEET_HOME") or os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(home, ".herdr-fleet")
+        run = os.environ.get("FLEET_RUN")
+        if not run:
+            cannot_run("RUN=current needs FLEET_RUN=<run-id> in the environment "
+                       "(the wrapper's own rule: no default run)")
+        return os.path.join(state, "runs", run)
     path = os.path.expanduser(arg)
     if os.path.isdir(path):
         return path
-    home = os.environ.get("FLEET_HOME") or os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__)))
-    archived = os.path.join(home, ".herdr-fleet", "archive", arg)
-    if os.path.isdir(archived):
-        return archived
-    cannot_run(f"no run at {arg!r} (nor {archived})")
+    for sub in ("runs", "archive"):
+        candidate = os.path.join(state, sub, arg)
+        if os.path.isdir(candidate):
+            return candidate
+    cannot_run(f"no run at {arg!r} (nor under {state}/runs or {state}/archive)")
 
 
 def read_manifest(run_dir):

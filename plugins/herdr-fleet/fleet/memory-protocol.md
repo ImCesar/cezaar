@@ -99,8 +99,8 @@ those apart without this. It is how pruning becomes a measurement.
 Scratch files go in `scratch/`, inside the same directory your kickoff brief
 lives in -- if you were started with a brief, its path was in the very first
 prompt you read (`Read .../workers/<id>/brief.md and execute it...`), and that
-`workers/<id>/` directory is keyed by your worker id, not by `<you>` the
-persona name: `$FLEET_HOME/.herdr-fleet/workers/<id>/scratch/`. Never a repo's
+`workers/<id>/` directory is keyed by the run and your worker id, not by
+`<you>` the persona name: `$FLEET_HOME/.herdr-fleet/runs/<run>/workers/<id>/scratch/`. Never a repo's
 `temp/`, never a tree root. That directory is yours alone; nothing else reads
 or sweeps it mid-run, and `cleanup --all` archives it away with the rest of
 your state when the run ends, rather than leaving it behind in a project tree

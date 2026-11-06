@@ -1,8 +1,7 @@
 ---
 name: change
 description: A builder's or integrator's branch, commits, and how they verified it. Read by a reviewer or judge.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Branch

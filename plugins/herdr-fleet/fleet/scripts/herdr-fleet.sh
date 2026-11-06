@@ -7,7 +7,18 @@
 #           also warns about overrides that beat a spawned worker's effort
 #           level: CLAUDE_CODE_EFFORT_LEVEL in the environment or in
 #           ~/.claude/settings.json's env block, and settings.json's
-#           maxEffortLevel cap. Warnings, not errors.
+#           maxEffortLevel cap. Warnings, not errors. Says which run is
+#           in effect (FLEET_RUN), or that none is; needs no run itself.
+#   herdr-fleet.sh run start [--label <text>] [--cwd <dir>]
+#           mints a run: runs/<id>/run.json under the state dir, with id
+#           <UTC-ts>-<slug>. Prints the id, alone, on stdout. Touches no
+#           herdr state; the first spawn adopts or creates the workspace.
+#           Every verb below except runs and the all-runs status view
+#           needs FLEET_RUN=<id> in its environment and refuses without
+#           it: no default run, no pointer file (cezaar#23).
+#   herdr-fleet.sh runs
+#           one row per run under runs/: id, label, workspace, mode,
+#           live/total workers, lead, started. Needs no FLEET_RUN.
 #   herdr-fleet.sh spawn <id> <persona-file> [--brief <file>] [--cwd <dir>]
 #                        [--model <m>] [--effort <level>] [--label <text>]
 #                        [--timeout <ms>] [--trust-cwd] [--no-peers] [--own-tab]
@@ -59,33 +70,42 @@
 #           These are a contract: an orchestrator that treats every nonzero the
 #           same conflates "go look at the pane" with "it will never finish".
 #   herdr-fleet.sh read   <id> [--lines <n>] [--source <visible|recent|recent-unwrapped>]
-#   herdr-fleet.sh status
+#   herdr-fleet.sh status [--all-runs]
 #           worker rows, including a CTX column parsed from the pane (see
 #           CLAUDE_CTX below); reads `?` when the marker is not visible, which
 #           a custom status line without a context readout is enough to cause.
+#           --all-runs prefixes a RUN column and walks every run under
+#           runs/; it needs no FLEET_RUN. Without it, this run only.
 #   herdr-fleet.sh curate  [<id>] [--persona <file>] [--cwd <dir>] [--brief <file>]
 #                          [-- <extra claude args>...]
 #           spawns the one system/ persona declaring `curates_memory: true`
-#           against a brief naming this run's workers. Run it BEFORE
-#           cleanup --all.
+#           against a brief naming this run's workers. Takes the fleet-wide
+#           curator lock under memory/ first; refuses while another run's
+#           curator is still running, takes over a stale one. Run it
+#           BEFORE cleanup --all.
 #   herdr-fleet.sh cleanup <id> | --all
+#           --all: this run only. Closes its panes and tabs, restores an
+#           adopted workspace's and lead tab's labels, closes a created
+#           one, archives runs/<id> whole to archive/<id> and prunes
+#           archive/ to the newest 10. Never crosses runs.
 #
 # v1 is kind: claude only. A persona declaring any other kind is refused rather
 # than silently launched as claude -- mixed-harness support is V2.
 #
 # Delegation is file-based: `spawn --brief <file>` puts the brief at
-# $FLEET_HOME/.herdr-fleet/workers/<id>/brief.md and kicks the worker off
+# $FLEET_HOME/.herdr-fleet/runs/<run>/workers/<id>/brief.md and kicks the worker off
 # against it by absolute path, and `await` waits for that worker's own
-# $FLEET_HOME/.herdr-fleet/workers/<id>/report.md -- a completion contract the
+# $FLEET_HOME/.herdr-fleet/runs/<run>/workers/<id>/report.md -- a completion contract the
 # worker has to satisfy deliberately. Pane lifecycle state is NOT a completion
 # signal: a worker that stopped to ask a question settles exactly like one that
 # finished, so `herdr agent wait` alone would report "done" for a run that is
 # waiting on a human. await falls back to it only for workers spawned without a
 # brief, and says so when it does.
 #
-# State lives in ONE place per fleet: $FLEET_HOME/.herdr-fleet/ -- the
-# manifest, every worker's brief/report/scratch under workers/<id>/, personas,
-# permissions. Export FLEET_HOME once (default: this repo); never cd-wrap
+# State lives under $FLEET_HOME/.herdr-fleet/runs/<run-id>/, one directory per
+# run minted by `run start` and named by FLEET_RUN -- the manifest, every
+# worker's brief/report/scratch under workers/<id>/, personas, permissions,
+# the grid and the run's own run.json. Export FLEET_HOME once (default: this repo); never cd-wrap
 # calls to this script -- pass worker cwds as arguments instead.
 #
 # Three things this wrapper exists to get right, each verified by hand against
@@ -105,7 +125,7 @@
 #      `invalid_agent_argument: agent arguments cannot be encoded safely for the
 #      target shell` -- so a persona body cannot be handed to
 #      `--append-system-prompt` inline. The body is written to
-#      $FLEET_HOME/.herdr-fleet/personas/<id>.txt and passed with Claude's
+#      $FLEET_HOME/.herdr-fleet/runs/<run>/personas/<id>.txt and passed with Claude's
 #      `--append-system-prompt-file` instead, which also keeps the injected
 #      prompt on disk where a human can read exactly what a worker was given.
 #   4. Closing something is verified against `herdr tab list`, never against the
@@ -116,13 +136,16 @@
 #      a project settings file is discarded in a workspace that has not been
 #      trusted, which a fresh worktree never has. A worker sharing the
 #      operator's main checkout is given no such grant, and the spawn says so.
-#   6. The fleet workspace is ADOPTED, not always created: if $HERDR_WORKSPACE_ID
-#      is set (the wrapper is already running inside a Herdr pane), spawn
-#      renames that workspace instead of opening a new one, and puts workers in
-#      tabs of it. `cleanup --all` restores the pre-adoption label and NEVER
-#      closes an adopted workspace -- closing it would kill the pane the
-#      wrapper itself is running in, mid-teardown.
-#   7. Workers pack into 2x2 grid tabs (`fleet grid <n>`), four to a tab,
+#   6. The workspace is chosen PER RUN and ADOPTED, not always created: if
+#      $HERDR_WORKSPACE_ID is set (the wrapper is already running inside a
+#      Herdr pane), the run's first spawn renames that workspace to the run's
+#      label and the lead's tab to `orchestrator`, and puts workers in tabs of
+#      it. `cleanup --all` restores both labels and NEVER closes an adopted
+#      workspace -- closing it would kill the pane the wrapper itself is
+#      running in, mid-teardown. A second run in the same workspace shares it
+#      and renames nothing. A recorded workspace that disagrees with
+#      $HERDR_WORKSPACE_ID is refused, never silently preferred.
+#   7. Workers pack into 2x2 grid tabs (`<slug> grid <n>`), four to a tab,
 #      instead of one tab per worker. `cleanup <id>` therefore closes the
 #      worker's PANE, and the tab only when no other live worker still shares
 #      it. An entry persona (`escalation_authority: orchestrator`) or any
@@ -134,8 +157,8 @@ HERDR="${HERDR_BIN:-herdr}"
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 FLEET_HOME="${FLEET_HOME:-$(CDPATH='' cd -- "$here/.." && pwd)}"
 STATE="$FLEET_HOME/.herdr-fleet"
-MANIFEST="$STATE/manifest.jsonl"
-WS_FILE="$STATE/workspace"
+RUN_DIR=""        # set by require_run (or by `run start`)
+MANIFEST=""       # "$RUN_DIR/manifest.jsonl", set by require_run
 
 # Claude's context readout, in Claude's own status line (`ctx 0%`) and in most
 # custom ones (`ctx: 39%` -- the colon is the operator's, not Claude's). Read
@@ -294,6 +317,194 @@ if node not in (None, ""):
 ' "$@"
 }
 
+# RUN IDENTITY (cezaar#23). Every piece of run state lives under
+# $STATE/runs/<run-id>/, and run.json there is the run's own record: its
+# token (the per-run prefix on herdr agent names), label, cwd, the lead's
+# pane and tab, and the workspace it adopted or created. One file, updated
+# through a temp file, rather than the three loose workspace* files a single
+# fleet-wide run used to keep at the state root.
+run_field() { # run-dir key -> the string value, or nothing
+  need_python
+  python3 -c '
+import json, os, sys
+path = os.path.join(sys.argv[1], "run.json")
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except (OSError, ValueError):
+    sys.exit(0)
+value = data.get(sys.argv[2], "")
+if value not in (None, ""):
+    print(value)
+' "$1" "$2"
+}
+
+run_set() { # run-dir key=value ... -- merge into run.json atomically
+  need_python
+  python3 -c '
+import json, os, sys
+path = os.path.join(sys.argv[1], "run.json")
+try:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+except (OSError, ValueError):
+    data = {}
+for pair in sys.argv[2:]:
+    key, _, value = pair.partition("=")
+    data[key] = value
+tmp = path + ".tmp." + str(os.getpid())
+with open(tmp, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+os.replace(tmp, path)
+' "$@"
+}
+
+# NO DEFAULT RUN, NO POINTER FILE. A run-scoped verb acts on the run its
+# caller names in FLEET_RUN and on nothing else: guessing "the" run is how
+# two leads sharing one fleet home would tear down each other's workers.
+require_run() { # sets RUN_DIR and MANIFEST from FLEET_RUN, or dies
+  _live=$(ls -1 "$STATE/runs" 2>/dev/null | paste -sd, -)
+  _live="${_live:-(none)}"
+  [ -n "${FLEET_RUN:-}" ] || die "no run in effect -- set FLEET_RUN=<run-id> on every call ('run start --label <text>' mints one). Live runs: $_live"
+  case "$FLEET_RUN" in
+    */*|.*|*[[:space:]]*) die "FLEET_RUN='$FLEET_RUN' is not a run id" ;;
+  esac
+  RUN_DIR="$STATE/runs/$FLEET_RUN"
+  [ -f "$RUN_DIR/run.json" ] || die "FLEET_RUN=$FLEET_RUN names no run under $STATE/runs -- live runs: $_live"
+  MANIFEST="$RUN_DIR/manifest.jsonl"
+}
+
+slugify() { # text -> [a-z0-9-]{1,24}, "run" when nothing is left
+  _s=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' | cut -c1-24 \
+        | sed -E 's/-+$//')
+  printf '%s\n' "${_s:-run}"
+}
+
+mint_token() { # -> "r" + four of [a-z0-9] from /dev/urandom
+  # LC_ALL=C: under a UTF-8 locale macOS tr refuses random bytes as an
+  # illegal byte sequence; in C every byte is a character.
+  _t=$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom | head -c 4)
+  [ "${#_t}" -eq 4 ] || die "could not read four random characters from /dev/urandom"
+  printf 'r%s\n' "$_t"
+}
+
+# LEGACY IMPORT (cezaar#23, C12). A fleet home last used before runs existed
+# keeps its one run's state flat at the state root. The first call of any
+# verb moves that state, once, into a run of its own, so nothing is lost and
+# nothing is left for a later run to mistake for its own. Idempotent by
+# construction: once the root holds none of the trigger names as a real
+# file, nothing fires.
+import_legacy_state() {
+  _legacy=""
+  for _n in manifest.jsonl workers personas permissions grid grid.next \
+            curation-brief.md last-curation workspace workspace.adopted \
+            workspace.label-before; do
+    [ -e "$STATE/$_n" ] && [ ! -L "$STATE/$_n" ] && _legacy="$_legacy $_n"
+  done
+  for _st in "$STATE"/*.spawn-stamp; do
+    [ -e "$_st" ] && _legacy="$_legacy $(basename "$_st")"
+  done
+  [ -n "$_legacy" ] || return 0
+  need_python
+  _ts=""
+  if [ -f "$STATE/manifest.jsonl" ]; then
+    _ts=$(python3 -c '
+import json, sys, time
+stamps = []
+for line in open(sys.argv[1], encoding="utf-8"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        row = json.loads(line)
+    except ValueError:
+        continue
+    ts = row.get("ts") if isinstance(row, dict) else None
+    if not ts:
+        continue
+    try:
+        stamps.append(time.strptime(ts, "%Y-%m-%dT%H:%M:%SZ"))
+    except ValueError:
+        continue
+if stamps:
+    print(time.strftime("%Y%m%dT%H%M%SZ", min(stamps)))
+' "$STATE/manifest.jsonl")
+  fi
+  [ -n "$_ts" ] || _ts=$(date -u +%Y%m%dT%H%M%SZ)
+  _id="$_ts-legacy"; _k=1
+  while [ -e "$STATE/runs/$_id" ]; do _k=$((_k + 1)); _id="$_ts-legacy-$_k"; done
+  _rd="$STATE/runs/$_id"
+  mkdir -p "$_rd"
+  # THE IDENTITY RECORD GOES FIRST, before anything moves (cezaar#23 review
+  # round 1, finding 2). Every step below can abort this call under set -e
+  # -- a disk or permission error mid-move, a bad manifest line -- and a
+  # directory with no run.json is one require_run refuses, which would
+  # strand whatever had already moved into it. From this line on the run
+  # exists, and whatever moved so far is reachable through it.
+  _started=$(printf '%s' "$_ts" | sed -E 's/^(....)(..)(..)T(..)(..)(..)Z$/\1-\2-\3T\4:\5:\6Z/')
+  run_set "$_rd" id="$_id" token= label=legacy slug=legacy \
+    started="$_started" cwd= team= lead_pane= lead_tab= \
+    workspace_id= workspace_mode= label_before= tab_label_before=
+  for _n in $_legacy; do
+    mv "$STATE/$_n" "$_rd/$_n"
+  done
+  _ws=$(cat "$_rd/workspace" 2>/dev/null || true)
+  _mode=""
+  if [ -e "$_rd/workspace.adopted" ]; then
+    _mode=adopted
+  elif [ -n "$_ws" ]; then
+    _mode=created
+  fi
+  _lb=$(cat "$_rd/workspace.label-before" 2>/dev/null || true)
+  rm -f "$_rd/workspace" "$_rd/workspace.adopted" "$_rd/workspace.label-before"
+  run_set "$_rd" workspace_id="$_ws" workspace_mode="$_mode" label_before="$_lb"
+  # Recorded paths follow the move. `brief` is the caller's own source file,
+  # never under the state root, so it is left alone. A line that does not
+  # parse -- a truncated append is the ordinary shape of one -- is written
+  # back byte for byte: never dropped, and never a traceback that aborts
+  # the import with the rows around it unrewritten.
+  if [ -f "$_rd/manifest.jsonl" ]; then
+    python3 -c '
+import json, os, sys
+path, state, rd = sys.argv[1], sys.argv[2] + "/", sys.argv[3] + "/"
+runs = state + "runs/"
+out = []
+with open(path, encoding="utf-8", newline="") as fh:
+    for line in fh:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            out.append(line)
+            continue
+        if not isinstance(row, dict):
+            out.append(line)
+            continue
+        for key in ("report", "stamp", "settings"):
+            value = row.get(key)
+            if isinstance(value, str) and value.startswith(state) and not value.startswith(runs):
+                row[key] = rd + value[len(state):]
+        out.append(json.dumps(row) + "\n")
+tmp = path + ".tmp." + str(os.getpid())
+with open(tmp, "w", encoding="utf-8", newline="") as fh:
+    fh.write("".join(out))
+os.replace(tmp, path)
+' "$_rd/manifest.jsonl" "$STATE" "$_rd"
+  fi
+  _linked=0
+  if [ -d "$_rd/workers" ]; then
+    ln -s "runs/$_id/workers" "$STATE/workers"
+    _linked=1
+  fi
+  _left=$(ls -1 "$STATE" | grep -v -x -e runs -e archive -e workers | paste -sd' ' - || true)
+  if [ "$_linked" -eq 1 ]; then
+    note "imported pre-#23 state as run $_id: moved$_legacy into $_rd; left in place at $STATE: ${_left:-(nothing)}; set FLEET_RUN=$_id to continue it (its live workers keep writing through $STATE/workers, a symlink that run's cleanup --all removes)"
+  else
+    note "imported pre-#23 state as run $_id: moved$_legacy into $_rd; left in place at $STATE: ${_left:-(nothing)}; set FLEET_RUN=$_id to continue it"
+  fi
+}
+
 manifest_field() { # id field -> value (last entry for that id wins)
   [ -f "$MANIFEST" ] || return 0
   need_python
@@ -333,7 +544,7 @@ log_manifest() { # key=value ... -- `id` is required; every row is a full snapsh
   # key=value rather than positional: a row gained fields (brief, report) after
   # the first version shipped, and positional args silently shift when that
   # happens -- a cleanup row would have recorded its status as its cwd.
-  mkdir -p "$STATE"
+  mkdir -p "$(dirname "$MANIFEST")"
   need_python
   python3 -c '
 import json, sys, time
@@ -381,6 +592,67 @@ worker_alive() { # id -- 0 (true) iff the worker itself is still there
   fi
 }
 
+status_rows() { # run-prefix -- status's row loop over the global MANIFEST
+  # A non-empty run-prefix starts every row with a %-26s RUN column, which the
+  # caller's header must match (status --all-runs); empty is the one-run table.
+  for id in $(manifest_ids); do
+    agent=$(manifest_field "$id" agent)
+    tab=$(manifest_field "$id" tab_id)
+    cwd=$(manifest_field "$id" cwd)
+    report=$(manifest_field "$id" report)
+    stamp=$(manifest_field "$id" stamp)
+    if worker_alive "$id"; then
+      st=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
+      [ -n "$st" ] || st="no-agent"
+      # A row recorded as blocked-on-trust never reached a usable agent, so
+      # herdr's own status for it means nothing -- keep the recorded one.
+      recorded=$(manifest_field "$id" status)
+      [ "$recorded" = "blocked-on-trust" ] && st="$recorded"
+      # One more herdr call per live worker, on top of the `agent get` above
+      # -- acceptable at the cap-5 fleet size the orchestrator enforces;
+      # revisit (batch, or drop CTX) if that cap ever rises.
+      ctx=$(worker_ctx "$agent")
+    else
+      st="gone"
+      ctx="?"
+    fi
+    # Same freshness rule await uses: a report from a previous task with this
+    # id is not this task's report.
+    if [ -z "$report" ] || [ -z "$(manifest_field "$id" brief)" ]; then
+      rp="n/a"
+    elif [ -f "$report" ] && { [ -z "$stamp" ] || file_newer_than "$report" "$stamp"; }; then
+      rp="yes"
+    else
+      rp="no"
+    fi
+    if [ -n "$1" ]; then
+      printf '%-26s %-16s %-16s %-6s %-8s %-10s %s\n' "$1" "$id" "$st" "$ctx" "$rp" "$tab" "$cwd"
+    else
+      printf '%-16s %-16s %-6s %-8s %-10s %s\n' "$id" "$st" "$ctx" "$rp" "$tab" "$cwd"
+    fi
+  done
+}
+
+other_run_owners() { # cwd -> "<run>\t<wid>" per candidate worker of another run
+  need_python
+  python3 -c '
+import glob, json, os, sys
+state, cwd, own = sys.argv[1], sys.argv[2], sys.argv[3]
+for m in sorted(glob.glob(os.path.join(state, "runs", "*", "manifest.jsonl"))):
+    rid = os.path.basename(os.path.dirname(m))
+    if rid == own:
+        continue
+    last = {}
+    for line in open(m, encoding="utf-8"):
+        line = line.strip()
+        if line:
+            row = json.loads(line); last[row.get("id")] = row
+    for wid, row in last.items():
+        if row.get("cwd") == cwd and row.get("status") != "cleaned":
+            print("%s\t%s" % (rid, wid))
+' "$STATE" "$1" "$FLEET_RUN"
+}
+
 workspace_alive() { # workspace_id
   "$HERDR" workspace list 2>/dev/null | python3 -c '
 import json, sys
@@ -405,6 +677,58 @@ try:
 except OSError:
     sys.exit(1)
 ' "$1" "$2"
+}
+
+holder_field() { sed -n "s/^$1=//p" "$FLEET_HOME/memory/.curator.lock/holder" 2>/dev/null | head -1; }
+
+age_seconds() { # path -> seconds since its mtime; nothing if it is gone
+  need_python
+  python3 -c '
+import os, sys, time
+try:
+    print(int(time.time() - os.path.getmtime(sys.argv[1])))
+except OSError:
+    pass
+' "$1"
+}
+
+take_takeover() { # holds memory/.curator.takeover, or dies; never across a spawn
+  # THE MUTEX GUARDS SECONDS OF WORK (reading a holder, one `agent get`,
+  # one mv, one mkdir), so one older than FLEET_TAKEOVER_GRACE can only
+  # be a judger that died inside it. Waiting is in 0.5 s steps for up to
+  # 10 s, the longest a healthy `agent get` plus a rename can take.
+  _tk="$FLEET_HOME/memory/.curator.takeover"
+  _tkgrace="${FLEET_TAKEOVER_GRACE:-60}"
+  _i=0
+  while ! mkdir "$_tk" 2>/dev/null; do
+    _tage=$(age_seconds "$_tk")
+    if [ -n "$_tage" ] && [ "$_tage" -ge "$_tkgrace" ]; then
+      rm -rf "$_tk" 2>/dev/null || true
+      note "cleared a stale takeover mutex (${_tage}s old, grace ${_tkgrace}s)"
+      continue
+    fi
+    _i=$((_i + 1))
+    [ "$_i" -le 20 ] || die "another curate has been judging the curator lock for over 10s ($_tk) -- run curate again"
+    sleep 0.5
+  done
+}
+release_takeover() { rmdir "$FLEET_HOME/memory/.curator.takeover" 2>/dev/null || true; }
+
+release_own_lock() { # -> 0 and the lock removed if this run holds it; 1 and a note otherwise
+  # OWNERSHIP IS CHECKED UNDER THE MUTEX: past the grace another run may
+  # have taken the lock over, and a release that did not look would
+  # delete that run's lock (cezaar#23 part 3, builder finding 2).
+  _lk="$FLEET_HOME/memory/.curator.lock"
+  take_takeover
+  _owner=$(holder_field run)
+  if [ "$_owner" = "$FLEET_RUN" ]; then
+    rm -rf "$_lk"
+    release_takeover
+    return 0
+  fi
+  release_takeover
+  note "the curator lock is held by run ${_owner:-?} now, not this one -- left in place"
+  return 1
 }
 
 resolved_git_dir() { # dir flag -- the physical path `git rev-parse <flag>` names
@@ -452,37 +776,93 @@ persona_field() { # persona-file key -- a scalar from the YAML frontmatter
     }' "$1"
 }
 
-fleet_workspace() { # reuse this fleet's workspace, adopt the current one, or create it
-  ws=$(cat "$WS_FILE" 2>/dev/null || true)
-  if [ -n "$ws" ] && workspace_alive "$ws"; then
-    echo "$ws"; return 0
+other_run_in_workspace() { # ws -> id of another run under runs/ that records it
+  need_python
+  python3 -c '
+import glob, json, os, sys
+state, ws, own = sys.argv[1], sys.argv[2], sys.argv[3]
+for path in sorted(glob.glob(os.path.join(state, "runs", "*", "run.json"))):
+    rid = os.path.basename(os.path.dirname(path))
+    if rid == own:
+        continue
+    try:
+        data = json.load(open(path, encoding="utf-8"))
+    except (OSError, ValueError):
+        continue
+    if data.get("workspace_id") == ws:
+        print(rid); break
+' "$STATE" "$1" "$FLEET_RUN"
+}
+
+tab_label() { "$HERDR" tab get "$1" 2>/dev/null | jget result tab label; }
+
+fleet_workspace() { # the run's workspace: recorded, shared, adopted, or created
+  label=$(run_field "$RUN_DIR" label)
+  ws=$(run_field "$RUN_DIR" workspace_id)
+  if [ -n "$ws" ]; then
+    if workspace_alive "$ws"; then
+      # REFUSE A DISAGREEMENT, NEVER PICK ONE (cezaar#23): the saved
+      # pointer silently beating the shell's own workspace is the root
+      # cause this issue was opened for.
+      if [ -n "${HERDR_WORKSPACE_ID:-}" ] && [ "$HERDR_WORKSPACE_ID" != "$ws" ]; then
+        die "run $FLEET_RUN lives in workspace $ws; this shell is in workspace $HERDR_WORKSPACE_ID -- spawn from a pane of $ws, or start a new run here"
+      fi
+      echo "$ws"; return 0
+    fi
+    note "workspace $ws recorded for run $FLEET_RUN is gone -- choosing again"
+    run_set "$RUN_DIR" workspace_id= workspace_mode= label_before= tab_label_before=
   fi
   # ADOPT: if HERDR_WORKSPACE_ID is set, this wrapper is itself running inside
   # a Herdr pane -- put workers in tabs of THAT workspace rather than opening a
-  # new one. The pre-adoption label is recorded so cleanup --all can put it
-  # back; the marker is what tells cleanup this workspace must never be
-  # closed, only renamed back (closing it would kill the pane the wrapper is
-  # running in, mid-teardown -- the binding constraint this feature exists
-  # around).
+  # new one. The pre-adoption labels are recorded so cleanup --all can put
+  # them back; workspace_mode=adopted in run.json is what tells cleanup it must
+  # never be closed, only renamed back (closing it would kill the pane the
+  # wrapper is running in, mid-teardown -- the binding constraint this feature
+  # exists around).
   if [ -n "${HERDR_WORKSPACE_ID:-}" ]; then
     ws="$HERDR_WORKSPACE_ID"
+    other=$(other_run_in_workspace "$ws")
+    if [ -n "$other" ]; then
+      # SHARED: the first adopter owns the labels; a second run in the
+      # same workspace (invoke-agent beside invoke-team) renames nothing
+      # and restores nothing.
+      run_set "$RUN_DIR" workspace_id="$ws" workspace_mode=shared
+      note "sharing workspace $ws with run $other -- its labels stay"
+      echo "$ws"; return 0
+    fi
     label_before=$("$HERDR" workspace get "$ws" | jget result workspace label)
-    mkdir -p "$STATE"
-    printf '%s\n' "$label_before" > "$STATE/workspace.label-before"
-    "$HERDR" workspace rename "$ws" "fleet: $(basename "$FLEET_HOME")" >/dev/null \
+    "$HERDR" workspace rename "$ws" "$label" >/dev/null \
       || die "could not rename adopted workspace $ws"
-    printf '%s\n' "$ws" > "$WS_FILE"
-    : > "$STATE/workspace.adopted"
-    note "adopted workspace $ws (was \"$label_before\")"
-    echo "$ws"
-    return 0
+    # THE LEAD'S TAB is the one run start saw, else the one this spawn
+    # runs in, and only if it belongs to this workspace (tab ids are
+    # <ws>:t<n>): a run started in another workspace must not rename a
+    # tab there.
+    lead_tab=$(run_field "$RUN_DIR" lead_tab)
+    [ -n "$lead_tab" ] || lead_tab="${HERDR_TAB_ID:-}"
+    case "$lead_tab" in "$ws:"*) ;; *) lead_tab="" ;; esac
+    tab_label_before=""
+    if [ -n "$lead_tab" ]; then
+      tab_label_before=$(tab_label "$lead_tab")
+      if "$HERDR" tab rename "$lead_tab" orchestrator >/dev/null 2>&1; then
+        note "adopted workspace $ws (was \"$label_before\") as \"$label\"; lead tab $lead_tab is now \"orchestrator\" (was \"$tab_label_before\")"
+      else
+        tab_label_before=""
+        note "adopted workspace $ws (was \"$label_before\") as \"$label\"; could not rename lead tab $lead_tab -- nothing to restore for it"
+      fi
+    else
+      note "adopted workspace $ws (was \"$label_before\") as \"$label\"; no lead tab in this workspace to rename"
+    fi
+    run_set "$RUN_DIR" workspace_id="$ws" workspace_mode=adopted \
+      label_before="$label_before" lead_tab="$lead_tab" tab_label_before="$tab_label_before"
+    echo "$ws"; return 0
   fi
-  ws=$("$HERDR" workspace create --label "fleet: $(basename "$FLEET_HOME")" --cwd "$FLEET_HOME" --no-focus \
+  cwd=$(run_field "$RUN_DIR" cwd)
+  [ -d "$cwd" ] || cwd="$FLEET_HOME"
+  ws=$("$HERDR" workspace create --label "$label" --cwd "$cwd" --no-focus \
         | jget result workspace workspace_id)
   [ -n "$ws" ] || die "workspace create returned no workspace_id"
-  mkdir -p "$STATE"
-  printf '%s\n' "$ws" > "$WS_FILE"
-  note "created fleet workspace $ws"
+  run_set "$RUN_DIR" workspace_id="$ws" workspace_mode=created
+  note "created workspace $ws (\"$label\")"
   echo "$ws"
 }
 
@@ -492,7 +872,7 @@ resolve_agent() { # id -> agent name, or die
   echo "$agent"
 }
 
-stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.md,
+stage_brief() { # id brief-src -> stages brief-src at $RUN_DIR/workers/<id>/brief.md,
   # archives any stale report.md, and refreshes the spawn stamp. EXACTLY the
   # premature-await guard spawn already ran (a report.md from an earlier
   # attempt with this id would satisfy a file-first await the instant it is
@@ -508,23 +888,24 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
   _sid="$1"; _sbrief="$2"
   [ -f "$_sbrief" ] || die "brief file not found: $_sbrief"
   _sbrief=$(CDPATH='' cd -- "$(dirname -- "$_sbrief")" && pwd)/$(basename -- "$_sbrief")
-  _sws="$STATE/workers/$_sid"
+  _sws="$RUN_DIR/workers/$_sid"
   _sreport="$_sws/report.md"
   mkdir -p "$_sws"
   _sdest="$_sws/brief.md"
 
   # MISMATCH REJECTION, checked on the SOURCE before it is ever copied: a
-  # brief that names another worker's path under .herdr-fleet/workers/ (e.g. a
-  # re-dispatched brief that kept the previous worker's id in its contract
-  # line) must not stage at all -- that worker would finish while `await`
-  # watches an empty directory forever. Extract every .herdr-fleet/workers/<id>
-  # segment named in the brief text and reject if any names an id other than
-  # this one; checking the source (not the copy-onto-self destination) means a
+  # brief that names another worker's path under a .herdr-fleet workers
+  # directory -- .herdr-fleet/workers/ or, since cezaar#23,
+  # .herdr-fleet/runs/<run>/workers/ (e.g. a re-dispatched brief that kept the
+  # previous worker's id in its contract line) -- must not stage at all: that
+  # worker would finish while `await` watches an empty directory forever.
+  # Extract every such <id> segment named in the brief text and reject if any
+  # names an id other than this one; checking the source (not the copy-onto-self destination) means a
   # rejected brief is never left sitting at brief.md looking staged.
-  _sbadid=$(grep -oE '\.herdr-fleet/workers/[^/[:space:]]+' "$_sbrief" 2>/dev/null \
+  _sbadid=$(grep -oE '\.herdr-fleet/(runs/[^/[:space:]]+/)?workers/[^/[:space:]]+' "$_sbrief" 2>/dev/null \
              | sed 's#.*/##' | sort -u | grep -v -F -x "$_sid" || true)
   if [ -n "$_sbadid" ]; then
-    die "brief $_sbrief names worker '$(printf '%s' "$_sbadid" | head -1)' under .herdr-fleet/workers/, but is being staged for worker '$_sid' (whose report path is $_sreport) -- fix the brief's contract line, or spawn/assign it to the worker it actually names"
+    die "brief $_sbrief names worker '$(printf '%s' "$_sbadid" | head -1)' under a .herdr-fleet workers directory, but is being staged for worker '$_sid' (whose report path is $_sreport) -- fix the brief's contract line, or spawn/assign it to the worker it actually names"
   fi
 
   # STAGE VIA A TEMP COPY, not $_sdest directly: injection and the leftover
@@ -615,7 +996,7 @@ stage_brief() { # id brief-src -> stages brief-src at $STATE/workers/<id>/brief.
     mv "$_sreport" "$_sstale"
     note "archived a stale report for $_sid -> $(basename "$_sstale")"
   fi
-  : > "$STATE/$_sid.spawn-stamp"
+  : > "$RUN_DIR/$_sid.spawn-stamp"
   printf '%s\n' "$_sbrief"
 }
 
@@ -695,14 +1076,14 @@ persona_peers() { # persona-name -> the other persona of each edge touching it, 
   team_peers | awk -v p="$1" '$1==p{print $2} $2==p{print $1}'
 }
 
-# GRID SLOT ALLOCATION (D). $STATE/grid holds one line -- "tab_id p0 p1 n" --
+# GRID SLOT ALLOCATION (D). $RUN_DIR/grid holds one line -- "tab_id p0 p1 n" --
 # for the currently-filling 2x2 grid tab; p1 is "-" until slot 2 exists. Slots
 # are taken in order (tab create, then three splits) and never backfilled: a
 # freed slot just leaves a sparse grid, which is cheaper than the geometry math
 # backfill would need, and reuse (assign, elsewhere) makes churn rare anyway.
 grid_slot() { # ws cwd -> "pane_id tab_id" for the next worker's slot
   ws="$1"; g_cwd="$2"
-  grid_file="$STATE/grid"
+  grid_file="$RUN_DIR/grid"
   g_tab=""; g_p0=""; g_p1=""; g_n=0
   if [ -s "$grid_file" ]; then
     read -r g_tab g_p0 g_p1 g_n < "$grid_file" || true
@@ -734,13 +1115,13 @@ grid_slot() { # ws cwd -> "pane_id tab_id" for the next worker's slot
   fi
 
   if [ -z "$g_tab" ]; then
-    gnum=$(cat "$STATE/grid.next" 2>/dev/null || echo 1)
-    p0=$("$HERDR" tab create --workspace "$ws" --label "fleet grid $gnum" --cwd "$g_cwd" --no-focus \
+    gnum=$(cat "$RUN_DIR/grid.next" 2>/dev/null || echo 1)
+    p0=$("$HERDR" tab create --workspace "$ws" --label "$(run_field "$RUN_DIR" slug) grid $gnum" --cwd "$g_cwd" --no-focus \
           | jget result root_pane pane_id)
     [ -n "$p0" ] || die "tab create returned no pane_id (grid $gnum)"
     g_tab=$("$HERDR" pane get "$p0" | jget result pane tab_id)
-    mkdir -p "$STATE"
-    printf '%s\n' "$((gnum + 1))" > "$STATE/grid.next"
+    mkdir -p "$RUN_DIR"
+    printf '%s\n' "$((gnum + 1))" > "$RUN_DIR/grid.next"
     printf '%s %s - 1\n' "$g_tab" "$p0" > "$grid_file"
     echo "$p0 $g_tab"
     return 0
@@ -785,10 +1166,22 @@ tab_has_live_sibling() { # exclude_id tab -- 0 (true) iff another live manifest 
 cmd="${1:-}"; [ $# -gt 0 ] && shift || true
 
 case "$cmd" in
+  ""|-h|--help|help) ;;
+  *) import_legacy_state ;;
+esac
+
+case "$cmd" in
   preflight)
     command -v "$HERDR" >/dev/null 2>&1 || die "herdr not found on PATH (set HERDR_BIN)"
     "$HERDR" pane list >/dev/null 2>&1 || die "herdr socket unreachable -- is the server running? (herdr status)"
     echo "ok: herdr reachable, fleet home $FLEET_HOME"
+    if [ -n "${FLEET_RUN:-}" ]; then
+      [ -f "$STATE/runs/$FLEET_RUN/run.json" ] \
+        || die "FLEET_RUN=$FLEET_RUN names no run under $STATE/runs"
+      echo "run in effect: $FLEET_RUN (label \"$(run_field "$STATE/runs/$FLEET_RUN" label)\")"
+    else
+      echo "no run in effect: 'run start --label <text>' mints one; every verb but preflight, run, runs and the all-runs status view needs FLEET_RUN"
+    fi
 
     # EFFORT OVERRIDES: warnings, not errors -- CLAUDE_CODE_EFFORT_LEVEL beats
     # --effort in Claude Code (code.claude.com/docs/en/model-config), so a
@@ -827,8 +1220,26 @@ case "$cmd" in
     ;;
 
   spawn)
+    require_run
     [ $# -ge 2 ] || die "spawn needs: <id> <persona-file> [options] [-- extra claude args]"
     id="$1"; persona="$2"; shift 2
+    # HERDR AGENT NAMES ARE <run token>-<id>, and herdr caps a name at 32
+    # characters of [a-z0-9_-]: a five-character token and its dash leave 26.
+    # SPELLED OUT, NOT [a-z]: a bracket RANGE in a case pattern is
+    # collated under the caller's locale, and under en_US.UTF-8 the
+    # range a-z admits uppercase, so W1 and wA passed as valid ids and
+    # herdr was touched with a name its own rule refuses. A listed set
+    # has nothing to collate (cezaar#23 review round 1).
+    lower=abcdefghijklmnopqrstuvwxyz
+    id_rule="must match [a-z][a-z0-9_-]{0,25} (herdr agent names are <run token>-<id>, at most 32 characters)"
+    case "$id" in
+      [$lower]*) ;;
+      *) die "worker id '$id' $id_rule" ;;
+    esac
+    case "$id" in
+      *[!${lower}0123456789_-]*) die "worker id '$id' $id_rule" ;;
+    esac
+    [ "${#id}" -le 26 ] || die "worker id '$id' is ${#id} characters; at most 26 -- it $id_rule"
     cwd="$FLEET_HOME"; model=""; effort=""; label=""; timeout="60000"; trust=0; brief=""; no_peers=0; own_tab=0
     while [ $# -gt 0 ]; do
       case "$1" in
@@ -912,8 +1323,8 @@ case "$cmd" in
     [ "$(persona_field "$persona" escalation_authority)" = "orchestrator" ] && own_tab=1
     body=$(persona_body "$persona")
     [ -n "$(printf '%s' "$body" | tr -d '[:space:]')" ] || die "persona $persona has an empty body -- nothing to inject"
-    mkdir -p "$STATE/personas"
-    prompt_file="$STATE/personas/$id.txt"
+    mkdir -p "$RUN_DIR/personas"
+    prompt_file="$RUN_DIR/personas/$id.txt"
     # THE SHARED PROTOCOL GOES AHEAD OF THE PERSONA BODY, and its absence costs
     # ITSELF and never the body. memory-protocol.md is the one copy of a block
     # that used to be pasted into all six personas -- which is how a paragraph
@@ -1038,12 +1449,13 @@ Two rules, in spirit as much as in words:
     fi
     _tmpl="$here/../install/worker-permissions.json"
     [ -f "$_tmpl" ] || note "no $_tmpl -- worker $id gets memory but no command grants"
-    mkdir -p "$STATE/permissions"
-    worker_settings="$STATE/permissions/$id.json"
+    mkdir -p "$RUN_DIR/permissions"
+    worker_settings="$RUN_DIR/permissions/$id.json"
     need_python
     python3 -c '
 import json, os, sys
-tmpl, out, home, sharp, no_peers, wid, team = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] == "1", sys.argv[5] == "1", sys.argv[6], sys.argv[7]
+tmpl, out, home, sharp, no_peers, wid, team, run = sys.argv[1:9]
+sharp, no_peers = sharp == "1", no_peers == "1"
 try:
     data = json.load(open(tmpl, encoding="utf-8"))
 except (OSError, ValueError):
@@ -1056,8 +1468,8 @@ for spelling in (home, os.path.realpath(home)):
     if spelling not in dirs:
         dirs.append(spelling)
 # FLEET-HOME ARTIFACT WRITES, NEVER GATED ON THE OPERATOR PERMISSION MODE. A
-# stage artifact is written to outputs/ or .herdr-fleet/artifacts/ under the
-# fleet home, and additionalDirectories above only lets a worker READ there:
+# stage artifact is written to outputs/ or .herdr-fleet/runs/<run>/artifacts/
+# under the fleet home, and additionalDirectories above only lets a worker READ there:
 # without these, every such write asks unless the operator happens to run in
 # acceptEdits, and an unattended run stalls on a prompt nobody sees. Not gated
 # on own_worktree either, for the same reason the directory grant is not --
@@ -1072,7 +1484,7 @@ for spelling in (home, os.path.realpath(home)):
 # Both spellings, same reason as the directory grant.
 allow = perms["allow"]
 for spelling in (home, os.path.realpath(home)):
-    for sub in ("outputs", ".herdr-fleet/artifacts"):
+    for sub in ("outputs", ".herdr-fleet/runs/%s/artifacts" % run):
         rule = "Edit(/%s/%s/**)" % (spelling, sub)
         if rule not in allow:
             allow.append(rule)
@@ -1115,14 +1527,15 @@ if not no_peers:
 # its own tell among them -- reads the team that was in effect at spawn. Not
 # gated on no_peers: which team a worker belongs to is a fact about the run,
 # and without the tell grant a sealed worker has nothing to use it for.
+env = data.get("env") if isinstance(data.get("env"), dict) else {}
+env["FLEET_RUN"] = run
 if team:
-    env = data.get("env") if isinstance(data.get("env"), dict) else {}
     env["FLEET_TEAM"] = team
-    data["env"] = env
+data["env"] = env
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(data, fh, indent=2)
     fh.write("\n")
-' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" "$no_peers" "$id" "$team_file" \
+' "$_tmpl" "$worker_settings" "$FLEET_HOME" "$_sharp" "$no_peers" "$id" "$team_file" "$FLEET_RUN" \
       || die "could not compose worker permissions for $id"
 
     # DELEGATION STATE lives under the FLEET HOME, not the worker's own cwd --
@@ -1134,9 +1547,9 @@ with open(out, "w", encoding="utf-8") as fh:
     # granted, and the fleet home is the one tree every worker always has.
     # Paths to PROJECT files inside a brief's own content stay worker-cwd-
     # relative, as before -- this is only about where brief.md/report.md live.
-    worker_state="$STATE/workers/$id"
+    worker_state="$RUN_DIR/workers/$id"
     report_file="$worker_state/report.md"
-    stamp_file="$STATE/$id.spawn-stamp"
+    stamp_file="$RUN_DIR/$id.spawn-stamp"
     if [ -n "$brief" ]; then
       # The brief may already BE at the destination when the caller wrote it
       # straight there; stage_brief handles that (copy-onto-self is a no-op).
@@ -1177,6 +1590,18 @@ with open(out, "w", encoding="utf-8") as fh:
       fi
     fi
 
+    # THE ONE CROSS-RUN INTERACTION A LEAD CANNOT SEE (cezaar#23): its
+    # "never spawn a second writer into a tree a live worker owns" rule
+    # reads only its own run's manifest now. The wrapper covers the other
+    # runs' half as a warning, because read-only personas sharing a tree
+    # are legitimate and only the lead knows which kind this is.
+    other_run_owners "$cwd" | while IFS="$(printf '\t')" read -r o_run o_wid; do
+      [ -n "$o_run" ] || continue
+      if ( MANIFEST="$STATE/runs/$o_run/manifest.jsonl"; worker_alive "$o_wid" ); then
+        note "warn: $cwd is also the cwd of live worker $o_wid in run $o_run ($(run_field "$STATE/runs/$o_run" label)) -- two writers in one tree is the lead's call, not the wrapper's"
+      fi
+    done
+
     ws=$(fleet_workspace)
     if [ "$own_tab" -eq 1 ]; then
       pane=$("$HERDR" tab create --workspace "$ws" --label "${label:-$id}" --cwd "$cwd" --no-focus \
@@ -1212,9 +1637,15 @@ with open(out, "w", encoding="utf-8") as fh:
     # every failed start leaves an empty pane behind -- and since herdr's agent
     # names are server-global, the usual failure (agent_name_taken) would then
     # repeat forever.
+    #
+    # THE AGENT NAME CARRIES THE RUN'S TOKEN (cezaar#23): herdr agent names are
+    # server-global, so two runs each spawning `w1` would otherwise collide.
+    # The pane keeps the bare id (pane rename above); only herdr sees this.
+    token=$(run_field "$RUN_DIR" token)
+    agent_name="${token:+$token-}$id"
     attempt=0; started=""; start_ok=0
     while [ "$attempt" -lt 15 ]; do
-      if started=$("$HERDR" agent start "$id" --kind claude --pane "$pane" --timeout "$timeout" \
+      if started=$("$HERDR" agent start "$agent_name" --kind claude --pane "$pane" --timeout "$timeout" \
                      -- --append-system-prompt-file "$prompt_file" "$@" 2>&1); then
         start_ok=1; break
       fi
@@ -1229,7 +1660,7 @@ with open(out, "w", encoding="utf-8") as fh:
       die "spawn aborted; the tab created for $id was closed again"
     fi
     agent=$(printf '%s' "$started" | jget result agent name)
-    [ -n "$agent" ] || agent="$id"
+    [ -n "$agent" ] || agent="$agent_name"
 
     # BOOT VERIFY: interactive_ready is the shell handing over to claude, not
     # claude's TUI being ready. A prompt sent before the UI paints is swallowed,
@@ -1270,7 +1701,7 @@ with open(out, "w", encoding="utf-8") as fh:
       workspace_id="$ws" persona="$persona" cwd="$cwd" brief="${brief:-}" \
       report="${report_file:-}" stamp="${stamp_file:-}" \
       settings="${worker_settings:-}" status="$status_row" \
-      model="$model" effort="$effort" team="$team_file"
+      model="$model" effort="$effort" team="$team_file" run="$FLEET_RUN"
 
     if [ "${blocked:-0}" -eq 1 ]; then
       note "worker $id is waiting on Claude's trust-folder prompt for $cwd"
@@ -1297,6 +1728,7 @@ with open(out, "w", encoding="utf-8") as fh:
     ;;
 
   assign)
+    require_run
     # RE-TASK, NOT REPLACE. assign is symmetric with spawn but never touches a
     # tab or an agent -- same worker, same warm context, a new brief. Two
     # verbs keep "replace" (spawn, respawn guard) and "re-task" (assign)
@@ -1331,9 +1763,9 @@ with open(out, "w", encoding="utf-8") as fh:
     # cannot mistake the outgoing task's report for this one's.
     brief=$(stage_brief "$id" "$brief") || exit $?
 
-    worker_state="$STATE/workers/$id"
+    worker_state="$RUN_DIR/workers/$id"
     report_file="$worker_state/report.md"
-    stamp_file="$STATE/$id.spawn-stamp"
+    stamp_file="$RUN_DIR/$id.spawn-stamp"
     # MODEL AND EFFORT CARRY FORWARD UNCHANGED: assign re-tasks the same live
     # session, and a live session keeps the level it was spawned with -- there
     # is no new "$HERDR" agent start here to pass a different one to. Every
@@ -1346,7 +1778,7 @@ with open(out, "w", encoding="utf-8") as fh:
       brief="$brief" report="$report_file" stamp="$stamp_file" \
       settings="$(manifest_field "$id" settings)" status=assigned \
       model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
-      team="$(manifest_field "$id" team)"
+      team="$(manifest_field "$id" team)" run="$FLEET_RUN"
 
     "$HERDR" agent prompt "$agent" \
       "Read $worker_state/brief.md and execute it exactly, including its completion contract." \
@@ -1355,6 +1787,7 @@ with open(out, "w", encoding="utf-8") as fh:
     ;;
 
   effort)
+    require_run
     # SESSION-ONLY, NEVER THE BARE SLASH COMMAND. `/effort <level>` typed into
     # a worker changes that worker, and also saves the level as effortLevel in
     # the operator's ~/.claude/settings.json -- every fix round would quietly
@@ -1488,11 +1921,12 @@ with open(out, "w", encoding="utf-8") as fh:
       brief="$(manifest_field "$id" brief)" report="$(manifest_field "$id" report)" \
       stamp="$(manifest_field "$id" stamp)" settings="$(manifest_field "$id" settings)" \
       status="$(manifest_field "$id" status)" model="$(manifest_field "$id" model)" \
-      effort="$level" team="$(manifest_field "$id" team)"
+      effort="$level" team="$(manifest_field "$id" team)" run="$FLEET_RUN"
     echo "effort for $id set to $level (this session only)"
     ;;
 
   prompt|steer)
+    require_run
     [ $# -ge 2 ] || die "prompt needs: <id> \"<text>\" [--wait] [--until <state>] [--timeout <ms>]"
     id="$1"; text="$2"; shift 2
     agent=$(resolve_agent "$id")
@@ -1500,6 +1934,7 @@ with open(out, "w", encoding="utf-8") as fh:
     ;;
 
   respond)
+    require_run
     [ $# -eq 2 ] || die "respond needs: <id> <approve|approve-always|deny>"
     id="$1"; intent="$2"
     case "$intent" in
@@ -1551,6 +1986,7 @@ $opts"
     ;;
 
   tell)
+    require_run
     # PEER TRANSPORT: `herdr agent prompt`, same as a human steering a worker
     # -- a prompt wakes the peer, where a mailbox would need the peer to poll,
     # and an idle Claude session polls nothing.
@@ -1604,6 +2040,7 @@ $opts"
     ;;
 
   await)
+    require_run
     [ $# -ge 1 ] || die "await needs: <id> [--timeout <seconds>]"
     id="$1"; shift
     agent=$(resolve_agent "$id")
@@ -1687,6 +2124,7 @@ $opts"
     ;;
 
   read)
+    require_run
     [ $# -ge 1 ] || die "read needs: <id> [--lines <n>] [--source <source>]"
     id="$1"; shift
     agent=$(resolve_agent "$id")
@@ -1697,44 +2135,37 @@ $opts"
     ;;
 
   status)
-    ids=$(manifest_ids)
-    [ -n "$ids" ] || { echo "no workers recorded in $MANIFEST"; exit 0; }
-    printf '%-16s %-16s %-6s %-8s %-10s %s\n' ID STATUS CTX REPORT TAB CWD
-    for id in $ids; do
-      agent=$(manifest_field "$id" agent)
-      tab=$(manifest_field "$id" tab_id)
-      cwd=$(manifest_field "$id" cwd)
-      report=$(manifest_field "$id" report)
-      stamp=$(manifest_field "$id" stamp)
-      if worker_alive "$id"; then
-        st=$("$HERDR" agent get "$agent" 2>/dev/null | jget result agent agent_status)
-        [ -n "$st" ] || st="no-agent"
-        # A row recorded as blocked-on-trust never reached a usable agent, so
-        # herdr's own status for it means nothing -- keep the recorded one.
-        recorded=$(manifest_field "$id" status)
-        [ "$recorded" = "blocked-on-trust" ] && st="$recorded"
-        # One more herdr call per live worker, on top of the `agent get` above
-        # -- acceptable at the cap-5 fleet size the orchestrator enforces;
-        # revisit (batch, or drop CTX) if that cap ever rises.
-        ctx=$(worker_ctx "$agent")
-      else
-        st="gone"
-        ctx="?"
-      fi
-      # Same freshness rule await uses: a report from a previous task with this
-      # id is not this task's report.
-      if [ -z "$report" ] || [ -z "$(manifest_field "$id" brief)" ]; then
-        rp="n/a"
-      elif [ -f "$report" ] && { [ -z "$stamp" ] || file_newer_than "$report" "$stamp"; }; then
-        rp="yes"
-      else
-        rp="no"
-      fi
-      printf '%-16s %-16s %-6s %-8s %-10s %s\n' "$id" "$st" "$ctx" "$rp" "$tab" "$cwd"
-    done
+    all=0
+    if [ "${1:-}" = "--all-runs" ]; then all=1; shift; fi
+    [ $# -eq 0 ] || die "unknown status option: $1 (status takes --all-runs)"
+    if [ "$all" -eq 1 ]; then
+      found=0
+      for d in "$STATE"/runs/*/; do
+        [ -f "$d/run.json" ] || continue
+        r=$(basename "$d")
+        if [ "$found" -eq 0 ]; then
+          printf '%-26s %-16s %-16s %-6s %-8s %-10s %s\n' RUN ID STATUS CTX REPORT TAB CWD
+          found=1
+        fi
+        MANIFEST="$d/manifest.jsonl"
+        if [ -n "$(manifest_ids)" ]; then
+          status_rows "$r"
+        else
+          printf '%-26s (no workers recorded)\n' "$r"
+        fi
+      done
+      [ "$found" -eq 1 ] || echo "no runs under $STATE/runs"
+    else
+      require_run
+      ids=$(manifest_ids)
+      [ -n "$ids" ] || { echo "no workers recorded in $MANIFEST"; exit 0; }
+      printf '%-16s %-16s %-6s %-8s %-10s %s\n' ID STATUS CTX REPORT TAB CWD
+      status_rows ""
+    fi
     ;;
 
   curate)
+    require_run
     # CLOSE-OF-RUN CURATION IS ITS OWN VERB, NOT A LIMB OF `cleanup --all`.
     # Teardown that also spawns is the defect this wrapper has now been bitten
     # by twice (a worktree gate that swept up memory grants; a template guard
@@ -1781,11 +2212,98 @@ $opts"
         || die "expected exactly 1 system persona under $here/../system declaring curates_memory: true, found $n_carriers${carriers}"
     fi
 
+    # ONE CURATOR AT A TIME, FLEET-WIDE (cezaar#23). The single-writer
+    # rule in memory-curation.md is about the persona; with per-run
+    # manifests two runs closing together would each spawn that one
+    # persona against one memory/<persona>/MEMORY.md. A mkdir is the lock
+    # because it is atomic on a local filesystem and needs no process
+    # that outlives this verb; the holder file is what lets the next
+    # curate tell a finished or dead curator from a running one.
+    #
+    # "GONE" IS ONLY ASKABLE OF AN AGENT THAT WAS EVER REGISTERED. The
+    # holder is written before spawn, and herdr knows nothing of the agent
+    # until `agent start` succeeds -- after tab creation and up to fifteen
+    # pane-busy retries. In that window `agent get` fails exactly as it
+    # does for a dead agent, which is how round 1 saw two curators start
+    # (cezaar#23, part 3 review). So the taker appends `started=` to the
+    # holder only after spawn returns, and a holder without that line is
+    # a curate still inside its spawn: held, unless the lock is older than
+    # FLEET_CURATOR_GRACE, which only a killed curate can reach. Gone also
+    # means herdr SAID agent_not_found; any other failure of `agent get`
+    # (server unreachable) is a question with no answer, and the lock is
+    # held, not freed.
+    #
+    # JUDGE AND TAKE OVER UNDER ONE MUTEX. A rename moves whatever
+    # directory is at the lock path, not the one that was judged: a taker
+    # whose `agent get` was slow renamed away a rival's fresh, started
+    # lock, and two curators ran (cezaar#23 part 3, builder finding,
+    # reproduced with a 3 s sleep). So everything that can EMPTY the lock
+    # path -- this takeover's mv, an owner's release, cleanup's release --
+    # holds memory/.curator.takeover first, and the only thing that FILLS
+    # an empty path, `mkdir "$lock"`, needs nothing: between reading the
+    # holder and moving the directory, no one else can have swapped it.
+    # The mutex is never held across a spawn; it guards seconds.
+    lock="$FLEET_HOME/memory/.curator.lock"
+    grace="${FLEET_CURATOR_GRACE:-300}"
+    mkdir -p "$FLEET_HOME/memory"
+    attempt=0
+    while ! mkdir "$lock" 2>/dev/null; do
+      attempt=$((attempt + 1))
+      [ "$attempt" -le 3 ] || die "could not take the curator lock at $lock after 3 attempts -- another curate is taking it over at the same moment; run curate again"
+      take_takeover
+      # Freed while we waited for the mutex: take it the ordinary way.
+      if mkdir "$lock" 2>/dev/null; then release_takeover; break; fi
+      h_run=$(holder_field run); h_agent=$(holder_field agent)
+      h_report=$(holder_field report); h_stamp=$(holder_field stamp)
+      h_started=$(holder_field started)
+      age=$(age_seconds "$lock")
+      [ -n "$age" ] || { release_takeover; continue; }
+      reason=""
+      if [ -z "$h_started" ]; then
+        if [ "$age" -ge "$grace" ]; then
+          reason="its curate never finished starting (lock is ${age}s old, grace ${grace}s)"
+        else
+          release_takeover
+          die "a curator for run ${h_run:-?} is still starting (lock is ${age}s old) -- await it, then curate"
+        fi
+      elif [ -n "$h_report" ] && [ -n "$h_stamp" ] && file_newer_than "$h_report" "$h_stamp"; then
+        reason="its report is written"
+      else
+        got=$("$HERDR" agent get "$h_agent" 2>&1) && alive=1 || alive=0
+        if [ "$alive" -eq 1 ]; then
+          release_takeover
+          die "a curator is running for run ${h_run:-?} (agent ${h_agent:-?}) -- await it, then curate; if that run is dead, FLEET_RUN=${h_run:-<run>} cleanup --all releases its lock"
+        fi
+        case "$got" in
+          *agent_not_found*) reason="its agent $h_agent is gone" ;;
+          *) release_takeover
+             note "herdr could not answer \`agent get $h_agent\` ($(printf '%s' "$got" | head -1)) -- treating the lock as held; try again when herdr is reachable"
+             die "a curator is running for run ${h_run:-?} (agent ${h_agent:-?}) -- await it, then curate; if that run is dead, FLEET_RUN=${h_run:-<run>} cleanup --all releases its lock" ;;
+        esac
+      fi
+      # Stale, and still exactly the directory judged: the mutex kept every
+      # other emptier out since the holder was read.
+      stale_dir="$lock.stale.$$"
+      mv "$lock" "$stale_dir" 2>/dev/null \
+        || { release_takeover; die "could not move the stale curator lock aside ($lock)"; }
+      rm -rf "$stale_dir"
+      note "took over a stale curator lock from run ${h_run:-?} ($reason)"
+      if mkdir "$lock" 2>/dev/null; then release_takeover; break; fi
+      # A fresh curate filled the empty path between the mv and this mkdir
+      # (the mutex does not stop a mkdir). Its lock is young and unjudged:
+      # go round and judge it, which will read as held.
+      release_takeover
+    done
+    token=$(run_field "$RUN_DIR" token)
+    agent_name="${token:+$token-}$id"
+    printf 'run=%s\nagent=%s\nreport=%s\nstamp=%s\n' "$FLEET_RUN" "$agent_name" \
+      "$RUN_DIR/workers/$id/report.md" "$RUN_DIR/$id.spawn-stamp" > "$lock/holder"
+
     # The brief names where the logs are, because the curator arrives with no
     # context by design and cannot infer a run it did not see.
     if [ -z "$brief" ]; then
-      brief="$STATE/curation-brief.md"
-      mkdir -p "$STATE"
+      brief="$RUN_DIR/curation-brief.md"
+      mkdir -p "$RUN_DIR"
       {
         echo "# Curation pass"
         echo
@@ -1804,6 +2322,31 @@ $opts"
           echo "- (none recorded in $MANIFEST -- say so in your report rather than"
           echo "  curating from an empty set)"
         fi
+        echo
+        shared_stamp="$FLEET_HOME/memory/.last-curation"
+        if [ -f "$shared_stamp" ]; then
+          when=$(python3 -c 'import os,sys,time; print(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(os.path.getmtime(sys.argv[1]))))' "$shared_stamp")
+        else
+          when=never
+        fi
+        echo "## Other logs with entries since the last curation pass ($when)"
+        echo
+        run_personas=""
+        for w in $(manifest_ids); do
+          run_personas="$run_personas $(persona_field "$(manifest_field "$w" persona)" name)"
+        done
+        listed=0
+        for log in "$FLEET_HOME"/memory/*/decisions.md; do
+          [ -f "$log" ] || continue
+          p=$(basename "$(dirname "$log")")
+          case " $run_personas " in *" $p "*) continue ;; esac
+          if [ ! -f "$shared_stamp" ] || file_newer_than "$log" "$shared_stamp"; then
+            mtime=$(python3 -c 'import os,sys,time; print(time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(os.path.getmtime(sys.argv[1]))))' "$log")
+            printf -- '- memory/%s/decisions.md (modified %s)\n' "$p" "$mtime"
+            listed=1
+          fi
+        done
+        [ "$listed" -eq 1 ] || echo "- (none)"
         # Resolved by stage_brief (cezaar #18's mechanism) into the report-path
         # sentence for THIS spawn -- curate reaches stage_brief through `spawn
         # --brief` below, so writing the sentence out by hand here would risk
@@ -1813,23 +2356,40 @@ $opts"
       } > "$brief"
       note "wrote curation brief $brief"
     fi
-    [ -f "$brief" ] || die "brief not found: $brief"
+    # Checked after the lock (a refused curate writes nothing), so a missing
+    # --brief gives back the lock it just took rather than wedging curation.
+    [ -f "$brief" ] || { release_own_lock || true; die "brief not found: $brief"; }
 
     # `--` is re-supplied because this parser consumed the caller's: without
     # it spawn reads the extras as its OWN options and dies on the first one.
     # HERDR_FLEET_VIA_CURATE is what lets that spawn start a system persona;
     # set on these two commands only, so it never outlives this verb.
     if [ $# -gt 0 ]; then
-      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" -- "$@" || exit $?
+      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" -- "$@" \
+        || { rc=$?; release_own_lock || true; exit $rc; }
     else
-      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" || exit $?
+      HERDR_FLEET_VIA_CURATE=1 "$0" spawn "$id" "$persona" --brief "$brief" --cwd "$cwd" \
+        || { rc=$?; release_own_lock || true; exit $rc; }
     fi
+    # THE LOCK IS STILL OURS, OR THIS CURATOR GOES. A spawn that outlived
+    # the grace (only a stalled machine gets there) can find another run
+    # took the lock meanwhile; two curators is the one state this verb
+    # exists to prevent, so the later one -- ours -- is closed, loudly.
+    if [ "$(holder_field run)" != "$FLEET_RUN" ]; then
+      taker=$(holder_field run)
+      "$0" cleanup "$id" >/dev/null 2>&1 || true
+      die "the curator lock was taken over by run ${taker:-?} while this run's curator was starting -- closed this run's curator ($id); await the other run's curator, then curate"
+    fi
+    printf 'started=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$lock/holder"
     # Recorded only after the spawn succeeded, so cleanup's note tells the
-    # truth about whether a pass actually started.
-    mkdir -p "$STATE"; date >"$STATE/last-curation"
+    # truth. The shared stamp is what a later run's brief measures "other
+    # logs with entries since" against (cezaar#23).
+    mkdir -p "$RUN_DIR"; date >"$RUN_DIR/last-curation"
+    date >"$FLEET_HOME/memory/.last-curation"
     ;;
 
   cleanup)
+    require_run
     [ $# -ge 1 ] || die "cleanup needs: <id> | --all"
     failed=0
     if [ "$1" = "--all" ]; then targets=$(manifest_ids); else targets="$1"; fi
@@ -1876,7 +2436,7 @@ $opts"
                      stamp="$(manifest_field "$id" stamp)" \
                      settings="$(manifest_field "$id" settings)" status=cleaned \
                      model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
-                     team="$(manifest_field "$id" team)"
+                     team="$(manifest_field "$id" team)" run="$FLEET_RUN"
         continue
       fi
       "$HERDR" tab close "$tab" >/dev/null 2>&1 || true
@@ -1896,85 +2456,103 @@ $opts"
                      stamp="$(manifest_field "$id" stamp)" \
                      settings="$(manifest_field "$id" settings)" status=cleaned \
                      model="$(manifest_field "$id" model)" effort="$(manifest_field "$id" effort)" \
-                     team="$(manifest_field "$id" team)"
+                     team="$(manifest_field "$id" team)" run="$FLEET_RUN"
       fi
     done
     if [ "${1:-}" = "--all" ]; then
       # Teardown does not curate -- but it is the last moment anyone would
       # notice that nothing did.
-      [ -f "$STATE/last-curation" ] \
+      [ -f "$RUN_DIR/last-curation" ] \
         || note "no curation pass recorded for this fleet -- '$0 curate' promotes this run's lessons; tearing down now loses them"
-      if [ -f "$STATE/workspace.adopted" ]; then
-        # ADOPTED WORKSPACES ARE NEVER CLOSED -- binding constraint. Only the
-        # label comes back; closing it would kill the pane the wrapper itself
-        # (or the orchestrator that ran it) is running in, mid-teardown.
-        ws=$(cat "$WS_FILE" 2>/dev/null || true)
-        label_before=$(cat "$STATE/workspace.label-before" 2>/dev/null || true)
-        if [ -n "$ws" ] && workspace_alive "$ws"; then
-          if "$HERDR" workspace rename "$ws" "$label_before" >/dev/null 2>&1; then
-            echo "restored adopted workspace $ws label -> \"$label_before\""
-          else
-            echo "FAILED to restore adopted workspace $ws label" >&2; failed=1
-          fi
-        elif [ -n "$ws" ]; then
-          echo "adopted workspace $ws already gone -- nothing to restore"
-        fi
-        rm -f "$WS_FILE" "$STATE/workspace.adopted" "$STATE/workspace.label-before"
-      else
-        ws=$(cat "$WS_FILE" 2>/dev/null || true)
-        if [ -n "$ws" ] && workspace_alive "$ws"; then
-          "$HERDR" workspace close "$ws" >/dev/null 2>&1 || true
-          if workspace_alive "$ws"; then
-            echo "FAILED to close fleet workspace $ws" >&2; failed=1
-          else
-            echo "closed fleet workspace $ws"; rm -f "$WS_FILE"
-          fi
+      ws=$(run_field "$RUN_DIR" workspace_id)
+      case "$(run_field "$RUN_DIR" workspace_mode)" in
+        adopted)
+          # ADOPTED WORKSPACES ARE NEVER CLOSED -- binding constraint. Only the
+          # label comes back; closing it would kill the pane the wrapper itself
+          # (or the orchestrator that ran it) is running in, mid-teardown.
+          label_before=$(run_field "$RUN_DIR" label_before)
+          lead_tab=$(run_field "$RUN_DIR" lead_tab)
+          tab_label_before=$(run_field "$RUN_DIR" tab_label_before)
+          if [ -n "$ws" ] && workspace_alive "$ws"; then
+            if "$HERDR" workspace rename "$ws" "$label_before" >/dev/null 2>&1; then
+              echo "restored adopted workspace $ws label -> \"$label_before\""
+            else
+              echo "FAILED to restore adopted workspace $ws label" >&2; failed=1
+            fi
+            if [ -n "$lead_tab" ] && [ -n "$tab_label_before" ]; then
+              if ! tab_alive "$lead_tab"; then
+                echo "lead tab $lead_tab already gone -- nothing to restore"
+              elif "$HERDR" tab rename "$lead_tab" "$tab_label_before" >/dev/null 2>&1; then
+                echo "restored lead tab $lead_tab label -> \"$tab_label_before\""
+              else
+                echo "FAILED to restore lead tab $lead_tab label" >&2; failed=1
+              fi
+            fi
+          elif [ -n "$ws" ]; then
+            echo "adopted workspace $ws already gone -- nothing to restore"
+          fi ;;
+        shared)
+          echo "workspace $ws is shared with another run -- its labels are not this run's to restore" ;;
+        created)
+          if [ -n "$ws" ] && workspace_alive "$ws"; then
+            "$HERDR" workspace close "$ws" >/dev/null 2>&1 || true
+            if workspace_alive "$ws"; then
+              echo "FAILED to close fleet workspace $ws" >&2; failed=1
+            else
+              echo "closed fleet workspace $ws"
+            fi
+          fi ;;
+        *) ;;
+      esac
+
+      # THE CURATOR LOCK GOES WITH ITS RUN: released only when this run
+      # holds it, so tearing down one run never frees a curator another
+      # run is still waiting on. Through the owner's release, so the
+      # check and the removal happen under the takeover mutex.
+      if [ "$(holder_field run)" = "$FLEET_RUN" ]; then
+        if release_own_lock; then
+          echo "released the curator lock held by this run"
         fi
       fi
 
-      # ARCHIVE, NOT DELETE: reports are the audit trail and the curator's raw
-      # material, so a torn-down run's state is swept aside, not lost. Each of
-      # these is whichever exists -- a fleet that never spawned a worker has no
-      # workers/ to move, and that is not a failure. The next run starts with
-      # no manifest, which is also what fixes `status` accreting every worker
-      # id since the dawn of the fleet.
-      ts=$(date -u +%Y%m%dT%H%M%SZ)
-      archive_dir="$STATE/archive/$ts"
-      # A second `cleanup --all` inside the same UTC second (scripted teardown,
-      # or a test) would otherwise collide with the previous run's directory
-      # and merge into it silently -- disambiguate rather than assume runs are
-      # a second apart.
+      # ARCHIVE THE RUN WHOLE: runs/<id> moves to archive/<id>, so the
+      # archive keeps the run's name and `fleet-cost.py <id>` finds it in
+      # either place. A name already there (an operator re-created a run
+      # directory by hand) gets a -01, -02 suffix rather than merging.
+      archive_dir="$STATE/archive/$FLEET_RUN"
       if [ -e "$archive_dir" ]; then
         n=1
         while [ -e "$archive_dir-$(printf '%02d' "$n")" ]; do n=$((n + 1)); done
         archive_dir="$archive_dir-$(printf '%02d' "$n")"
       fi
-      archived=0
-      # grid and grid.next are D's state files, added after this list -- they
-      # are part of the run's state exactly like the manifest is: leaving them
-      # behind means the next run's first spawn "self-heals" a grid that was
-      # never actually desynced, and grid numbering never resets to 1.
-      for name in workers personas permissions curation-brief.md manifest.jsonl last-curation grid grid.next; do
-        if [ -e "$STATE/$name" ]; then
-          mkdir -p "$archive_dir"
-          mv "$STATE/$name" "$archive_dir/$name"
-          archived=1
-        fi
-      done
-      # *.spawn-stamp is a glob, not a fixed name -- one file per worker that
-      # ever spawned this run, sitting directly under $STATE rather than under
-      # workers/<id>/ (the stamp exists to outlive a respawn of that id).
-      for stamp in "$STATE"/*.spawn-stamp; do
-        [ -e "$stamp" ] || continue
-        mkdir -p "$archive_dir"
-        mv "$stamp" "$archive_dir/$(basename "$stamp")"
-        archived=1
-      done
-      [ "$archived" -eq 1 ] && echo "archived this run's state -> $archive_dir"
+      mkdir -p "$STATE/archive"
+      mv "$RUN_DIR" "$archive_dir"
+      # ARCHIVED NOW, WHATEVER THE RUN'S NAME SAYS. The name leads with
+      # the run's START time, which is what fleet-cost.py and the replay
+      # eval look an archive up by, but the prune below keeps the ten most
+      # RECENTLY ARCHIVED and must not read start order as archive order:
+      # a long-lived run cleaned after ten short ones would otherwise be
+      # the lexically oldest and delete itself in this same call
+      # (cezaar#23 review round 1, finding 1). mv keeps the directory's
+      # old mtime, so stamp it here.
+      touch "$archive_dir"
+      echo "archived this run's state -> $archive_dir"
+      # The legacy import leaves a `workers` symlink at the state root so a
+      # worker that was live at import time keeps writing into the run; it
+      # belongs to exactly one run and goes with it.
+      if [ -L "$STATE/workers" ] && [ "$(readlink "$STATE/workers")" = "runs/$FLEET_RUN/workers" ]; then
+        rm -f "$STATE/workers"
+        echo "removed the legacy workers symlink"
+      fi
 
-      # PRUNE TO 5: the timestamp format is fixed-width UTC, so a reverse
-      # lexical sort is a reverse chronological sort -- nothing to parse.
-      stale=$(ls -1 "$STATE/archive" 2>/dev/null | sort -r | tail -n +6)
+      # PRUNE TO THE 10 MOST RECENTLY ARCHIVED, by mtime (`ls -t`), never
+      # by name: names are start times now (see above). Pre-#23 archives
+      # keep their teardown-time names and their old mtimes, so they age
+      # out first, which is the order they were always in. The archive
+      # just written is exempt outright as well, so a tie in mtime
+      # resolution can never select it.
+      stale=$(ls -1t "$STATE/archive" 2>/dev/null | tail -n +11 \
+              | grep -v -x -F "$(basename "$archive_dir")" || true)
       if [ -n "$stale" ]; then
         printf '%s\n' "$stale" | while IFS= read -r old; do
           # `|| true`: this AND-list is the BODY of a while loop, not an if
@@ -1990,15 +2568,80 @@ $opts"
     exit "$failed"
     ;;
 
+  run)
+    sub="${1:-}"; [ $# -gt 0 ] && shift || true
+    [ "$sub" = "start" ] || die "run needs: start [--label <text>] [--cwd <dir>]"
+    label=""; cwd="$PWD"
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --label) [ $# -ge 2 ] || die "--label needs a value"; label="$2"; shift 2 ;;
+        --cwd)   [ $# -ge 2 ] || die "--cwd needs a path";    cwd="$2";   shift 2 ;;
+        *) die "unknown run start option: $1" ;;
+      esac
+    done
+    [ -d "$cwd" ] || die "run start: cwd is not a directory: $cwd"
+    cwd=$(CDPATH='' cd -- "$cwd" && pwd)
+    [ -n "$label" ] || label=$(basename "$cwd")
+    slug=$(slugify "$label")
+    # FLEET_RUN_CLOCK is a TEST KNOB, not part of the interface: it pins the
+    # timestamp so the same-second suffix below can be tested deterministically.
+    now="${FLEET_RUN_CLOCK:-$(date -u +%Y%m%dT%H%M%SZ)}"
+    started=$(printf '%s' "$now" | sed -E 's/^(....)(..)(..)T(..)(..)(..)Z$/\1-\2-\3T\4:\5:\6Z/')
+    id="$now-$slug"; n=1
+    while [ -e "$STATE/runs/$id" ]; do n=$((n + 1)); id="$now-$slug-$n"; done
+    token=$(mint_token)
+    team=""
+    if [ -n "${FLEET_TEAM:-}" ] && [ -f "$FLEET_TEAM" ]; then
+      team=$(CDPATH='' cd -- "$(dirname -- "$FLEET_TEAM")" && pwd)/$(basename -- "$FLEET_TEAM")
+    fi
+    RUN_DIR="$STATE/runs/$id"
+    mkdir -p "$RUN_DIR"
+    run_set "$RUN_DIR" id="$id" token="$token" label="$label" slug="$slug" \
+      started="$started" cwd="$cwd" team="$team" \
+      lead_pane="${HERDR_PANE_ID:-}" lead_tab="${HERDR_TAB_ID:-}" \
+      workspace_id= workspace_mode= label_before= tab_label_before=
+    note "started run $id (label \"$label\", cwd $cwd); put FLEET_RUN=$id on every later call"
+    echo "$id"
+    ;;
+
+  runs)
+    [ $# -eq 0 ] || die "runs takes no arguments"
+    if [ -z "$(ls -1 "$STATE/runs" 2>/dev/null)" ]; then
+      echo "no runs under $STATE/runs"; exit 0
+    fi
+    printf '%-26s %-20s %-10s %-8s %-10s %-6s %s\n' RUN LABEL WORKSPACE MODE LIVE/TOTAL LEAD STARTED
+    for d in "$STATE"/runs/*; do
+      [ -d "$d" ] || continue
+      # manifest_ids, manifest_field and worker_alive all read the global.
+      MANIFEST="$d/manifest.jsonl"
+      total=0; live=0
+      for wid in $(manifest_ids); do
+        total=$((total + 1))
+        if worker_alive "$wid"; then live=$((live + 1)); fi
+      done
+      lead_pane=$(run_field "$d" lead_pane)
+      if [ -z "$lead_pane" ]; then
+        lead="-"
+      elif "$HERDR" pane get "$lead_pane" >/dev/null 2>&1; then
+        lead="alive"
+      else
+        lead="gone"
+      fi
+      r_ws=$(run_field "$d" workspace_id); r_mode=$(run_field "$d" workspace_mode)
+      printf '%-26s %-20s %-10s %-8s %-10s %-6s %s\n' "$(basename "$d")" "$(run_field "$d" label)" \
+        "${r_ws:--}" "${r_mode:--}" "$live/$total" "$lead" "$(run_field "$d" started)"
+    done
+    ;;
+
   ""|-h|--help|help)
-    # 58 is the last line of await's exit-code table, NOT of the Usage
+    # 69 is the last line of await's exit-code table, NOT of the Usage
     # block above (which runs well past it, through cleanup) -- --help has
     # deliberately printed only through that table since before cezaar#41,
     # and this range still needs widening if a line is added ahead of it,
     # same trap cezaar#41 hit once, cezaar#43 hit again, and the `effort`
     # verb's usage block (8 lines) hit a third time. The truncation past
-    # line 58 is a separate, known gap (out of scope here).
-    sed -n '2,58p' "$0" | sed 's/^# \{0,1\}//'
+    # line 69 is a separate, known gap (out of scope here).
+    sed -n '2,69p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 
   *)

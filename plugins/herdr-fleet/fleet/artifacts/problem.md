@@ -1,8 +1,7 @@
 ---
 name: problem
 description: The raw ask — an issue, text, or file, and who raised it. Read by whoever turns it into a problem-statement.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Source

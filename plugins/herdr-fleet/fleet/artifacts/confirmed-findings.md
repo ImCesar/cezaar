@@ -1,8 +1,7 @@
 ---
 name: confirmed-findings
 description: The judge's ruling on each blocking finding — upheld, downgraded to a note, or refuted — citing the bar clause and the code it read. Read by whoever owns the fix.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Rulings

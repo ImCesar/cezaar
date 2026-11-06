@@ -158,7 +158,7 @@ an `architecture`; for small, clear work, use `invoke-agent builder` with a
    task. Anything that writes files gets **its own git worktree** — parallel
    writers never share a tree. Concurrency is capped at five workers unless you
    raise it. Each worker gets a brief as a file and must end by writing
-   `.herdr-fleet/<id>/report.md`; that report, not the pane's state, is the
+   `.herdr-fleet/runs/<run>/workers/<id>/report.md`; that report, not the pane's state, is the
    completion signal, because a worker that stopped to ask a question settles
    exactly like one that finished.
 3. **Validate.** The context that wrote a change never certifies it. A reviewer

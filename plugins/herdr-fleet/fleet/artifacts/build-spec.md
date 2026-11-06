@@ -1,8 +1,7 @@
 ---
 name: build-spec
 description: One part's files, interfaces, behaviour, and tests, with nothing left for the builder to decide. Read by a builder and the reviewer checking its work.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 A build-spec leaves nothing for the builder to decide — every choice below

@@ -168,33 +168,77 @@ the templates you just read, and ask for whatever is missing. For a team whose
 job starts from a raw problem (the solution-design team), drawing the problem
 out through conversation is part of the job, not a gap to report.
 
-## 6. The team is in effect for everything you run: `FLEET_TEAM`
+## 6. Start the run: `run start`
 
-Every call to the wrapper carries the team file's absolute path:
+Every invocation is its own run (cezaar#23): a directory of state under
+`<home>/.herdr-fleet/runs/<id>/` holding this run's manifest, grid, briefs,
+reports and intermediate artifacts, and nothing of any other run's. Mint it
+once, before preflight:
 
 ```sh
-FLEET_TEAM="<home>/teams/<team>.md" sh "<home>/scripts/herdr-fleet.sh" <verb> ...
+FLEET_TEAM="<home>/teams/<team>.md" sh "<home>/scripts/herdr-fleet.sh" \
+  run start --label "<work>" --cwd <repo-the-work-concerns>
 ```
 
-Put it on every call, not once: shell state does not survive between your
-commands. `spawn` records it in the worker's manifest row and in its launch
-settings, which is how a worker's own `tell` reads this team's `peers:`. A
-worker never inherits it from your shell, because a pane is a child of the
-herdr server. Without it, `tell` refuses: there is no default team.
+`--label` is the work's own name (the issue title, the work item); it becomes
+the workspace label and the run id's slug. With nothing better, leave it out:
+`run start` defaults to the repository's basename. `--cwd` is the repository
+the work concerns. The id, `<UTC-ts>-<slug>`, is printed alone on stdout.
 
-## 7. Preflight before spawning anything
+**Say the id to the operator as soon as it prints**: every later command needs
+it, and the operator may need to type it. Shell state does not survive
+between your commands, so write the id into every later command rather than
+relying on a variable. Below, `<id>` means that id.
+
+A fleet home still holding state from before per-run state is imported the
+first time the wrapper runs: it becomes a run named `<ts>-legacy`, and a note
+on stderr names it and what moved. That is someone's earlier run, not this
+one; `FLEET_RUN=<that id>` continues it. Relay the note, and carry on with
+the id `run start` printed.
+
+## 7. The run and the team are in effect: `FLEET_RUN` and `FLEET_TEAM`
+
+Every call to the wrapper carries the run id and the team file's absolute
+path:
 
 ```sh
-FLEET_TEAM="<home>/teams/<team>.md" sh "<home>/scripts/herdr-fleet.sh" preflight
+FLEET_TEAM="<home>/teams/<team>.md" \
+  FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" <verb> ...
+```
+
+Put both on every call, not once: shell state does not survive between your
+commands. `spawn` records both in the worker's manifest row and launch
+settings, which is how a worker's own `tell` and `status` land in this run
+and how `tell` reads this team's `peers:`. A worker never inherits them from
+your shell, because a pane is a child of the herdr server. Without
+`FLEET_TEAM`, `tell` refuses: there is no default team. Without `FLEET_RUN`
+every verb but `preflight`, `run start`, `runs` and `status --all-runs`
+refuses, listing the live runs: there is no default run and no pointer file,
+because a pointer is how two concurrent runs ended up in one workspace.
+
+## 8. Preflight before spawning anything
+
+```sh
+FLEET_TEAM="<home>/teams/<team>.md" \
+  FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" preflight
 ```
 
 If the herdr socket is unreachable there is no fleet, and every later step
 fails in a way that is harder to read than this one. Report what it says.
+It prints `run in effect: <id>`: that line is the check that the id was
+carried. If it says `no run in effect` instead, the id was dropped.
 
 `sh "<home>/scripts/herdr-fleet.sh" --help` is the source of truth for the
 wrapper's verbs, flags and exit codes. The lead persona says how to use them.
+`runs` and `status --all-runs` are how the operator sees every run, this one
+and any other; they need no `FLEET_RUN`.
 
-## 8. Close
+The first `spawn` renames the workspace the session is in to the run's label
+and the session's own tab to `orchestrator`, and `cleanup --all` restores
+both. If another run already owns that workspace, this run shares it and
+renames nothing.
+
+## 9. Close
 
 **A clean close** is the lead writing the team's `produces` artifact and
 reporting it. Write it to the path its template's `written_to` gives,
@@ -202,12 +246,28 @@ resolved from `<home>`, unless the operator named another location when
 invoking the team. Report that path. Then run curation:
 
 ```sh
-FLEET_TEAM="<home>/teams/<team>.md" sh "<home>/scripts/herdr-fleet.sh" curate
+FLEET_TEAM="<home>/teams/<team>.md" \
+  FLEET_RUN=<id> sh "<home>/scripts/herdr-fleet.sh" curate
 ```
 
 It spawns the curator (a system persona, never a team member) on the logs of
 this run's workers. Wait for its report with `await curator` and relay it
 briefly.
+
+`curate` takes a fleet-wide lock first. If it refuses with `a curator is
+running for run <other>`, another run's curator is still writing the
+indexes; wait for that one (the message names its agent), then run `curate`
+again. `a curator for run <other> is still starting` means the same: that
+curate is inside its spawn; wait, then try again. If the run the message
+names is dead (its panes are gone and nobody will close it), the message
+gives the way out: `FLEET_RUN=<other> ... cleanup --all` archives that run
+and releases its lock. That is cleaning up someone else's run, so it is the
+operator's call; say so and ask. A lock whose curator has finished or whose
+agent is gone is cleared by the next `curate` on its own.
+
+Its brief names this run's workers and every other persona's log touched
+since the last curation anywhere, so a worker another skill spawned is
+covered the next time any run curates.
 
 **After an abort, do not curate.** An abort is any run that ends without that
 artifact: the operator stopped it, or it was abandoned part-way. Curating a
@@ -215,4 +275,6 @@ half-finished run would promote lessons from work nobody finished. Say that
 you did not curate, and why.
 
 **Never run `cleanup` on your own**, on either path. The panes stay up until
-the operator says to clean up.
+the operator says to clean up. When the operator does ask for cleanup, it is
+`FLEET_RUN=<id> ... cleanup --all`; it archives this run only and restores
+the workspace and tab labels it changed.

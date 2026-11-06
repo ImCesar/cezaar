@@ -1,8 +1,7 @@
 ---
 name: command-spec
 description: The exact commands to run, the working directory, and what to capture. Read by the runner executing them.
-# When #23 adds per-run state, this moves under the run directory.
-written_to: .herdr-fleet/artifacts/{type}/{id}.md
+written_to: .herdr-fleet/runs/{run}/artifacts/{type}/{id}.md
 ---
 
 ## Commands
