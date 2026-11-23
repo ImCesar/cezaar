@@ -121,7 +121,7 @@ t_thread_open_creates_everything() {
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
   [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['builder-t1', 'cesar', 'reviewer-t1']" ] \
     && case $mem_ch in *builder-t1*reviewer-t1*) true ;; *) false ;; esac \
-    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['builder-t1', 'reviewer-t1']" ] \
+    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['builder-t1']" ] \
     && [ "$tabs" = 1 ] && [ "$splits" = 1 ] && [ "$state" = open ] \
     && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs splits=$splits state=$state"
 }
@@ -235,7 +235,7 @@ t_merge_conflict_aborts() {
 t_merge_refuses_dirty_integration() {
   fresh; seed_run r1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
-  echo stray > "$REPO/.worktrees/r1/_integration/stray.txt"
+  echo edited >> "$REPO/.worktrees/r1/_integration/f.txt"
   "$FLEET" merge r1 t1 >/dev/null 2>&1; rc=$?
   [ "$rc" = 3 ] && ok merge_refuses_dirty_integration || fail merge_refuses_dirty_integration "rc=$rc"
 }
@@ -281,6 +281,7 @@ t_lead_resume_keeps_state() {
   "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
   "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   before=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
+  herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$APP_FLEET_HOME/runs/p1/run.json")" --confirmed true >/dev/null 2>&1
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   after=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
   [ "$rc" = 0 ] && [ "$before" = "['t1']" ] && [ "$after" = "$before" ] && grep -q "resuming" "$STUB_LOG" \
@@ -320,7 +321,7 @@ t_compose_grants_run_dir() {
   settings=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
   rd=$(cd "$APP_FLEET_HOME/runs/r1" && pwd -P)
   got=$(jq_py "(d['permissions'].get('additionalDirectories'), [a for a in d['permissions']['allow'] if a.startswith('Edit(')])" < "$settings")
-  case $got in *"$rd"*"Edit($rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
+  case $got in *"$rd"*"Edit(/$rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
 }
 
 t_thread_open_accepts_brief_already_in_run() {
@@ -348,6 +349,142 @@ t_cleanup_deletes_branches_merged_into_integration() {
   "$FLEET" cleanup r1 >/dev/null 2>&1; rc=$?
   [ "$rc" = 0 ] && [ -z "$(git -C "$REPO" branch --list fleet/r1/t1)" ] && [ -n "$(git -C "$REPO" branch --list fleet/r1/integration)" ] \
     && ok cleanup_deletes_branches_merged_into_integration || fail cleanup_deletes_branches_merged_into_integration "rc=$rc branches=$(git -C "$REPO" branch | tr '\n' ' ')"
+}
+
+t_parallel_opens_keep_all_threads() {
+  fresh; seed_run r1
+  for x in pa pb pc; do "$FLEET" thread open r1 $x --template build --brief "$(brief $x)" >/dev/null 2>&1 & done; wait
+  got=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/r1/run.json")
+  [ "$got" = "['pa', 'pb', 'pc']" ] && ok parallel_opens_keep_all_threads || fail parallel_opens_keep_all_threads "got $got"
+}
+
+t_close_keeps_dirty_worktree() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  echo forgotten > "$REPO/.worktrees/r1/t1/new.txt"
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ -f "$REPO/.worktrees/r1/t1/new.txt" ] && ok close_keeps_dirty_worktree || fail close_keeps_dirty_worktree "rc=$rc"
+}
+
+t_merge_refuses_dirty_thread() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  echo changed >> "$REPO/.worktrees/r1/t1/f.txt"
+  "$FLEET" merge r1 t1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] && ok merge_refuses_dirty_thread || fail merge_refuses_dirty_thread "rc=$rc"
+}
+
+t_undo_kills_spawned_members() {
+  fresh; seed_run r1; export STUB_FAIL=pane.split
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  ch=$(jq_py "[m['id'] for m in d]" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json" 2>/dev/null)
+  [ "$rc" = 4 ] && grep -q "^hc kill t" "$STUB_LOG" && grep -q "do tab.close" "$STUB_LOG" && case $ch in *builder-t1*) false ;; *) true ;; esac \
+    && ok undo_kills_spawned_members || fail undo_kills_spawned_members "rc=$rc ch=$ch"
+}
+
+t_verify_twice_gets_new_name() {
+  fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
+  "$FLEET" verify r1 1 >/dev/null 2>&1; "$FLEET" verify r1 1 >/dev/null 2>&1; rc=$?
+  got=$(jq_py "sorted(t for t in d['threads'] if t.startswith('verify'))" < "$APP_FLEET_HOME/runs/r1/run.json")
+  [ "$rc" = 0 ] && [ "$got" = "['verify-w1', 'verify-w1-2']" ] && ok verify_twice_gets_new_name || fail verify_twice_gets_new_name "rc=$rc got=$got"
+}
+
+t_reserved_names_refused() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 execution --template build --brief "$(brief x)" >/dev/null 2>&1; a=$?
+  "$FLEET" thread open r1 verify-w2 --template build --brief "$(brief x)" >/dev/null 2>&1; b=$?
+  "$FLEET" thread open r1 judge-zz --template build --brief "$(brief x)" >/dev/null 2>&1; c=$?
+  "$FLEET" thread open r1 cesar --template build --brief "$(brief x)" >/dev/null 2>&1; d=$?
+  [ "$a$b$c$d" = 2222 ] && ok reserved_names_refused || fail reserved_names_refused "codes=$a$b$c$d"
+}
+
+t_brief_post_mentions_only_builder() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "d['mentions']")
+  [ "$first" = "['builder-t1']" ] && ok brief_post_mentions_only_builder || fail brief_post_mentions_only_builder "got $first"
+}
+
+t_research_answers_go_to_the_askers_thread() {
+  fresh
+  grep -q -- '--as researcher-' "$PLUGIN/roster/personas/researcher.md" && grep -q -i "asker" "$PLUGIN/roster/personas/lead.md" \
+    && ok research_answers_go_to_the_askers_thread || fail research_answers_go_to_the_askers_thread "researcher must post into the asker's thread room"
+}
+
+t_resume_with_live_lead_selects_it() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  n1=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n2=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n1" = "$n2" ] && grep -q "do tab.select" "$STUB_LOG" && ok resume_with_live_lead_selects_it || fail resume_with_live_lead_selects_it "rc=$rc $n1->$n2"
+}
+
+t_resume_after_space_closed_makes_new_space() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  sp=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
+  herdr-app do space.close --id "$sp" --confirmed true >/dev/null 2>&1
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  sp2=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
+  [ "$rc" = 0 ] && [ "$sp2" != "$sp" ] && ok resume_after_space_closed_makes_new_space || fail resume_after_space_closed_makes_new_space "rc=$rc $sp->$sp2"
+}
+
+t_cleanup_removes_worktree_merged_via_followup() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 q --template build --brief "$(brief q)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/q" "q work" q.txt
+  "$FLEET" thread close r1 q >/dev/null 2>&1
+  "$FLEET" thread open r1 q-2 --template build --brief "$(brief q-2)" --from q >/dev/null 2>&1
+  "$FLEET" merge r1 q-2 >/dev/null 2>&1 && "$FLEET" thread close r1 q-2 >/dev/null 2>&1
+  "$FLEET" cleanup r1 >/dev/null 2>&1
+  [ ! -e "$REPO/.worktrees/r1/q" ] && [ -z "$(git -C "$REPO" branch --list fleet/r1/q)" ] \
+    && ok cleanup_removes_worktree_merged_via_followup || fail cleanup_removes_worktree_merged_via_followup "q worktree or branch left"
+}
+
+t_merge_refuses_detached_integration() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 m --template build --brief "$(brief m)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/m" "m work" m.txt
+  git -C "$REPO/.worktrees/r1/_integration" checkout -q --detach
+  "$FLEET" merge r1 m >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] && ok merge_refuses_detached_integration || fail merge_refuses_detached_integration "rc=$rc"
+}
+
+t_lead_refuses_detached_repo_without_base() {
+  fresh; git -C "$REPO" checkout -q --detach
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  "$FLEET" lead p2 --repo "$REPO" --architecture "$REPO/ARCHITECTURE.md" --base main >/dev/null 2>&1; rc2=$?
+  [ "$rc" = 3 ] && [ "$rc2" = 0 ] && ok lead_refuses_detached_repo_without_base || fail lead_refuses_detached_repo_without_base "rc=$rc rc2=$rc2"
+}
+
+t_compose_settings_work_unattended() {
+  fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
+  b=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  c=$("$FLEET" _compose r1 curator-curate curator curate 2>/dev/null | jq_py "d['settings_path']")
+  r=$("$FLEET" _compose r1 runner-v runner v 2>/dev/null | jq_py "d['settings_path']")
+  mode=$(jq_py "d['permissions'].get('defaultMode')" < "$b")
+  edit=$(jq_py "[a for a in d['permissions']['allow'] if a.startswith('Edit(')][0]" < "$b")
+  mem=$(jq_py "any(p.endswith('/memory') for p in d['permissions']['additionalDirectories'])" < "$c")
+  run=$(jq_py "'Bash(make verify *)' in d['permissions']['allow']" < "$r")
+  case $edit in "Edit(//"*) e=1 ;; *) e=0 ;; esac
+  [ "$mode" = acceptEdits ] && [ "$e" = 1 ] && [ "$mem" = True ] && [ "$run" = True ] \
+    && ok compose_settings_work_unattended || fail compose_settings_work_unattended "mode=$mode edit=$edit mem=$mem run=$run"
+}
+
+t_status_shows_verify_and_teardown() {
+  fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
+  out=$("$FLEET" status r1 2>&1)
+  case $out in *"verify: make verify"*"teardown: "*) ok status_shows_verify_and_teardown ;; *) fail status_shows_verify_and_teardown "out=$out" ;; esac
+}
+
+t_merge_ignores_untracked_cache_in_integration() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 m --template build --brief "$(brief m)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/m" "m work" m.txt
+  mkdir -p "$REPO/.worktrees/r1/_integration/__pycache__"; echo x > "$REPO/.worktrees/r1/_integration/__pycache__/c.pyc"
+  "$FLEET" merge r1 m >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && ok merge_ignores_untracked_cache_in_integration || fail merge_ignores_untracked_cache_in_integration "rc=$rc"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

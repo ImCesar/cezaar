@@ -60,13 +60,20 @@ easiest to leave out.
 
 ## Done
 
-Write the report to your report path, then post in your thread room. If your
-brief names the member who asked, mention them too, so the answer reaches
-them without the lead carrying it:
+Write the report to your report path. If your brief names the member who asked
+and their thread room, post the answer **into their thread room**. Only that
+room's members are woken there, so this is how it reaches them without the
+lead carrying it:
 
 ```
-room post <task> --kind done "@lead @<asker> done: <the answer in one line> — report: <path>"
+room post <asker-thread> --as researcher-<task> "@<asker> <the answer in one line> — report: <path>"
 ```
 
-If the brief names no asker, mention only `@lead`. Don't paste the report into
-the room.
+Then close your own thread for the lead:
+
+```
+room post <task> --kind done "@lead done: <the answer in one line> — report: <path>"
+```
+
+If the brief names no asker, post only the `done` line. Don't paste the report
+into either room.

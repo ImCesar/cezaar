@@ -6,7 +6,8 @@ os.makedirs(d, exist_ok=True)
 if log:
     with open(log, "a") as fh: fh.write("herdr-app " + " ".join(sys.argv[1:]) + "\n")
 st_path = os.path.join(d, "herdr-state.json")
-st = json.load(open(st_path)) if os.path.exists(st_path) else {"n": 0, "tabs": {}}
+st = json.load(open(st_path)) if os.path.exists(st_path) else {"n": 100, "tabs": {}, "spaces": ["sp1"]}
+st.setdefault("spaces", ["sp1"])
 def save(): json.dump(st, open(st_path, "w"))
 def nid(p): st["n"] += 1; return f"{p}{st['n']}"
 def arg(name):
@@ -16,26 +17,42 @@ a = sys.argv[1:]
 if a[:1] == ["status"]:
     sys.exit(int(os.environ.get("STUB_HERDR_STATUS", "0")))
 if a[:1] == ["ls"]:
-    tabs = [{"id": t, "name": v["name"], "terminals": v["terminals"]} for t, v in st["tabs"].items()]
-    print(json.dumps({"spaces": [{"id": "sp1", "name": "stub", "tabs": tabs}]})); sys.exit(0)
+    spaces = [{"id": sp, "name": sp, "tabs": [{"id": t, "name": v["name"], "terminals": v["terminals"]}
+               for t, v in st["tabs"].items() if v.get("space", "sp1") == sp]} for sp in st["spaces"]]
+    print(json.dumps({"spaces": spaces})); sys.exit(0)
 if a[:1] == ["do"] and len(a) > 1:
     cmd = a[1]
     fail = os.environ.get("STUB_FAIL", "")
     if cmd in fail.split(","):
         print(json.dumps({"error": f"stub failure for {cmd}"})); sys.exit(1)
     if cmd == "space.new":
-        print(json.dumps({"space": nid("sp"), "tab": nid("tb"), "terminal": nid("t")})); save(); sys.exit(0)
+        sp, tab, term, pane = nid("sp"), nid("tb"), nid("t"), nid("p")
+        st["spaces"].append(sp)
+        st["tabs"][tab] = {"name": arg("tab") or "1", "space": sp, "terminals": [{"terminal": term, "pane": pane}]}
+        save(); print(json.dumps({"space": sp, "tab": tab, "terminal": term})); sys.exit(0)
     if cmd == "tab.new":
         tab, term, pane = nid("tb"), nid("t"), nid("p")
-        st["tabs"][tab] = {"name": arg("name"), "terminals": [{"terminal": term, "pane": pane}]}
-        save(); print(json.dumps({"space": arg("space") or "sp1", "tab": tab, "terminal": term})); sys.exit(0)
+        sp = arg("space") or "sp1"
+        if sp not in st["spaces"]:
+            print(json.dumps({"error": f'no space "{sp}"'})); sys.exit(1)
+        st["tabs"][tab] = {"name": arg("name"), "space": sp, "terminals": [{"terminal": term, "pane": pane}]}
+        save(); print(json.dumps({"space": sp, "tab": tab, "terminal": term})); sys.exit(0)
     if cmd == "pane.split":
         term, pane = nid("t"), nid("p")
         for v in st["tabs"].values():
             if any(x["pane"] == arg("pane") for x in v["terminals"]):
                 v["terminals"].append({"terminal": term, "pane": pane})
         save(); print(json.dumps({"pane": pane, "terminal": term})); sys.exit(0)
-    if cmd in ("tab.close", "space.close"):
+    if cmd == "space.close":
+        sid = arg("id")
+        if sid in st["spaces"]:
+            st["spaces"].remove(sid); st["tabs"] = {t: v for t, v in st["tabs"].items() if v.get("space") != sid}
+            save(); print("{}"); sys.exit(0)
+        print(json.dumps({"error": f'no space "{sid}"'})); sys.exit(1)
+    if cmd == "tab.select":
+        if arg("id") in st["tabs"]: print("{}"); sys.exit(0)
+        print(json.dumps({"error": "no tab"})); sys.exit(1)
+    if cmd == "tab.close":
         tid = arg("id")
         if tid in st["tabs"]: del st["tabs"][tid]; save(); print("{}"); sys.exit(0)
         print(json.dumps({"error": f'no tab "{tid}"'})); sys.exit(1)

@@ -7,6 +7,8 @@ Exit codes: 0 ok, 2 bad usage, 3 refused by state, 4 an external tool failed.
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import shutil
 import time
@@ -69,6 +71,19 @@ def save_run(run):
         json.dump(run, fh, indent=1)
         fh.write("\n")
     os.replace(tmp, path)
+
+
+@contextlib.contextmanager
+def run_lock(name):
+    """One state-changing fleet command per run at a time: they read, work, then save run.json."""
+    d = os.path.join(home(), "locks")
+    os.makedirs(d, exist_ok=True)
+    with open(os.path.join(d, f"{check_name('run', name)}.lock"), "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 
 
 def rooms_root(run):
@@ -214,13 +229,20 @@ def compose_member(run, member_id, persona_name, task, worktree=None, room_name=
         fh.write("\n\n".join(x.strip() for x in parts if x.strip()) + "\n")
     # Briefs and reports live in the run folder, outside the worktree: make it a working folder
     # and allow edits there, or an unattended member would stop at a permission prompt.
-    allow = ["Bash(room *)", f"Edit({d}/**)", *extra_allow]
+    # Absolute paths in permission rules take a double slash: a single one is relative to the settings file.
+    dirs = [d]
+    if persona_name == "curator":
+        dirs.append(os.path.join(home(), "memory"))
+    allow = ["Bash(room *)", *[f"Edit(/{x}/**)" for x in dirs], *extra_allow]
     if persona_name == "runner":
-        allow += [f"Bash({run[k]})" for k in ("verify", "teardown") if run.get(k)]
+        for k in ("verify", "teardown"):
+            if run.get(k):
+                allow += [f"Bash({run[k]})", f"Bash({run[k]} *)"]
     env = {"ROOM_ID": member_id, "ROOMS_ROOT": rooms_root(run), "APP_FLEET_RUN": run["run"], "APP_FLEET_HOME": home()}
     settings_path = os.path.join(members, f"{member_id}.settings.json")
     with open(settings_path, "w") as fh:
-        json.dump({"env": env, "permissions": {"allow": allow, "additionalDirectories": [d]}}, fh, indent=1)
+        json.dump({"env": env, "permissions": {"allow": allow, "additionalDirectories": dirs,
+                                               "defaultMode": "acceptEdits"}}, fh, indent=1)
     first = (f"You are {member_id}. Read your brief at {brief} and the room {room_name} "
              f"(room read {room_name}), then begin.")
     argv = ["env", *[f"{k}={v}" for k, v in env.items()], "claude", "--model", p["model"], "--effort", p["effort"],
@@ -304,18 +326,20 @@ def pane_of(tab):
     raise Refused(f"fleet: could not find the pane of tab {tab}", 4)
 
 
-def spawn_members(run, task, folder, composed):
-    """First member in a new tab named after the task, the rest split beside it."""
+def spawn_members(run, task, folder, composed, made):
+    """First member in a new tab named after the task, the rest split beside it.
+    Records the tab and each terminal in `made` as it goes, so a failure can end them."""
     first = composed[0]
     reply = herdr("tab.new", "--name", task, *(("--space", run["space"]) if run.get("space") else ()),
                   "--focus", "false", "--folder", folder, "--argv", json.dumps(first["argv"]))
-    tab, terms = reply["tab"], [reply["terminal"]]
+    made["tab"] = reply["tab"]
+    made["terminals"].append(reply["terminal"])
     clear_trust(reply["terminal"])
-    pane = pane_of(tab)
+    pane = pane_of(reply["tab"])
     for c in composed[1:]:
         r = herdr("pane.split", "--direction", "right", "--pane", pane, "--argv", json.dumps(c["argv"]))
-        terms.append(r["terminal"])
-    return tab, terms
+        made["terminals"].append(r["terminal"])
+    return made["tab"], list(made["terminals"])
 
 
 # ---------- threads ----------
@@ -327,8 +351,10 @@ def open_threads(run):
 def cmd_thread_open(a):
     run = load_run(a.run)
     task = check_name("task", a.task)
-    if task in RESERVED_TASKS:
-        raise Refused(f"fleet: {task!r} is a reserved name", 2)
+    reserved = set(RESERVED_TASKS) | {run["stage"], "rooms", operator()}
+    if (task in reserved or (task.startswith("verify-w") and a.template != "verify")
+            or (task.startswith("judge-") and a.template != "judge")):
+        raise Refused(f"fleet: {task!r} is a reserved name (stage, operator, verify-w*, judge-*)", 2)
     tpl = templates()
     if a.template not in tpl:
         raise Refused(f"fleet: unknown template {a.template!r}; known: {', '.join(tpl)}", 2)
@@ -347,10 +373,10 @@ def cmd_thread_open(a):
             raise Refused(f"fleet: a judge thread is named judge-<task> after an existing thread", 2)
         a.folder = run["threads"][disputed]["worktree"]
     require_app()
-    made = {"worktree": None, "branch": None, "room": None}
+    made = {"worktree": None, "branch": None, "room": None, "tab": None, "terminals": []}
     try:
         open_thread(run, task, a.template, a.brief, a.from_, a.wave, made, folder=a.folder)
-    except Exception:
+    except BaseException:
         undo_open(run, task, made)
         raise
     print(f"opened #{task} ({a.template}): {', '.join(run['threads'][task]['members'])}")
@@ -380,18 +406,24 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     room(run, "create", room_name, *[x for i, p in zip(ids, personas) for x in ("--member", f"{i}:{p}")],
          "--member", f"{op}:operator")
     made["room"] = os.path.join(rooms_root(run), room_name)
+    composed = [compose_member(run, i, p, task, worktree=wt, room_name=room_name) for i, p in zip(ids, personas)]
+    tab, terms = spawn_members(run, task, wt, composed, made)
+    # Join the channel only once the members exist: an undo then has nothing to take back there.
     for i, p in zip(ids, personas):
         room(run, "join", run["stage"], i, "--role", p)
-    composed = [compose_member(run, i, p, task, worktree=wt, room_name=room_name) for i, p in zip(ids, personas)]
-    tab, terms = spawn_members(run, task, wt, composed)
-    mentions = " ".join(f"@{i}" for i in ids)
-    room(run, "post", room_name, "--as", "lead", f"{mentions} brief: {os.path.join(d, 'briefs', task + '.md')}")
+    # Mention only the first member (the builder): the others read the brief from their first
+    # message, and a mention they don't answer yet would read as "gone quiet".
+    room(run, "post", room_name, "--as", "lead", f"@{ids[0]} brief: {os.path.join(d, 'briefs', task + '.md')}")
     run["threads"][task] = {"template": template, "room": room_name, "branch": branch, "worktree": wt,
                             "tab": tab, "terminals": terms, "members": ids, "state": "open", "wave": wave}
     save_run(run)
 
 
 def undo_open(run, task, made):
+    for term in made.get("terminals", []):
+        tool(["hc", "kill", term])
+    if made.get("tab"):
+        tool(["herdr-app", "do", "tab.close", "--id", made["tab"], "--confirmed", "true"])
     if made.get("worktree"):
         git(run["repo"], "worktree", "remove", "--force", made["worktree"], check=False)
     if made.get("branch"):
@@ -399,6 +431,25 @@ def undo_open(run, task, made):
     if made.get("room") and os.path.isdir(made["room"]):
         shutil.rmtree(made["room"], ignore_errors=True)
     run["threads"].pop(task, None)
+
+
+def changes(wt, untracked=True):
+    if not os.path.isdir(wt or ""):
+        return ""
+    args = ["status", "--porcelain"] + ([] if untracked else ["--untracked-files=no"])
+    return git(wt, *args, check=False).stdout.strip()
+
+
+def remove_if_done(run, t):
+    """Remove a thread's worktree only when its branch is merged and nothing in it is uncommitted."""
+    if not t.get("branch") or not os.path.isdir(t.get("worktree") or ""):
+        return ""
+    if not is_merged(run, t["branch"]):
+        return f" (worktree kept: {t['branch']} is unmerged)"
+    if changes(t["worktree"]):
+        return f" (worktree kept: uncommitted changes in {t['worktree']})"
+    git(run["repo"], "worktree", "remove", t["worktree"], check=False)
+    return ""
 
 
 def is_merged(run, branch):
@@ -419,12 +470,7 @@ def close_thread(run, task):
     room(run, "archive", t.get("room", task), check=False)
     if t.get("tab"):
         tool(["herdr-app", "do", "tab.close", "--id", t["tab"], "--confirmed", "true"])  # killing usually closes it
-    note = ""
-    if t.get("branch"):
-        if is_merged(run, t["branch"]):
-            git(run["repo"], "worktree", "remove", "--force", t["worktree"], check=False)
-        else:
-            note = f" (worktree kept: {t['branch']} is unmerged)"
+    note = remove_if_done(run, t)
     t["state"] = "closed"
     save_run(run)
     return note
@@ -441,6 +487,7 @@ def cmd_cleanup(a):
     for task in open_threads(run):
         close_thread(run, task)
     for task, t in run["threads"].items():
+        remove_if_done(run, t)  # also catches threads closed unmerged and merged later through a follow-up
         if t.get("branch") and branch_exists(run["repo"], t["branch"]) and is_merged(run, t["branch"]):
             if not os.path.isdir(t.get("worktree") or ""):
                 git(run["repo"], "branch", "-D", t["branch"], check=False)  # merged into integration, checked above
@@ -461,8 +508,18 @@ def cmd_merge(a):
     if not t or not t.get("branch"):
         raise Refused(f"fleet: no thread {a.task!r} with a branch to merge", 3)
     wt = ensure_integration(run)
-    if git(wt, "status", "--porcelain").stdout.strip():
+    if git(wt, "symbolic-ref", "-q", "HEAD", check=False).stdout.strip() != f"refs/heads/{run['integration']}":
+        raise Refused(f"fleet: the integration worktree {wt} is not on {run['integration']}; check it out first", 3)
+    # Untracked files (test caches like __pycache__) don't block a merge; edits to tracked files do.
+    if changes(wt, untracked=False):
         raise Refused(f"fleet: the integration worktree {wt} has uncommitted changes; clean it first", 3)
+    if changes(t["worktree"], untracked=False):
+        raise Refused(f"fleet: {t['worktree']} has uncommitted changes; the builder must commit before done", 3)
+    warn = []
+    if changes(t["worktree"]):
+        warn.append("untracked files in the thread worktree were not merged")
+    if git(run["repo"], "rev-list", "--count", f"{run['integration']}..{t['branch']}").stdout.strip() == "0":
+        warn.append(f"{t['branch']} adds no commits")
     r = git(wt, "merge", "--no-ff", "-m", f"fleet: merge {a.task}", t["branch"], check=False)
     if r.returncode != 0:
         conflicted = git(wt, "diff", "--name-only", "--diff-filter=U", check=False).stdout.split()
@@ -470,7 +527,7 @@ def cmd_merge(a):
         raise Refused(f"fleet: merging {t['branch']} conflicts in: {', '.join(conflicted) or '(see git)'}; "
                       f"open a fix thread with --from {a.task}", 3)
     head = git(wt, "rev-parse", "--short", "HEAD").stdout.strip()
-    print(f"merged {t['branch']} into {run['integration']} at {head}")
+    print(f"merged {t['branch']} into {run['integration']} at {head}" + (f" (warning: {'; '.join(warn)})" if warn else ""))
 
 
 VERIFY_BRIEF = """# Verify wave {wave}
@@ -492,7 +549,10 @@ def cmd_verify(a):
     run = load_run(a.run)
     if not run.get("verify"):
         raise Refused("fleet: no verify command for this run; set it with `fleet config <run> verify \"<cmd>\"`", 3)
-    task = f"verify-w{a.wave}"
+    task, n = f"verify-w{a.wave}", 1
+    while task in run["threads"]:  # verifying a wave again after fixes
+        n += 1
+        task = f"verify-w{a.wave}-{n}"
     tmp = os.path.join(run_dir(run["run"]), f".{task}.brief.md")
     with open(tmp, "w") as fh:
         fh.write(VERIFY_BRIEF.format(wave=a.wave, verify=run["verify"], teardown=run.get("teardown") or "true", task=task))
@@ -517,6 +577,17 @@ def exclude_worktrees(repo):
             fh.write(("" if not lines or _read(path).endswith("\n") else "\n") + ".worktrees/\n")
 
 
+def live_lead_tab(run):
+    """(space alive, lead tab alive) from what the Herdr window shows now."""
+    try:
+        spaces = json.loads(tool(["herdr-app", "ls"]).stdout or "{}").get("spaces", [])
+    except ValueError:
+        spaces = []
+    space = next((s for s in spaces if s.get("id") == run.get("space")), None)
+    tab_alive = bool(space) and any(t.get("id") == run.get("leadTab") for t in space.get("tabs", []))
+    return bool(space), tab_alive
+
+
 def launch_lead(run, first_message):
     c = compose_member(run, "lead", "lead", "lead", worktree=run["repo"], room_name=run["stage"],
                        extra_allow=("Bash(fleet *)", "Bash(git *)"))
@@ -537,6 +608,13 @@ def cmd_lead(a):
     if os.path.exists(path):  # resume: never reset rooms or threads
         run = load_run(name)
         require_app()
+        space_alive, tab_alive = live_lead_tab(run)
+        if tab_alive:  # never start a second lead
+            herdr("tab.select", "--id", run["leadTab"])
+            print(f"run {name}'s lead is still running: switched to its tab")
+            return
+        if not space_alive:
+            run["space"] = None
         launch_lead(run, f"You are the lead of run {name}, resuming. Run `fleet status {name}` and "
                          f"`room read {run['stage']}` first, then carry on.")
         print(f"resumed run {name}: switch to its lead tab")
@@ -550,7 +628,9 @@ def cmd_lead(a):
     if not os.path.isfile(arch):
         raise Refused(f"fleet: no architecture file at {arch}", 2)
     require_app()
-    base = a.base or git(repo, "branch", "--show-current").stdout.strip() or "main"
+    base = a.base or git(repo, "branch", "--show-current").stdout.strip()
+    if not base:
+        raise Refused(f"fleet: {repo} is on a detached HEAD; pass --base <branch>", 3)
     run = {"run": name, "repo": repo, "stage": "execution", "base": base, "integration": f"fleet/{name}/integration",
            "space": None, "leadTab": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
            "architecture": arch, "threads": {}}
@@ -561,7 +641,9 @@ def cmd_lead(a):
         room(run, "create", run["stage"], "--member", f"{operator()}:operator")
         room(run, "join", run["stage"], "lead", "--role", "lead", "--watch-all")
         launch_lead(run, f"You are the lead of run {name}. Read the architecture at {arch}, then plan the waves.")
-    except Exception:
+    except BaseException:
+        if run.get("space"):
+            tool(["herdr-app", "do", "space.close", "--id", run["space"], "--confirmed", "true"])
         shutil.rmtree(run_dir(name), ignore_errors=True)
         raise
     print(f"started run {name}: switch to the lead tab in the {name} space")
@@ -605,7 +687,9 @@ def thread_rows(run):
             except ValueError:
                 state = "?"
             members.append({"id": mid, "state": state})
-        rows.append({"task": task, "template": t.get("template"), "state": t.get("state"), "members": members})
+        log = os.path.join(rooms_root(run), t.get("room", task), "log.jsonl")
+        msgs = sum(1 for line in _read(log).splitlines() if line.strip())
+        rows.append({"task": task, "template": t.get("template"), "state": t.get("state"), "members": members, "messages": msgs})
     return rows
 
 
@@ -617,11 +701,12 @@ def cmd_status(a):
         print()
         return
     print(f"run {run['run']}  repo {run['repo']}  integration {run['integration']}  max {run['maxThreads']} threads")
+    print(f"  verify: {run.get('verify') or '(not set)'}  teardown: {run.get('teardown') or '(not set)'}")
     if not rows:
         print("  no threads yet")
     for r in rows:
         people = ", ".join(f"{m['id']} {m['state']}" for m in r["members"])
-        print(f"  #{r['task']:<20} {r['template']:<9} {r['state']:<7} {people}")
+        print(f"  #{r['task']:<20} {r['template']:<9} {r['state']:<7} {r['messages']:>3} msgs  {people}")
 
 
 # ---------- entry ----------
@@ -634,7 +719,7 @@ def parser():
     c.add_argument("run")
     c.add_argument("key")
     c.add_argument("value")
-    c.set_defaults(fn=cmd_config)
+    c.set_defaults(fn=cmd_config, locks=True)
 
     s = sub.add_parser("status", help="threads, members and their states")
     s.add_argument("run")
@@ -662,26 +747,26 @@ def parser():
     to.add_argument("--brief", required=True)
     to.add_argument("--from", dest="from_", metavar="task")
     to.add_argument("--wave", type=int)
-    to.set_defaults(fn=cmd_thread_open, folder=None)
+    to.set_defaults(fn=cmd_thread_open, folder=None, locks=True)
     tc = ths.add_parser("close", help="archive the room, end its terminals, remove a merged worktree")
     tc.add_argument("run")
     tc.add_argument("task")
-    tc.set_defaults(fn=cmd_thread_close)
+    tc.set_defaults(fn=cmd_thread_close, locks=True)
 
     cl = sub.add_parser("cleanup", help="close every thread; --all also removes the integration worktree and space")
     cl.add_argument("run")
     cl.add_argument("--all", action="store_true")
-    cl.set_defaults(fn=cmd_cleanup)
+    cl.set_defaults(fn=cmd_cleanup, locks=True)
 
     mg = sub.add_parser("merge", help="merge a thread's branch into the run's integration branch")
     mg.add_argument("run")
     mg.add_argument("task")
-    mg.set_defaults(fn=cmd_merge)
+    mg.set_defaults(fn=cmd_merge, locks=True)
 
     vf = sub.add_parser("verify", help="open a verify thread for a wave on the integration worktree")
     vf.add_argument("run")
     vf.add_argument("wave", type=int)
-    vf.set_defaults(fn=cmd_verify)
+    vf.set_defaults(fn=cmd_verify, locks=True)
 
     ld = sub.add_parser("lead", help="start a run and its lead (or resume an existing run's lead)")
     ld.add_argument("run")
@@ -690,7 +775,7 @@ def parser():
     ld.add_argument("--base")
     ld.add_argument("--verify")
     ld.add_argument("--teardown")
-    ld.set_defaults(fn=cmd_lead)
+    ld.set_defaults(fn=cmd_lead, locks=True)
 
     ins = sub.add_parser("install", help="put fleet on PATH (~/.local/bin)")
     ins.set_defaults(fn=cmd_install)
@@ -700,7 +785,11 @@ def parser():
 def main(argv):
     a = parser().parse_args(argv)
     try:
-        a.fn(a)
+        if getattr(a, "locks", False):
+            with run_lock(a.run):
+                a.fn(a)
+        else:
+            a.fn(a)
     except Refused as e:
         print(str(e), file=sys.stderr)
         return e.code

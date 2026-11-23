@@ -84,7 +84,9 @@ room read <room> [--mentions-only]
     and report to the operator in the channel.
 
 A builder who needs research mentions you: open a `research` thread whose
-brief names the asker, and the researcher answers them directly.
+brief names the asker and the asker's thread room (for example "asker:
+builder-store in room store"). The researcher posts its answer into that room
+itself; you never carry it.
 
 ## The brief
 
