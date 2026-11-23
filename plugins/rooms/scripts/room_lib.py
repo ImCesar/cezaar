@@ -21,6 +21,8 @@ MAX_TEXT = 4096
 KINDS = ("msg", "done", "system", "pause")
 MENTION = re.compile(r"@([a-z0-9][a-z0-9_-]*)")
 ROOM_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
+SYSTEM_ID = "rooms"  # the sender of the mod's own reports; no member may take it
+REGISTER_EVERY_S = 600
 
 
 class Refused(Exception):
@@ -95,8 +97,18 @@ def read_json(path, default):
 
 
 def register_root(root):
+    """Record a root for the panel. Skipped when it was recorded recently: heartbeats call this."""
     cfg = config_dir()
     path = os.path.join(cfg, "roots.json")
+    for r in read_json(path, []):
+        if isinstance(r, dict) and r.get("path") == root:
+            try:
+                last = datetime.datetime.strptime(r.get("lastUsed", ""), "%Y-%m-%dT%H:%M:%S.%fZ")
+                age = datetime.datetime.utcnow() - last
+                if age.total_seconds() < REGISTER_EVERY_S:
+                    return
+            except ValueError:
+                pass
     with locked(os.path.join(cfg, ".lock")):
         roots = [r for r in read_json(path, []) if isinstance(r, dict) and r.get("path") != root
                  and isinstance(r.get("path"), str) and os.path.isdir(r["path"])]
@@ -155,9 +167,15 @@ def cmd_create(a, root):
     print(d)
 
 
-def upsert_member(members, mid, role, watch_all):
+def check_member_id(mid):
     if not MENTION.fullmatch("@" + mid):
-        raise Refused(f"room: bad member id {mid!r}")
+        raise Refused(f"room: bad member id {mid!r} (use a-z 0-9 _ -)")
+
+
+def upsert_member(members, mid, role, watch_all):
+    check_member_id(mid)
+    if mid == SYSTEM_ID:
+        raise Refused(f"room: {SYSTEM_ID!r} is reserved for the rooms mod's own reports")
     for m in members:
         if m.get("id") == mid:
             if role:
@@ -255,6 +273,7 @@ DEFAULT_CONFIG = {"operator": "cesar", "quietMinutes": 10}
 
 
 def cmd_presence(a, root):
+    check_member_id(a.id)
     d = room_dir(root, a.room)
     pdir = os.path.join(d, "presence")
     os.makedirs(pdir, exist_ok=True)
@@ -270,6 +289,7 @@ def cmd_presence(a, root):
 
 
 def cmd_presence_get(a, root):
+    check_member_id(a.id)
     d = room_dir(root, a.room)
     json.dump(read_json(os.path.join(d, "presence", f"{a.id}.json"), {}), sys.stdout)
     print()

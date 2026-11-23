@@ -28,6 +28,7 @@ type RoomState = {
   mtimeMs: number
   membersMtime: number
   members: Member[]
+  archived: boolean
   cursor?: string
   msgs: Msg[] // everything read so far, for the silence check
 }
@@ -51,6 +52,7 @@ type State = {
   graceUntil: number
   flagged: Map<string, { at: number; reason: QuietReason }> // key: room/id
   startedIso: string
+  refreshing?: Promise<boolean>
 }
 
 let st: State | undefined
@@ -105,13 +107,14 @@ async function refresh(s: State, $: EngineInterface): Promise<boolean> {
       let r = s.rooms.get(ent.name)
       if (!r || ms.mtimeMs !== r.membersMtime) {
         const members = await readMembers($, dir)
-        if (!r) r = { offset: 0, mtimeMs: -1, membersMtime: ms.mtimeMs, members, msgs: [] }
+        if (!r) r = { offset: 0, mtimeMs: -1, membersMtime: ms.mtimeMs, members, msgs: [], archived: false }
         r.members = members
         r.membersMtime = ms.mtimeMs
         s.rooms.set(ent.name, r)
       }
       if (r.members.find(m => m.id === s.id)?.watchAll) s.watchAll = true
-      names.push(ent.name)
+      r.archived = await $.fs.stat(`${dir}/archived`).then(() => true, () => false)
+      if (!r.archived) names.push(ent.name)
     } catch {
       continue
     }
@@ -171,8 +174,19 @@ async function readNewLines($: EngineInterface, path: string, r: RoomState, size
   return off
 }
 
+/** Two timers refresh; only one read of the rooms runs at a time, the other shares it. */
+function refreshOnce(s: State, $: EngineInterface): Promise<boolean> {
+  if (!s.refreshing) {
+    s.refreshing = refresh(s, $).finally(() => {
+      s.refreshing = undefined
+    })
+  }
+  return s.refreshing
+}
+
+/** An open room this session listens in: archived rooms are closed to delivery and checks. */
 function isMember(s: State, r: RoomState) {
-  return s.watchAll || r.members.some(m => m.id === s.id)
+  return !r.archived && (s.watchAll || r.members.some(m => m.id === s.id))
 }
 
 /** Hand new mentions to the model as one prompt; advance cursors only once it is accepted. */
@@ -195,23 +209,26 @@ async function deliver(s: State, $: EngineInterface) {
   void $.prompt
     .submit({ text: formatBatch(batch) })
     .then(async res => {
-      s.inflight = false
       if (res && typeof res === 'object' && 'drop' in res) {
+        s.inflight = false
         s.blocked = true
         if (!s.pausePosted) {
-          s.pausePosted = true
           const where = [...newest.keys()][0] ?? ''
-          await room(s, $, ['post', where, '--as', s.id, '--kind', 'pause',
+          const posted = await room(s, $, ['post', where, '--as', s.id, '--kind', 'pause',
             `@${s.operator} ${s.id} is paused (stopped with Esc); type anything in its pane to resume`])
+          // Only a notice that landed counts: otherwise the next refusal tries again.
+          s.pausePosted = posted?.exitCode === 0
         }
         return
       }
       s.pausePosted = false
+      // Move every cursor before anything else awaits, so no tick can deliver these again.
       for (const [name, id] of newest) {
         const r = s.rooms.get(name)
         if (r) r.cursor = id
-        await room(s, $, ['presence', name, s.id, s.turn, '--delivered', id])
       }
+      s.inflight = false
+      for (const [name, id] of newest) await room(s, $, ['presence', name, s.id, s.turn, '--delivered', id])
     })
     .catch(() => {
       s.inflight = false
@@ -220,7 +237,7 @@ async function deliver(s: State, $: EngineInterface) {
 
 async function heartbeat(s: State, $: EngineInterface) {
   for (const [name, r] of s.rooms) {
-    if (!r.members.some(m => m.id === s.id)) continue
+    if (r.archived || !r.members.some(m => m.id === s.id)) continue
     await room(s, $, ['presence', name, s.id, s.turn])
   }
 }
@@ -238,6 +255,7 @@ async function readPresence($: EngineInterface, dir: string, id: string): Promis
 async function silenceCheck(s: State, $: EngineInterface, now: number) {
   if (!s.watchAll || now < s.graceUntil) return
   for (const [name, r] of s.rooms) {
+    if (r.archived) continue
     const dir = `${s.root}/${name}`
     const judged = r.members.filter(m => m.id !== s.id && !m.watchAll && m.id !== s.operator)
     const presences: Record<string, Presence> = {}
@@ -331,13 +349,13 @@ export const register: Register = on => {
         s.graceUntil = sleptRecently(s.lastTick ?? now, now, CHECK_MS, s.graceUntil).graceUntil
         s.lastTick = now
       })
-      void refresh(s, $).then(ok => (ok ? deliver(s, $) : undefined))
+      void refreshOnce(s, $).then(ok => (ok ? deliver(s, $) : undefined))
     })
     $.clock.every(SILENCE_MS, () => {
       void $.clock.now().then(async now => {
         s.graceUntil = sleptRecently(s.lastSilenceTick ?? now, now, SILENCE_MS, s.graceUntil).graceUntil
         s.lastSilenceTick = now
-        await refresh(s, $)
+        await refreshOnce(s, $)
         await silenceCheck(s, $, now)
       })
     })

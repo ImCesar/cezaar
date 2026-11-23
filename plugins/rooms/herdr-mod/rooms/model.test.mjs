@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms } from './model.js'
+import { createSaver, groupByRoot, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -64,4 +64,44 @@ test('parseTail drops the partial first line of a tail read', () => {
   const out = parseTail(tail)
   assert.deepEqual(out.msgs.map(x => x.id), ['5'])
   assert.equal(out.bad, 0)
+})
+
+test('groupByRoot keeps same-named rooms from two runs apart, labelled by run', () => {
+  const rows = [
+    { room: 'kernel', root: '/x/runs/20261122-ravo/rooms', needsYou: 1 },
+    { room: 'kernel', root: '/x/runs/20261123-pog/rooms', needsYou: 0 },
+    { room: 'store', root: '/x/runs/20261122-ravo/rooms', needsYou: 0 },
+  ]
+  const groups = groupByRoot(rows)
+  assert.deepEqual(groups.map(g => [g.label, g.rooms.map(r => r.room)]), [
+    ['20261122-ravo/rooms', ['kernel', 'store']],
+    ['20261123-pog/rooms', ['kernel']],
+  ])
+})
+
+test("toNotify: a new room's first mention is notified; history from before the panel started is not", () => {
+  const started = '2026-11-23T05:00:05.000000Z'
+  const msgs = [m('1', 'a', '@cesar old', ['cesar']), m('7', 'a', '@cesar new', ['cesar']), m('8', 'b', '@cesar newer', ['cesar'])]
+  assert.deepEqual(toNotify(undefined, msgs, 'cesar', started).map(x => x.id), ['7', '8'])
+  assert.deepEqual(toNotify('7', msgs, 'cesar', started).map(x => x.id), ['8'])
+})
+
+test('createSaver runs one write at a time and lands the latest state', async () => {
+  let disk = null
+  let writes = 0
+  let inFlight = 0
+  const write = async (text, expected) => {
+    inFlight++
+    assert.equal(inFlight, 1, 'two writes overlapped')
+    await new Promise(r => setTimeout(r, 5))
+    if (expected !== disk) { inFlight--; throw new Error('stale') }
+    disk = text
+    writes++
+    inFlight--
+  }
+  const save = createSaver(write, async () => disk, null)
+  save('a'); save('b'); save('c')
+  await new Promise(r => setTimeout(r, 60))
+  assert.equal(disk, 'c')
+  assert.ok(writes <= 2, `writes=${writes}`)
 })

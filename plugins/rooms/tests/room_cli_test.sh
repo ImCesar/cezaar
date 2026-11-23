@@ -182,5 +182,32 @@ t_install_refuses_regular_file() {
   [ "$rc" != 0 ] && [ "$kept" = mine ] && ok install_refuses_regular_file || fail install_refuses_regular_file "rc=$rc kept=$kept"
 }
 
+t_registry_not_rewritten_each_call() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  first=$(jq_py "d[0]['lastUsed']" < "$ROOMS_CONFIG_DIR/roots.json" 2>/dev/null)
+  "$ROOM" presence r a idle >/dev/null 2>&1
+  "$ROOM" post r --as a "hi" >/dev/null 2>&1
+  second=$(jq_py "d[0]['lastUsed']" < "$ROOMS_CONFIG_DIR/roots.json" 2>/dev/null)
+  [ -n "$first" ] && [ "$first" = "$second" ] && ok registry_not_rewritten_each_call || fail registry_not_rewritten_each_call "first=$first second=$second"
+}
+
+t_presence_rejects_bad_id() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  "$ROOM" presence r ../../escape idle >/dev/null 2>&1; rc=$?
+  "$ROOM" presence-get r ../../escape >/dev/null 2>&1; grc=$?
+  [ "$rc" = 2 ] && [ "$grc" = 2 ] && [ ! -e "$ROOMS_ROOT/escape.json" ] && ok presence_rejects_bad_id || fail presence_rejects_bad_id "rc=$rc grc=$grc"
+}
+
+t_rooms_id_reserved() {
+  fresh
+  "$ROOM" create r --member rooms:x >/dev/null 2>&1; crc=$?
+  "$ROOM" create r2 >/dev/null 2>&1
+  "$ROOM" join r2 rooms >/dev/null 2>&1; jrc=$?
+  "$ROOM" post r2 --as rooms --kind system "@lead note" >/dev/null 2>&1; prc=$?
+  [ "$crc" = 2 ] && [ "$jrc" = 2 ] && [ "$prc" = 0 ] && ok rooms_id_reserved || fail rooms_id_reserved "create=$crc join=$jrc post=$prc"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]

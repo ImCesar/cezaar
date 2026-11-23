@@ -3,7 +3,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
 import { exec, home, notify, readTextFile, setBadge, theme, watchFolder, writeTextFile } from "herdr";
-import { liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms } from "./model.js";
+import { createSaver, groupByRoot, liveRoots, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
@@ -44,7 +44,9 @@ export default class Rooms extends View {
     this.config = { operator: "cesar", cli: null };
     this.rooms = []; // [{ key, root, name, msgs, members, presences, archived, summary }]
     this.state = { lastRead: {}, lastNotified: {} };
-    this.savedText = null;
+    // Message ids and times carry microseconds; match that so "after start" compares cleanly.
+    this.startedIso = new Date().toISOString().replace("Z", "000Z");
+    this.saver = null;
     this.selected = null;
     this.showArchived = false;
     this.note = null;
@@ -53,8 +55,14 @@ export default class Rooms extends View {
     this.draft.set_auto_grow(2, 8);
     this.draft.on("submit", (_e, cx) => this.post(cx));
     cx.spawn(async (cx) => {
-      this.savedText = await readTextFile(`${CONFIG_DIR()}/panel-state.json`).catch(() => null);
-      try { if (this.savedText) this.state = { ...this.state, ...JSON.parse(this.savedText) }; } catch { /* start fresh */ }
+      const path = `${CONFIG_DIR()}/panel-state.json`;
+      const savedText = await readTextFile(path).catch(() => null);
+      try { if (savedText) this.state = { ...this.state, ...JSON.parse(savedText) }; } catch { /* start fresh */ }
+      this.saver = createSaver(
+        (text, expected) => writeTextFile(path, text, expected ?? null),
+        () => readTextFile(path).catch(() => null),
+        savedText,
+      );
       this.requestReload(cx);
     });
     cx.timer.every(10000, (cx) => this.requestReload(cx));
@@ -128,24 +136,18 @@ export default class Rooms extends View {
 
   alert() {
     let total = 0;
+    let changed = false;
     for (const r of this.rooms) {
       if (r.archived) continue;
       total += r.summary.needsYou;
-      const fresh = newOperatorMentions(this.state.lastNotified[r.key], r.msgs, this.config.operator);
-      if (fresh.length) {
-        const last = fresh[fresh.length - 1];
-        // The first sighting of a room only sets the mark: no burst for history.
-        if (this.state.lastNotified[r.key] !== undefined) {
-          notify({ title: `#${r.name} · ${last.from}`, body: last.text, level: last.kind === "pause" || last.kind === "system" ? "warning" : "info" });
-        }
-        this.state.lastNotified[r.key] = last.id;
-        this.save();
-      } else if (this.state.lastNotified[r.key] === undefined) {
-        this.state.lastNotified[r.key] = r.msgs.length ? r.msgs[r.msgs.length - 1].id : "";
-        this.save();
+      for (const m of toNotify(this.state.lastNotified[r.key], r.msgs, this.config.operator, this.startedIso)) {
+        notify({ title: `#${r.name} · ${m.from}`, body: m.text, level: m.kind === "pause" || m.kind === "system" ? "warning" : "info" });
       }
+      const newest = r.msgs.length ? r.msgs[r.msgs.length - 1].id : "";
+      if (this.state.lastNotified[r.key] !== newest) { this.state.lastNotified[r.key] = newest; changed = true; }
     }
     setBadge(total > 0 ? String(total) : null);
+    if (changed) this.save();
   }
 
   markRead(key) {
@@ -158,16 +160,9 @@ export default class Rooms extends View {
     this.save();
   }
 
-  // writeTextFile replaces a file only when handed its current text, so keep what was last written.
+  // One write at a time (writeTextFile is compare-and-swap); later states fold into one more write.
   save() {
-    const path = `${CONFIG_DIR()}/panel-state.json`;
-    const text = JSON.stringify(this.state);
-    writeTextFile(path, text, this.savedText ?? null)
-      .then(() => { this.savedText = text; })
-      .catch(async () => {
-        this.savedText = await readTextFile(path).catch(() => null);
-        await writeTextFile(path, text, this.savedText ?? null).then(() => { this.savedText = text; }).catch(() => {});
-      });
+    if (this.saver) this.saver(JSON.stringify(this.state));
   }
 
   pick(key, cx) {
@@ -240,9 +235,12 @@ export default class Rooms extends View {
         .child(div().id("rooms-archived").text_size(11).text_color(t.muted).cursor_pointer()
           .on_click((_e, cx) => { this.showArchived = !this.showArchived; cx.notify(); })
           .child(this.showArchived ? "hide archived" : "show archived")))
-      .child(div().h(Math.min(220, 12 + visible.length * 30)).min_h(42).flex_none().relative().border_b(1).border_color(t.border)
+      .child(div().h(Math.min(260, 12 + visible.length * 30 + groupByRoot(visible).length * 22)).min_h(42).flex_none().relative().border_b(1).border_color(t.border)
         .child(v_flex().id("rooms-list").absolute().inset_0().overflow_y_scroll().p(6)
-          .children(visible.map((r) => this.roomRow(r, t)))
+          .children(groupByRoot(visible).flatMap((g) => [
+            div().h(22).flex_none().px(10).pt(4).text_size(10).text_color(t.dim).truncate().child(g.label),
+            ...g.rooms.map((r) => this.roomRow(r, t)),
+          ]))
           .when(visible.length === 0, (e) => e.child(div().p(8).text_color(t.dim).child("No rooms yet. Agents create them with `room create`."))))
         .child(Scrollbar.vertical("rooms-list").absolute().inset_0()))
       .when(Boolean(current), (e) => e

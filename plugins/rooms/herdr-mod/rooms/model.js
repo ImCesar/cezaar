@@ -75,3 +75,59 @@ export function shouldReload(paths, root) {
   if (!Array.isArray(paths) || paths.length === 0) return true
   return paths.some(p => p === root || !String(p).includes('/presence/'))
 }
+
+/** Rooms grouped by the root (run) they live in, labelled by the root's last two path parts. */
+export function groupByRoot(rows) {
+  const groups = new Map()
+  for (const r of rows) {
+    if (!groups.has(r.root)) {
+      const label = String(r.root).split('/').filter(Boolean).slice(-2).join('/')
+      groups.set(r.root, { root: r.root, label, rooms: [] })
+    }
+    groups.get(r.root).rooms.push(r)
+  }
+  return [...groups.values()]
+}
+
+/**
+ * Mentions of the operator to notify about. With a mark, everything after it; on a room's
+ * first sighting, only what was posted after the panel started (history stays quiet).
+ */
+export function toNotify(mark, msgs, operator, startedIso) {
+  if (mark !== undefined) return newOperatorMentions(mark, msgs, operator)
+  return newOperatorMentions(undefined, msgs, operator).filter(m => String(m.ts) >= startedIso)
+}
+
+/**
+ * A compare-and-swap file saver: one write in flight, later states fold into one more write.
+ * `write(text, expected)` must reject when the file no longer holds `expected`.
+ */
+export function createSaver(write, read, initial) {
+  let saved = initial
+  let pending
+  let running = false
+  async function drain() {
+    running = true
+    while (pending !== undefined) {
+      const text = pending
+      pending = undefined
+      try {
+        await write(text, saved)
+        saved = text
+      } catch {
+        try {
+          saved = await read()
+          await write(text, saved)
+          saved = text
+        } catch {
+          // leave it; the next save tries again from what is on disk
+        }
+      }
+    }
+    running = false
+  }
+  return function save(text) {
+    pending = text
+    if (!running) drain()
+  }
+}

@@ -17,7 +17,7 @@ function line(id: string, from: string, text: string, mentions: string[], kind =
   return JSON.stringify({ id, ts: JOINED, room: 'r', from, kind, text, mentions }) + '\n'
 }
 
-function world(on: any, opts: { env?: Record<string, string>; log?: string; readLimit?: number } = {}): World {
+function world(on: any, opts: { env?: Record<string, string>; log?: string; readLimit?: number; runHook?: (argv: string[]) => any } = {}): World {
   const w: World = {
     files: {
       '/cfg/config.json': JSON.stringify({ operator: 'cesar', quietMinutes: 10 }),
@@ -58,8 +58,10 @@ function world(on: any, opts: { env?: Record<string, string>; log?: string; read
     const start = e.offset ?? 0
     return { value: body.slice(start, e.length === undefined ? undefined : start + e.length) }
   })
-  on('process.run', (_: any, e: any) => {
+  on('process.run', async (_: any, e: any) => {
     w.runs.push([...e.argv])
+    const custom = opts.runHook ? await opts.runHook([...e.argv]) : undefined
+    if (custom) return { value: custom }
     const out = e.argv[1] === 'presence-get' ? '{}\n' : ''
     return { value: { exitCode: 0, stdout: out, stderr: '' } }
   })
@@ -327,4 +329,50 @@ test('a log over 4 MiB is read in chunks and still delivers', async ($: any, on:
   append(w, line('20261123T050100.000000Z-aaaaaa', 'a', '@b after the backlog', ['b']))
   await clock.advance(3_000)
   expect(w.submits.map(s => s.text).join('\n')).toContain('#r a: @b after the backlog')
+})
+
+test('archived rooms are not polled, heartbeated or judged', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  w.files['/rooms/r/archived'] = ''
+  presence(w, 'a', T - 180_000)
+  presence(w, 'b', T - 180_000)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  append(w, line('20261123T060001.000000Z-aaaaaa', 'a', '@lead late note', ['lead']))
+  await clock.advance(240_000)
+  expect(systemPosts(w).length).toBe(0)
+  expect(heartbeats(w).length).toBe(0)
+  expect(w.submits.length).toBe(0)
+})
+
+test('a slow delivery record does not deliver the same mentions twice', async ($: any, on: any) => {
+  const clock = mock.clock(on)
+  const w = world(on, {
+    runHook: async argv => (argv.includes('--delivered') ? (await clock.sleep(5_000), { exitCode: 0, stdout: '', stderr: '' }) : undefined),
+  })
+  w.files['/rooms/r2/members.json'] = w.files['/rooms/r/members.json']!
+  w.files['/rooms/r2/log.jsonl'] = ''
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  append(w, line('20261123T050100.000000Z-aaaaaa', 'a', '@b one', ['b']))
+  w.files['/rooms/r2/log.jsonl'] += JSON.stringify({ id: '20261123T050101.000000Z-bbbbbb', ts: JOINED, room: 'r2', from: 'a', kind: 'msg', text: '@b two', mentions: ['b'] }) + '\n'
+  w.mtimes['/rooms/r2/log.jsonl'] = 2
+  await clock.advance(3_000)
+  await clock.advance(3_000)
+  await clock.advance(6_000)
+  expect(w.submits.length).toBe(1)
+})
+
+test('a pause notice that fails to post is tried again on the next refusal', async ($: any, on: any) => {
+  const clock = mock.clock(on)
+  let postFails = 1
+  const w = world(on, {
+    runHook: argv => (argv[1] === 'post' && postFails-- > 0 ? { exitCode: 3, stdout: '', stderr: 'archived' } : undefined),
+  })
+  w.dropNext = 2
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  append(w, line('20261123T050100.000000Z-aaaaaa', 'a', '@b ping', ['b']))
+  await clock.advance(3_000)
+  await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
+  await clock.settle()
+  expect(roomRuns(w, 'post').filter(a => a.includes('pause')).length).toBe(2)
 })
