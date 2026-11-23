@@ -271,3 +271,18 @@ test('a sleep gap holds off silence reports for the grace window', async ($: any
   for (let t = 0; t < 140_000; t += 3_000) await jump(3_000)
   expect(systemPosts(w).map(a => a.join(' ')).filter(x => x.includes('b went quiet')).length).toBe(1)
 })
+
+test('a silence report is sent as rooms, so the watcher itself is woken by it', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  presence(w, 'a', T + 200_000)
+  presence(w, 'b', T - 180_000)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(120_000)
+  const post = systemPosts(w)[0]!
+  expect(post.slice(1, 5)).toEqual(['post', 'r', '--as', 'rooms'])
+  // the CLI would have written it: feed it back and the lead hears it
+  append(w, line('20261123T060200.000000Z-ffffff', 'rooms', '@lead b went quiet', ['lead'], 'system'))
+  await clock.advance(3_000)
+  expect(w.submits.map(s => s.text).join('\n')).toContain('#r rooms: @lead b went quiet')
+})

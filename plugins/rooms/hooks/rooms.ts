@@ -17,6 +17,7 @@ export const CHECK_MS = 3_000
 export const HEARTBEAT_MS = 30_000
 export const SILENCE_MS = 120_000
 export const STALE_MS = 120_000
+export const SYSTEM_ID = 'rooms'
 
 type RoomState = {
   offset: number
@@ -242,7 +243,8 @@ async function silenceCheck(s: State, $: EngineInterface, now: number) {
       const why = v.reason === 'stale'
         ? 'no heartbeat for over 2 minutes: crashed or closed?'
         : `idle with no post for over ${s.quietMinutes} minutes`
-      await room(s, $, ['post', name, '--as', s.id, '--kind', 'system', `@${s.id} ${v.id} went quiet (${why})`])
+      // Sent as the reserved `rooms` identity: a member never hears its own posts.
+      await room(s, $, ['post', name, '--as', SYSTEM_ID, '--kind', 'system', `@${s.id} ${v.id} went quiet (${why})`])
     }
   }
 }
