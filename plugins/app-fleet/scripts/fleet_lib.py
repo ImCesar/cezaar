@@ -212,13 +212,15 @@ def compose_member(run, member_id, persona_name, task, worktree=None, room_name=
     prompt_path = os.path.join(members, f"{member_id}.prompt.md")
     with open(prompt_path, "w") as fh:
         fh.write("\n\n".join(x.strip() for x in parts if x.strip()) + "\n")
-    allow = ["Bash(room *)", *extra_allow]
+    # Briefs and reports live in the run folder, outside the worktree: make it a working folder
+    # and allow edits there, or an unattended member would stop at a permission prompt.
+    allow = ["Bash(room *)", f"Edit({d}/**)", *extra_allow]
     if persona_name == "runner":
         allow += [f"Bash({run[k]})" for k in ("verify", "teardown") if run.get(k)]
     env = {"ROOM_ID": member_id, "ROOMS_ROOT": rooms_root(run), "APP_FLEET_RUN": run["run"], "APP_FLEET_HOME": home()}
     settings_path = os.path.join(members, f"{member_id}.settings.json")
     with open(settings_path, "w") as fh:
-        json.dump({"env": env, "permissions": {"allow": allow}}, fh, indent=1)
+        json.dump({"env": env, "permissions": {"allow": allow, "additionalDirectories": [d]}}, fh, indent=1)
     first = (f"You are {member_id}. Read your brief at {brief} and the room {room_name} "
              f"(room read {room_name}), then begin.")
     argv = ["env", *[f"{k}={v}" for k, v in env.items()], "claude", "--model", p["model"], "--effort", p["effort"],

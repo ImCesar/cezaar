@@ -315,5 +315,13 @@ t_judge_thread_uses_disputed_worktree_and_plain_id() {
     && ok judge_thread_uses_disputed_worktree_and_plain_id || fail judge_thread_uses_disputed_worktree_and_plain_id "rc=$rc mem=$mem folder=$folder out=$out"
 }
 
+t_compose_grants_run_dir() {
+  fresh; seed_run r1
+  settings=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  rd=$(cd "$APP_FLEET_HOME/runs/r1" && pwd -P)
+  got=$(jq_py "(d['permissions'].get('additionalDirectories'), [a for a in d['permissions']['allow'] if a.startswith('Edit(')])" < "$settings")
+  case $got in *"$rd"*"Edit($rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
