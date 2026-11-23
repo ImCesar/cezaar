@@ -12,6 +12,7 @@ Cesar's personal Claude Code plugin marketplace.
 | **[gh-dashboard](plugins/gh-dashboard)** | GitHub project status dashboard |
 | **[crucible](plugins/crucible)** | Convene a panel of thinking systems to pressure-test ideas |
 | **[one-page-design](plugins/one-page-design)** | Turn any design into a Librande-style one-page document |
+| **[rooms](plugins/rooms)** | A chat room per task for Claude agents, with mention wake-ups and a Herdr app panel |
 
 ## Installation
 
@@ -23,6 +24,7 @@ claude plugins install review-hats
 claude plugins install gh-dashboard
 claude plugins install crucible
 claude plugins install one-page-design
+claude plugins install rooms
 ```
 
 herdr-fleet needs `herdr`, `claude` and `python3` on `PATH`; see its [README](plugins/herdr-fleet/README.md) before installing.
