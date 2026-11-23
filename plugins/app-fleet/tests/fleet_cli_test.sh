@@ -10,7 +10,7 @@ fresh() {
   T=$(mktemp -d)
   export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg"
   export PATH="$HERE/stubs:$ROOMS_SCRIPTS:$ORIG_PATH"
-  unset STUB_HERDR_STATUS STUB_FAIL STUB_HC_KILL_STATUS STUB_HC_RUN_FAIL_AT APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT HC_TERMINAL_ID HC_SCOPE
+  unset STUB_HERDR_STATUS STUB_FAIL STUB_FAIL_ROOMS_TAB STUB_HC_KILL_STATUS STUB_HC_RUN_FAIL_AT APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT HC_TERMINAL_ID HC_SCOPE
   mkdir -p "$STUB_DIR" "$ROOMS_CONFIG_DIR"
   printf '{"operator":"cesar","quietMinutes":10}\n' > "$ROOMS_CONFIG_DIR/config.json"
   REPO="$T/repo"; mkdir -p "$REPO"
@@ -287,6 +287,7 @@ t_lead_resume_keeps_state() {
   "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   before=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
   herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$APP_FLEET_HOME/runs/p1/run.json")" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json" > "$STUB_DIR/hc.dead"   # closing a tab ends its terminal
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   after=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
   [ "$rc" = 0 ] && [ "$before" = "['t1']" ] && [ "$after" = "$before" ] && grep -q "resuming" "$STUB_LOG" \
@@ -430,6 +431,7 @@ t_resume_after_space_closed_makes_new_space() {
   "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
   sp=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
   herdr-app do space.close --id "$sp" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json" > "$STUB_DIR/hc.dead"   # closing a space ends its terminals
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   sp2=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
   [ "$rc" = 0 ] && [ "$sp2" != "$sp" ] && ok resume_after_space_closed_makes_new_space || fail resume_after_space_closed_makes_new_space "rc=$rc $sp->$sp2"
@@ -613,6 +615,75 @@ t_judge_thread_fits_a_long_disputed_task() {
   "$FLEET" thread open r1 judge-billing-webhooks --template judge --brief "$(brief j)" >/dev/null 2>&1; b=$?
   [ "$a$b" = 00 ] && grep -q "^hc run.*--name judge-billing-webhooks " "$STUB_LOG" \
     && ok judge_thread_fits_a_long_disputed_task || fail judge_thread_fits_a_long_disputed_task "codes=$a$b"
+}
+
+t_lead_opens_rooms_tab_for_the_run() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  line=$(grep "do tab.new --name rooms" "$STUB_LOG")
+  case $line in *"--mod rooms"*"--props"*"$APP_FLEET_HOME/runs/p1/rooms"*"--focus false"*) shape=1 ;; *) shape=0 ;; esac
+  rt=$(jq_py "d.get('roomsTab') or ''" < "$APP_FLEET_HOME/runs/p1/run.json")
+  [ "$rc" = 0 ] && [ "$shape" = 1 ] && [ -n "$rt" ] && ok lead_opens_rooms_tab_for_the_run || fail lead_opens_rooms_tab_for_the_run "rc=$rc rt=$rt line=$line"
+}
+
+t_resume_reopens_closed_rooms_tab() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  herdr-app do tab.close --id "$(jq_py "d['roomsTab']" < "$rj")" --confirmed true >/dev/null 2>&1
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n=$(grep -c "do tab.new --name rooms" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n" = 2 ] && ok resume_reopens_closed_rooms_tab || fail resume_reopens_closed_rooms_tab "rc=$rc n=$n"
+}
+
+t_rooms_tab_failure_does_not_stop_the_run() {
+  fresh; export STUB_FAIL_ROOMS_TAB=1
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ -f "$APP_FLEET_HOME/runs/p1/run.json" ] && ok rooms_tab_failure_does_not_stop_the_run || fail rooms_tab_failure_does_not_stop_the_run "rc=$rc"
+}
+
+t_resume_command_starts_in_the_repo() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  term=$(jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json"); echo "$term" > "$STUB_DIR/hc.noapp"
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc send $term cd $(cd "$REPO" && pwd -P) && " "$STUB_LOG" && ok resume_command_starts_in_the_repo || fail resume_command_starts_in_the_repo "rc=$rc"
+}
+
+t_running_lead_never_doubled_even_without_its_tab() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['leadTab']='tbgone'; json.dump(d,open(p,'w'))" "$rj"
+  n1=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n2=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n1" = "$n2" ] && ok running_lead_never_doubled_even_without_its_tab || fail running_lead_never_doubled_even_without_its_tab "rc=$rc $n1->$n2"
+}
+
+t_stale_lead_tab_closed_before_new_lead() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; tab=$(jq_py "d['leadTab']" < "$rj")
+  jq_py "d['leadTerminal']" < "$rj" > "$STUB_DIR/hc.dead"   # its terminal ended, the tab record lingers
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "do tab.close --id $tab" "$STUB_LOG" && [ "$(grep -c 'do tab.new --name lead' "$STUB_LOG")" = 1 ] \
+    && ok stale_lead_tab_closed_before_new_lead || fail stale_lead_tab_closed_before_new_lead "rc=$rc"
+}
+
+t_resume_message_names_the_live_member_ids() {
+  fresh; seed_run r1
+  python3 -I - "$APP_FLEET_HOME/runs/r1/run.json" "$REPO" <<'PY'
+import json, sys
+p, repo = sys.argv[1], sys.argv[2]
+d = json.load(open(p))
+d["threads"]["t1"] = {"template": "build", "room": "t1", "branch": None, "worktree": repo, "tab": "tbold",
+                      "terminals": ["tz1"], "members": ["builder-t1", "reviewer-t1"], "state": "open", "wave": None}
+json.dump(d, open(p, "w"))
+PY
+  "$FLEET" lead r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep "do tab.new --name lead" "$STUB_LOG" | grep -q "builder-t1, reviewer-t1" \
+    && ok resume_message_names_the_live_member_ids || fail resume_message_names_the_live_member_ids "rc=$rc"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

@@ -545,7 +545,7 @@ def cmd_cleanup(a):
             git(run["repo"], "worktree", "remove", "--force", integration_wt(run), check=False)
         if run.get("space"):
             tool(["herdr-app", "do", "space.close", "--id", run["space"], "--confirmed", "true"])
-        run["space"], run["leadTab"], run["leadTerminal"] = None, None, None
+        run["space"], run["leadTab"], run["roomsTab"], run["leadTerminal"] = None, None, None, None
         save_run(run)
     git(run["repo"], "worktree", "prune", check=False)
     print(f"cleaned up run {run['run']}; {run['integration']} is kept for you")
@@ -626,15 +626,47 @@ def exclude_worktrees(repo):
             fh.write(("" if not lines or _read(path).endswith("\n") else "\n") + ".worktrees/\n")
 
 
-def live_lead_tab(run):
-    """(space alive, lead tab alive) from what the Herdr window shows now."""
+def space_tabs(run):
+    """(space alive, ids of its tabs) from what the Herdr window shows now."""
     try:
         spaces = json.loads(tool(["herdr-app", "ls"]).stdout or "{}").get("spaces", [])
     except ValueError:
         spaces = []
     space = next((s for s in spaces if s.get("id") == run.get("space")), None)
-    tab_alive = bool(space) and any(t.get("id") == run.get("leadTab") for t in space.get("tabs", []))
-    return bool(space), tab_alive
+    return bool(space), {t.get("id") for t in (space or {}).get("tabs", [])}
+
+
+def open_rooms_tab(run):
+    """A `rooms` tab beside the lead showing only this run's rooms: the way back to a thread window.
+    A failure (the rooms mod not installed) is a warning, not a reason to stop the run."""
+    if not run.get("space"):
+        return
+    r = tool(["herdr-app", "do", "tab.new", "--name", "rooms", "--space", run["space"], "--mod", "rooms",
+              "--props", json.dumps({"root": rooms_root(run)}), "--focus", "false"])
+    try:
+        reply = json.loads(r.stdout or "{}") if r.returncode == 0 else {}
+    except ValueError:
+        reply = {}
+    run["roomsTab"] = reply.get("tab")
+    if not run["roomsTab"]:
+        print("fleet: warning: could not open the rooms tab (is the rooms Herdr mod installed? `room herdr-install`)",
+              file=sys.stderr)
+
+
+def ensure_rooms_tab(run):
+    _, tabs = space_tabs(run)
+    if run.get("roomsTab") not in tabs:
+        open_rooms_tab(run)
+    save_run(run)
+
+
+def resume_message(run):
+    msg = (f"You are the lead of run {run['run']}, resuming. Run `fleet status {run['run']}` and "
+           f"`room read {run['stage']}` first, then carry on.")
+    live = [f"{k}: {', '.join(t.get('members', []))}" for k, t in run["threads"].items() if t.get("state") == "open"]
+    if live:
+        msg += " Open threads and their member ids (mention exactly these): " + "; ".join(live) + "."
+    return msg
 
 
 def lead_command(run, first_message, resume=False):
@@ -701,7 +733,9 @@ def restart_lead_in_shell(run, first_message):
     """Type the resume command into the lead's live shell; the member tree stays attached to it.
     `hc send` from inside another hc terminal tags the text with its sender, which a shell can't parse."""
     env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
-    r = tool(["hc", "send", run["leadTerminal"], shlex.join(lead_command(run, first_message, resume=True))], env=env)
+    # The session belongs to the repo folder: start there whatever folder the shell was left in.
+    line = f"cd {shlex.quote(run['repo'])} && {shlex.join(lead_command(run, first_message, resume=True))}"
+    r = tool(["hc", "send", run["leadTerminal"], line], env=env)
     if r.returncode != 0:
         raise Refused(f"fleet: could not restart the lead in {run['leadTerminal']}: {(r.stderr or r.stdout).strip()}", 4)
     save_run(run)
@@ -713,25 +747,33 @@ def cmd_lead(a):
     if os.path.exists(path):  # resume: never reset rooms or threads
         run = load_run(name)
         require_app()
-        space_alive, tab_alive = live_lead_tab(run)
-        msg = (f"You are the lead of run {name}, resuming. Run `fleet status {name}` and "
-               f"`room read {run['stage']}` first, then carry on.")
-        if tab_alive and (lead_running(run) or not run.get("leadTerminal")):  # never start a second lead
+        space_alive, tabs = space_tabs(run)
+        tab_alive = bool(run.get("leadTab")) and run["leadTab"] in tabs
+        msg = resume_message(run)
+        if lead_running(run) or (tab_alive and not run.get("leadTerminal")):  # never start a second lead
             rescue_orphans(run)
-            herdr("tab.select", "--id", run["leadTab"])
-            print(f"run {name}'s lead is still running: switched to its tab")
+            ensure_rooms_tab(run)
+            if tab_alive:
+                herdr("tab.select", "--id", run["leadTab"])
+                print(f"run {name}'s lead is still running: switched to its tab")
+            else:
+                print(f"run {name}'s lead is still running in terminal {run['leadTerminal']}")
             return
         if tab_alive and term_live(run["leadTerminal"]):  # Claude ended, its shell is still there
             restart_lead_in_shell(run, msg)
             rescue_orphans(run)
+            ensure_rooms_tab(run)
             herdr("tab.select", "--id", run["leadTab"])
             print(f"resumed run {name} in its lead tab; the members are still under it")
             return
+        if tab_alive:  # the tab outlived its terminal: don't leave a dead lead tab beside the new one
+            tool(["herdr-app", "do", "tab.close", "--id", run["leadTab"], "--confirmed", "true"])
         if not space_alive:
-            run["space"] = None
+            run["space"], run["roomsTab"] = None, None
         launch_lead(run, msg, resume=True)
         # The old lead's shell is gone: members that hung off it get tabs (the rest nest under them).
         rescue_orphans(run)
+        ensure_rooms_tab(run)
         print(f"resumed run {name}: switch to its lead tab")
         return
     if not a.repo or not a.architecture:
@@ -747,7 +789,7 @@ def cmd_lead(a):
     if not base:
         raise Refused(f"fleet: {repo} is on a detached HEAD; pass --base <branch>", 3)
     run = {"run": name, "repo": repo, "stage": "execution", "base": base, "integration": f"fleet/{name}/integration",
-           "space": None, "leadTab": None, "leadTerminal": None, "leadSession": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
+           "space": None, "leadTab": None, "roomsTab": None, "leadTerminal": None, "leadSession": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
            "architecture": arch, "threads": {}}
     try:
         save_run(run)
@@ -756,6 +798,8 @@ def cmd_lead(a):
         room(run, "create", run["stage"], "--member", f"{operator()}:operator")
         room(run, "join", run["stage"], "lead", "--role", "lead", "--watch-all")
         launch_lead(run, f"You are the lead of run {name}. Read the architecture at {arch}, then plan the waves.")
+        open_rooms_tab(run)
+        save_run(run)
     except BaseException:
         if run.get("space"):
             tool(["herdr-app", "do", "space.close", "--id", run["space"], "--confirmed", "true"])

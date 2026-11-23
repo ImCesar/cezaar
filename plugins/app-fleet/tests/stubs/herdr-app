@@ -31,6 +31,8 @@ if a[:1] == ["do"] and len(a) > 1:
         st["tabs"][tab] = {"name": arg("tab") or "1", "space": sp, "terminals": [{"terminal": term, "pane": pane}]}
         save(); print(json.dumps({"space": sp, "tab": tab, "terminal": term})); sys.exit(0)
     if cmd == "tab.new":
+        if arg("mod") and os.environ.get("STUB_FAIL_ROOMS_TAB"):
+            print(json.dumps({"error": "stub failure for the rooms tab"})); sys.exit(1)
         tab, term, pane = nid("tb"), nid("t"), nid("p")
         sp = arg("space") or "sp1"
         if sp not in st["spaces"]:
