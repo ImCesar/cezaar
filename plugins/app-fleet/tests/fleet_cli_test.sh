@@ -340,5 +340,15 @@ t_thread_close_marks_members_gone_everywhere() {
   [ "$ch" = gone ] && [ "$th" = gone ] && ok thread_close_marks_members_gone_everywhere || fail thread_close_marks_members_gone_everywhere "channel=$ch thread=$th"
 }
 
+t_cleanup_deletes_branches_merged_into_integration() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  "$FLEET" cleanup r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ -z "$(git -C "$REPO" branch --list fleet/r1/t1)" ] && [ -n "$(git -C "$REPO" branch --list fleet/r1/integration)" ] \
+    && ok cleanup_deletes_branches_merged_into_integration || fail cleanup_deletes_branches_merged_into_integration "rc=$rc branches=$(git -C "$REPO" branch | tr '\n' ' ')"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]

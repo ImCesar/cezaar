@@ -443,7 +443,7 @@ def cmd_cleanup(a):
     for task, t in run["threads"].items():
         if t.get("branch") and branch_exists(run["repo"], t["branch"]) and is_merged(run, t["branch"]):
             if not os.path.isdir(t.get("worktree") or ""):
-                git(run["repo"], "branch", "-d", t["branch"], check=False)
+                git(run["repo"], "branch", "-D", t["branch"], check=False)  # merged into integration, checked above
     if a.all:
         if os.path.isdir(integration_wt(run)):
             git(run["repo"], "worktree", "remove", "--force", integration_wt(run), check=False)
