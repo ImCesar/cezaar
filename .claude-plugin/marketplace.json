@@ -116,6 +116,24 @@
         "herdr",
         "orchestration"
       ]
+    },
+    {
+      "name": "app-fleet",
+      "source": "./plugins/app-fleet",
+      "description": "The fleet on the Herdr app, talking in rooms: a lead dictates the work, each task runs as a self-organizing thread, approval closes it, the lead merges and verifies once per wave. Needs the rooms plugin.",
+      "version": "0.1.0",
+      "category": "development",
+      "author": {
+        "name": "Cesar Avitia"
+      },
+      "repository": "https://github.com/ImCesar/cezaar",
+      "keywords": [
+        "orchestration",
+        "herdr",
+        "agents",
+        "rooms",
+        "fleet"
+      ]
     }
   ]
 }
