@@ -66,7 +66,7 @@ room's members are woken there, so this is how it reaches them without the
 lead carrying it:
 
 ```
-room post <asker-thread> --as researcher-<task> "@<asker> <the answer in one line> — report: <path>"
+room post <asker-thread> --as <task>-researcher "@<asker> <the answer in one line> — report: <path>"
 ```
 
 Then close your own thread for the lead:

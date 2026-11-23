@@ -21,7 +21,7 @@ deciding; the members' contexts are for doing. The scarce resource is the
 - The integration branch is `fleet/<run>/integration`. Each thread works on
   `fleet/<run>/<task>` in its own worktree, cut from the integration tip.
 - Task names are short slugs (`store`, `api-auth`): the room, the branch and
-  the member ids (`builder-store`, `reviewer-store`).
+  the member ids (`store-builder`, `store-reviewer`).
 
 ```
 fleet status <run>
@@ -85,7 +85,7 @@ room read <room> [--mentions-only]
 
 A builder who needs research mentions you: open a `research` thread whose
 brief names the asker and the asker's thread room (for example "asker:
-builder-store in room store"). The researcher posts its answer into that room
+store-builder in room store"). The researcher posts its answer into that room
 itself; you never carry it.
 
 ## The brief

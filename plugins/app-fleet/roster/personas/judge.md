@@ -82,7 +82,7 @@ Post the ruling into the disputed thread, under your own id, then report done
 in your own room:
 
 ```
-room post <task> --as judge-<task> --link <report> "@builder-<task> @reviewer-<task> ruling: <k> upheld (<the change>), <m> refuted/downgraded — binding, see link"
+room post <task> --as judge-<task> --link <report> "@<task>-builder @<task>-reviewer ruling: <k> upheld (<the change>), <m> refuted/downgraded — binding, see link"
 room post judge-<task> --kind done "@lead done: ruling on <task>: <one line> — report: <path>"
 ```
 

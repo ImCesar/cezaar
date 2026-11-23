@@ -70,21 +70,21 @@ t_personas_have_no_old_verbs() {
 
 t_compose_builder() {
   fresh; seed_run r1
-  out=$("$FLEET" _compose r1 builder-t1 builder t1 2>&1) || { fail compose_builder "rc=$? $out"; return; }
+  out=$("$FLEET" _compose r1 t1-builder builder t1 2>&1) || { fail compose_builder "rc=$? $out"; return; }
   prompt=$(printf '%s' "$out" | jq_py "d['prompt_path']"); settings=$(printf '%s' "$out" | jq_py "d['settings_path']")
   last=$(printf '%s' "$out" | jq_py "d['argv'][-1]"); model=$(printf '%s' "$out" | jq_py "d['argv'][d['argv'].index('--model')+1]")
   rid=$(jq_py "d['env']['ROOM_ID']" < "$settings")
   want_model=$(sed -n 's/^model: *//p' "$PLUGIN/roster/personas/builder.md" | head -1)
   grep -q "Review bar" "$prompt"; bar=$?
-  case $last in "You are builder-t1."*) first=1 ;; *) first=0 ;; esac
-  [ "$rid" = builder-t1 ] && [ "$model" = "$want_model" ] && [ "$first" = 1 ] && [ "$bar" != 0 ] \
-    && grep -q "builder-t1" "$prompt" && grep -q -i "mention" "$prompt" \
+  case $last in "You are t1-builder."*) first=1 ;; *) first=0 ;; esac
+  [ "$rid" = t1-builder ] && [ "$model" = "$want_model" ] && [ "$first" = 1 ] && [ "$bar" != 0 ] \
+    && grep -q "t1-builder" "$prompt" && grep -q -i "mention" "$prompt" \
     && ok compose_builder || fail compose_builder "rid=$rid model=$model/$want_model first=$first bar=$bar"
 }
 
 t_compose_reviewer_has_review_bar() {
   fresh; seed_run r1
-  prompt=$("$FLEET" _compose r1 reviewer-t1 reviewer t1 2>/dev/null | jq_py "d['prompt_path']")
+  prompt=$("$FLEET" _compose r1 t1-reviewer reviewer t1 2>/dev/null | jq_py "d['prompt_path']")
   first_line=$(head -1 "$PLUGIN/roster/policy/review-bar.md")
   grep -q -F "$first_line" "$prompt" && ok compose_reviewer_has_review_bar || fail compose_reviewer_has_review_bar "no review bar in $prompt"
 }
@@ -93,7 +93,7 @@ t_compose_includes_memory_capped() {
   fresh; seed_run r1
   mkdir -p "$APP_FLEET_HOME/memory/builder"
   python3 -I -c "print('M' * 10240, end='')" > "$APP_FLEET_HOME/memory/builder/MEMORY.md"
-  prompt=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['prompt_path']")
+  prompt=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['prompt_path']")
   n=$(grep -o 'MMMMMMMM*' "$prompt" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
   [ "$n" -gt 0 ] && [ "$n" -le 4096 ] && ok compose_includes_memory_capped || fail compose_includes_memory_capped "M count=$n"
 }
@@ -119,9 +119,9 @@ t_thread_open_creates_everything() {
   first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "sorted(d['mentions'])")
   tabs=$(grep -c "do tab.new --name t1" "$STUB_LOG"); splits=$(grep -c "do pane.split" "$STUB_LOG")
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
-  [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['builder-t1', 'cesar', 'reviewer-t1']" ] \
-    && case $mem_ch in *builder-t1*reviewer-t1*) true ;; *) false ;; esac \
-    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['builder-t1']" ] \
+  [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['cesar', 't1-builder', 't1-reviewer']" ] \
+    && case $mem_ch in *t1-builder*t1-reviewer*) true ;; *) false ;; esac \
+    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['t1-builder']" ] \
     && [ "$tabs" = 1 ] && [ "$splits" = 1 ] && [ "$state" = open ] \
     && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs splits=$splits state=$state"
 }
@@ -247,7 +247,7 @@ t_verify_opens_runner_thread_on_integration() {
   b="$APP_FLEET_HOME/runs/r1/briefs/verify-w1.md"
   [ "$rc" = 0 ] && grep -q "do tab.new --name verify-w1" "$STUB_LOG" && grep -q -- "--folder $REPO/.worktrees/r1/_integration" "$STUB_LOG" \
     && grep -q "make verify" "$b" && grep -q "make down" "$b" \
-    && [ "$(jq_py "d['threads']['verify-w1']['members']" < "$APP_FLEET_HOME/runs/r1/run.json")" = "['runner-verify-w1']" ] \
+    && [ "$(jq_py "d['threads']['verify-w1']['members']" < "$APP_FLEET_HOME/runs/r1/run.json")" = "['verify-w1-runner']" ] \
     && ok verify_opens_runner_thread_on_integration || fail verify_opens_runner_thread_on_integration "rc=$rc"
 }
 
@@ -318,7 +318,7 @@ t_judge_thread_uses_disputed_worktree_and_plain_id() {
 
 t_compose_grants_run_dir() {
   fresh; seed_run r1
-  settings=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  settings=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
   rd=$(cd "$APP_FLEET_HOME/runs/r1" && pwd -P)
   got=$(jq_py "(d['permissions'].get('additionalDirectories'), [a for a in d['permissions']['allow'] if a.startswith('Edit(')])" < "$settings")
   case $got in *"$rd"*"Edit(/$rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
@@ -336,8 +336,8 @@ t_thread_close_marks_members_gone_everywhere() {
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   "$FLEET" thread close r1 t1 >/dev/null 2>&1
   r="$APP_FLEET_HOME/runs/r1/rooms"
-  ch=$(jq_py "d.get('state')" < "$r/execution/presence/builder-t1.json" 2>/dev/null)
-  th=$(jq_py "d.get('state')" < "$r/t1/presence/reviewer-t1.json" 2>/dev/null)
+  ch=$(jq_py "d.get('state')" < "$r/execution/presence/t1-builder.json" 2>/dev/null)
+  th=$(jq_py "d.get('state')" < "$r/t1/presence/t1-reviewer.json" 2>/dev/null)
   [ "$ch" = gone ] && [ "$th" = gone ] && ok thread_close_marks_members_gone_everywhere || fail thread_close_marks_members_gone_everywhere "channel=$ch thread=$th"
 }
 
@@ -378,7 +378,7 @@ t_undo_kills_spawned_members() {
   fresh; seed_run r1; export STUB_FAIL=pane.split
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
   ch=$(jq_py "[m['id'] for m in d]" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json" 2>/dev/null)
-  [ "$rc" = 4 ] && grep -q "^hc kill t" "$STUB_LOG" && grep -q "do tab.close" "$STUB_LOG" && case $ch in *builder-t1*) false ;; *) true ;; esac \
+  [ "$rc" = 4 ] && grep -q "^hc kill t" "$STUB_LOG" && grep -q "do tab.close" "$STUB_LOG" && case $ch in *t1-builder*) false ;; *) true ;; esac \
     && ok undo_kills_spawned_members || fail undo_kills_spawned_members "rc=$rc ch=$ch"
 }
 
@@ -402,12 +402,12 @@ t_brief_post_mentions_only_builder() {
   fresh; seed_run r1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "d['mentions']")
-  [ "$first" = "['builder-t1']" ] && ok brief_post_mentions_only_builder || fail brief_post_mentions_only_builder "got $first"
+  [ "$first" = "['t1-builder']" ] && ok brief_post_mentions_only_builder || fail brief_post_mentions_only_builder "got $first"
 }
 
 t_research_answers_go_to_the_askers_thread() {
   fresh
-  grep -q -- '--as researcher-' "$PLUGIN/roster/personas/researcher.md" && grep -q -i "asker" "$PLUGIN/roster/personas/lead.md" \
+  grep -q -- '--as <task>-researcher' "$PLUGIN/roster/personas/researcher.md" && grep -q -i "asker" "$PLUGIN/roster/personas/lead.md" \
     && ok research_answers_go_to_the_askers_thread || fail research_answers_go_to_the_askers_thread "researcher must post into the asker's thread room"
 }
 
@@ -460,7 +460,7 @@ t_lead_refuses_detached_repo_without_base() {
 
 t_compose_settings_work_unattended() {
   fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
-  b=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  b=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
   c=$("$FLEET" _compose r1 curator-curate curator curate 2>/dev/null | jq_py "d['settings_path']")
   r=$("$FLEET" _compose r1 runner-v runner v 2>/dev/null | jq_py "d['settings_path']")
   mode=$(jq_py "d['permissions'].get('defaultMode')" < "$b")
@@ -485,6 +485,12 @@ t_merge_ignores_untracked_cache_in_integration() {
   mkdir -p "$REPO/.worktrees/r1/_integration/__pycache__"; echo x > "$REPO/.worktrees/r1/_integration/__pycache__/c.pyc"
   "$FLEET" merge r1 m >/dev/null 2>&1; rc=$?
   [ "$rc" = 0 ] && ok merge_ignores_untracked_cache_in_integration || fail merge_ignores_untracked_cache_in_integration "rc=$rc"
+}
+
+t_long_task_name_refused() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 abcdefghijklmnopqrstuv --template build --brief "$(brief x)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 2 ] && [ ! -e "$REPO/.worktrees/r1/abcdefghijklmnopqrstuv" ] && ok long_task_name_refused || fail long_task_name_refused "rc=$rc"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

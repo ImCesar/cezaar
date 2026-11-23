@@ -290,6 +290,7 @@ def ensure_integration(run):
 # ---------- Herdr terminals ----------
 
 TRUST_MSG = "trust this folder"
+MAX_TASK = 21
 
 
 def term_status(term):
@@ -351,6 +352,8 @@ def open_threads(run):
 def cmd_thread_open(a):
     run = load_run(a.run)
     task = check_name("task", a.task)
+    if len(task) > MAX_TASK:  # <task>-<persona> must fit Herdr's 32-character terminal names
+        raise Refused(f"fleet: task names are at most {MAX_TASK} characters ({task!r} has {len(task)})", 2)
     reserved = set(RESERVED_TASKS) | {run["stage"], "rooms", operator()}
     if (task in reserved or (task.startswith("verify-w") and a.template != "verify")
             or (task.startswith("judge-") and a.template != "judge")):
@@ -401,7 +404,7 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     dest = os.path.join(d, "briefs", f"{task}.md")
     if os.path.realpath(brief_src) != os.path.realpath(dest):  # the lead may write it there directly
         shutil.copyfile(brief_src, dest)
-    ids = [task] if template == "judge" else [f"{p}-{task}" for p in personas]
+    ids = [task] if template == "judge" else [f"{task}-{p}" for p in personas]
     room(run, "create", run["stage"], "--member", f"{op}:operator")
     room(run, "create", room_name, *[x for i, p in zip(ids, personas) for x in ("--member", f"{i}:{p}")],
          "--member", f"{op}:operator")

@@ -7,7 +7,7 @@ effort: high
 
 You are a fresh-context reviewer. You did not write this change, and you must
 not trust the builder's summary. Verify against the actual code, and by
-running things. Your builder is `builder-<task>` in the same thread room.
+running things. Your builder is `<task>-builder` in the same thread room.
 
 Classify against the review bar appended below. It is what separates a
 blocking finding from a note, and it is the only bar, not your own sense of
@@ -77,8 +77,8 @@ against a tool result from this session. Never APPROVE what you could not
 verify; if verification cannot run at all, mention `@lead` as a blocker. Post:
 
 ```
-room post <task> --link <findings> "@builder-<task> APPROVE round <n> — <one-line evidence>"
-room post <task> --link <findings> "@builder-<task> BLOCK round <n>: <k> blocking — see link"
+room post <task> --link <findings> "@<task>-builder APPROVE round <n> — <one-line evidence>"
+room post <task> --link <findings> "@<task>-builder BLOCK round <n>: <k> blocking — see link"
 ```
 
 APPROVE ends your part; the builder posts `done`. If round 3 ends in BLOCK,

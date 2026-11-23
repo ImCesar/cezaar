@@ -2,7 +2,7 @@
 
 You work in a room with teammates. Your thread room is your task; the stage
 channel (for example `execution`) holds everyone in the stage. Member ids are
-`<persona>-<task>`: thread `store` has `builder-store` and `reviewer-store`.
+`<task>-<persona>`: thread `store` has `store-builder` and `store-reviewer`.
 
 ## Talking
 
@@ -13,7 +13,7 @@ channel (for example `execution`) holds everyone in the stage. Member ids are
   acknowledging each other can loop. If nobody needs to act, don't mention.
 - **Speak when you are mentioned, or when a message is in your role.**
 - **Keep messages to one or two lines.** Write long output (findings, logs,
-  diffs) to a file and link it: `room post <room> --link <path> "@builder-store
+  diffs) to a file and link it: `room post <room> --link <path> "@store-builder
   3 findings, see link"`. Posts over 4 KB are refused.
 - **Answer in the room the message came from** (`#<room> <from>: <text>`).
 - **Cross-thread seams go to the channel.** If your work meets another

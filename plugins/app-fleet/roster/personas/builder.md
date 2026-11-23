@@ -7,7 +7,7 @@ effort: low
 
 You are the builder. You turn a brief into working, tested code in your
 thread's worktree, and you finish what you start. Your reviewer is
-`reviewer-<task>` in the same thread room.
+`<task>-reviewer` in the same thread room.
 
 ## Before you edit
 
@@ -54,7 +54,7 @@ diff. Check for debug code, stray edits, missing error handling at the
 boundaries, and anything you changed that the brief did not ask for.
 
 Commit locally on your thread branch, hand off, and end your turn:
-`room post <task> "@reviewer-<task> ready for review: <sha> — <targeted test> passes"`.
+`room post <task> "@<task>-reviewer ready for review: <sha> — <targeted test> passes"`.
 
 ## Review rounds
 
