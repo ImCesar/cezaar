@@ -10,6 +10,7 @@ import argparse
 import contextlib
 import fcntl
 import json
+import shlex
 import shutil
 import time
 import os
@@ -17,6 +18,7 @@ import re
 import secrets
 import subprocess
 import sys
+import uuid
 
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 # git cannot hold a branch that is also a folder of branches, so the integration branch
@@ -537,7 +539,7 @@ def cmd_cleanup(a):
             git(run["repo"], "worktree", "remove", "--force", integration_wt(run), check=False)
         if run.get("space"):
             tool(["herdr-app", "do", "space.close", "--id", run["space"], "--confirmed", "true"])
-        run["space"], run["leadTab"] = None, None
+        run["space"], run["leadTab"], run["leadTerminal"] = None, None, None
         save_run(run)
     git(run["repo"], "worktree", "prune", check=False)
     print(f"cleaned up run {run['run']}; {run['integration']} is kept for you")
@@ -629,17 +631,51 @@ def live_lead_tab(run):
     return bool(space), tab_alive
 
 
-def launch_lead(run, first_message):
+def lead_command(run, first_message, resume=False):
+    """The lead's claude argv: resume its recorded session when asked and one exists, else a new one."""
     c = compose_member(run, "lead", "lead", "lead", worktree=run["repo"], room_name=run["stage"],
                        extra_allow=("Bash(fleet *)", "Bash(git *)"))
-    argv = c["argv"][:-1] + [first_message]
+    argv = c["argv"][:-1]
+    if resume and run.get("leadSession"):
+        argv += ["--resume", run["leadSession"]]
+    else:
+        run["leadSession"] = str(uuid.uuid4())
+        argv += ["--session-id", run["leadSession"]]
+    return argv + [first_message]
+
+
+def shell_hosted(argv):
+    """Run argv inside a login shell that stays when it exits: the terminal (the parent the
+    members nest under) outlives a lead crash, and the lead can be restarted in it."""
+    sh = os.environ.get("SHELL") or "/bin/zsh"
+    return [sh, "-lc", f"{shlex.join(argv)}; exec {shlex.quote(sh)} -l"]
+
+
+def lead_running(run):
+    """Claude is running in the lead's terminal (an agent there reports an app)."""
+    info = term_info(run["leadTerminal"]) if run.get("leadTerminal") else {}
+    return info.get("state") == "live" and bool((info.get("status") or {}).get("app"))
+
+
+def launch_lead(run, first_message, resume=False):
+    argv = shell_hosted(lead_command(run, first_message, resume))
     if run.get("space"):
         reply = herdr("tab.new", "--name", "lead", "--space", run["space"], "--folder", run["repo"], "--argv", json.dumps(argv))
     else:
         reply = herdr("space.new", "--name", run["run"], "--folder", run["repo"], "--tab", "lead", "--argv", json.dumps(argv))
         run["space"] = reply.get("space")
-    run["leadTab"] = reply.get("tab")
+    run["leadTab"], run["leadTerminal"] = reply.get("tab"), reply.get("terminal")
     clear_trust(reply["terminal"])
+    save_run(run)
+
+
+def restart_lead_in_shell(run, first_message):
+    """Type the resume command into the lead's live shell; the member tree stays attached to it.
+    `hc send` from inside another hc terminal tags the text with its sender, which a shell can't parse."""
+    env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
+    r = tool(["hc", "send", run["leadTerminal"], shlex.join(lead_command(run, first_message, resume=True))], env=env)
+    if r.returncode != 0:
+        raise Refused(f"fleet: could not restart the lead in {run['leadTerminal']}: {(r.stderr or r.stdout).strip()}", 4)
     save_run(run)
 
 
@@ -650,14 +686,25 @@ def cmd_lead(a):
         run = load_run(name)
         require_app()
         space_alive, tab_alive = live_lead_tab(run)
-        if tab_alive:  # never start a second lead
+        msg = (f"You are the lead of run {name}, resuming. Run `fleet status {name}` and "
+               f"`room read {run['stage']}` first, then carry on.")
+        if tab_alive and (lead_running(run) or not run.get("leadTerminal")):  # never start a second lead
             herdr("tab.select", "--id", run["leadTab"])
             print(f"run {name}'s lead is still running: switched to its tab")
             return
+        if tab_alive and term_live(run["leadTerminal"]):  # Claude ended, its shell is still there
+            restart_lead_in_shell(run, msg)
+            herdr("tab.select", "--id", run["leadTab"])
+            print(f"resumed run {name} in its lead tab; the members are still under it")
+            return
         if not space_alive:
             run["space"] = None
-        launch_lead(run, f"You are the lead of run {name}, resuming. Run `fleet status {name}` and "
-                         f"`room read {run['stage']}` first, then carry on.")
+        launch_lead(run, msg, resume=True)
+        # The old lead's shell is gone, and members whose parent is gone drop out of the agents list:
+        # give each thread's first member a tab (the rest nest under it).
+        for t in run["threads"].values():
+            if t.get("state") == "open" and t.get("terminals") and term_live(t["terminals"][0]):
+                keep_visible(t["terminals"][0])
         print(f"resumed run {name}: switch to its lead tab")
         return
     if not a.repo or not a.architecture:
@@ -673,7 +720,7 @@ def cmd_lead(a):
     if not base:
         raise Refused(f"fleet: {repo} is on a detached HEAD; pass --base <branch>", 3)
     run = {"run": name, "repo": repo, "stage": "execution", "base": base, "integration": f"fleet/{name}/integration",
-           "space": None, "leadTab": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
+           "space": None, "leadTab": None, "leadTerminal": None, "leadSession": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
            "architecture": arch, "threads": {}}
     try:
         save_run(run)

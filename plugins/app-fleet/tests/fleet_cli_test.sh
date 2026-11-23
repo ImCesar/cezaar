@@ -522,5 +522,57 @@ t_member_name_collision_gets_run_suffix() {
     && ok member_name_collision_gets_run_suffix || fail member_name_collision_gets_run_suffix "rc=$rc"
 }
 
+t_lead_is_shell_hosted_with_session() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  line=$(grep "do space.new --name p1" "$STUB_LOG")
+  sess=$(jq_py "d.get('leadSession') or ''" < "$rj"); term=$(jq_py "d.get('leadTerminal') or ''" < "$rj")
+  case $line in *'"-lc"'*"--session-id"*"$sess"*"exec"*) shape=1 ;; *) shape=0 ;; esac
+  [ "$rc" = 0 ] && [ -n "$sess" ] && [ -n "$term" ] && [ "$shape" = 1 ] \
+    && ok lead_is_shell_hosted_with_session || fail lead_is_shell_hosted_with_session "rc=$rc sess=$sess term=$term line=$line"
+}
+
+t_resume_types_into_live_shell() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  term=$(jq_py "d['leadTerminal']" < "$rj"); sess=$(jq_py "d['leadSession']" < "$rj")
+  echo "$term" > "$STUB_DIR/hc.noapp"
+  n1=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n2=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n1" = "$n2" ] && grep -q "^hc send $term .*--resume $sess" "$STUB_LOG" \
+    && ok resume_types_into_live_shell || fail resume_types_into_live_shell "rc=$rc $n1->$n2"
+}
+
+t_resume_after_tab_closed_keeps_members() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; sess=$(jq_py "d['leadSession']" < "$rj")
+  herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$rj")" --confirmed true >/dev/null 2>&1
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep "do tab.new --name lead" "$STUB_LOG" | grep -q -- "--resume $sess" \
+    && grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" && ! grep -q "do terminal.keep --terminal tm2" "$STUB_LOG" \
+    && ok resume_after_tab_closed_keeps_members || fail resume_after_tab_closed_keeps_members "rc=$rc"
+}
+
+t_resume_old_run_without_lead_terminal() {
+  fresh; seed_run r1
+  python3 -I - "$APP_FLEET_HOME/runs/r1/run.json" "$REPO" <<'PY'
+import json, sys
+p, repo = sys.argv[1], sys.argv[2]
+d = json.load(open(p)); del d["leadTerminal"]
+d["threads"]["t1"] = {"template": "build", "room": "t1", "branch": None, "worktree": repo + "/.worktrees/r1/t1",
+                      "tab": "tbold", "terminals": ["tz1"], "members": ["builder-t1"], "state": "open", "wave": None}
+json.dump(d, open(p, "w"))
+PY
+  "$FLEET" lead r1 >/dev/null 2>&1; a=$?
+  sess=$(jq_py "d.get('leadSession') or ''" < "$APP_FLEET_HOME/runs/r1/run.json")
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; b=$?
+  [ "$a$b" = 00 ] && [ -n "$sess" ] && ok resume_old_run_without_lead_terminal || fail resume_old_run_without_lead_terminal "codes=$a$b sess=$sess"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
