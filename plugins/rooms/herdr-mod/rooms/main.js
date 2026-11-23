@@ -7,11 +7,12 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
 import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, setShared, shared, terminals, theme, watchFolder, writeTextFile } from "herdr";
-import { createSaver, groupByRoot, liveRoots, mergeRead, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
+import { applyMention, createSaver, groupByRoot, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
 const MOD = "rooms";
+const MENTION_ROWS = 6; // the @-mention list shows at most this many rows
 const READ_KEY = "rooms.read"; // read marks a room window shares with the panel: {"<root>#<room>": lastId}
 // A room's run: rooms live in <home>/runs/<run>/rooms for app-fleet; otherwise the root's folder name.
 const runLabel = (root) => { const parts = String(root).split("/").filter(Boolean); return parts.at(-1) === "rooms" ? parts.at(-2) : parts.at(-1); };
@@ -68,7 +69,15 @@ export default class Rooms extends View {
     this.watching = new Set();
     this.draft = TextareaState.new({ placeholder: "Message this room… (@name to mention)", rows: 3 });
     this.draft.set_auto_grow(2, 8);
-    this.draft.on("submit", (_e, cx) => this.post(cx));
+    // The open @-mention list: { start, end, candidates, index, cycled } over the draft's UTF-16 offsets.
+    this.mention = null;
+    this.completed = null; // the text a completion just wrote, so its own change event is not a new edit
+    this.tabTyped = false; // the textarea typed a Tab the change handler already turned into a cycle
+    this.draft.on("change", (_e, cx) => this.draftChanged(cx));
+    this.draft.on("submit", (_e, cx) => {
+      if (this.mention) this.acceptMention(cx);
+      else this.post(cx);
+    });
     if (this.view === "title" || this.view === "member") return;
     if (this.only) {
       this.selected = `${this.only.root}#${this.only.room}`;
@@ -197,6 +206,7 @@ export default class Rooms extends View {
 
   pick(key, cx) {
     this.selected = key;
+    this.mention = null;
     this.markRead(key);
     this.alert();
     cx.notify();
@@ -226,6 +236,92 @@ export default class Rooms extends View {
       }
     });
     cx.notify();
+  }
+
+  // @-mention list. Reads the draft on every change; completions write it back with the cursor after the id.
+  draftChanged(cx) {
+    const text = this.draft.value();
+    if (this.completed !== null && text === this.completed) { this.completed = null; return; }
+    this.completed = null;
+    const sel = this.draft.selected_range();
+    // A Tab the textarea typed instead of letting the key handler see it: drop it and cycle.
+    if (this.mention && sel.start === sel.end && text[sel.end - 1] === "\t") {
+      this.tabTyped = true;
+      this.cycleMention(1, cx, text.slice(0, sel.end - 1) + text.slice(sel.end));
+      return;
+    }
+    this.refreshMention(text, sel);
+    cx.notify();
+  }
+
+  refreshMention(text, sel) {
+    const r = this.rooms.find((x) => x.key === this.selected);
+    const q = r && sel.start === sel.end ? mentionQuery(text, sel.end) : null;
+    const candidates = q ? mentionCandidates(r.members, r.msgs, this.config.operator, q.query) : [];
+    this.mention = candidates.length ? { start: q.start, end: q.end, candidates, index: 0, cycled: false } : null;
+  }
+
+  writeDraft(text, cursor) {
+    this.completed = text;
+    this.draft.set_value(text);
+    this.draft.set_selected_range({ start: cursor, end: cursor });
+  }
+
+  // Replace the @word with the highlighted id. Enter and a click add a space and close; Tab keeps it open.
+  insertMention(trailingSpace, base = this.draft.value()) {
+    const m = this.mention;
+    const { text, cursor } = applyMention(base, m.start, m.end, m.candidates[m.index], trailingSpace);
+    this.writeDraft(text, cursor);
+    if (trailingSpace) this.mention = null;
+    else m.end = cursor;
+  }
+
+  acceptMention(cx) {
+    this.insertMention(true);
+    cx.notify();
+  }
+
+  // Tab and Shift-Tab: the first Tab inserts the highlighted id; each further one moves to the next, wrapping.
+  cycleMention(step, cx, base) {
+    const m = this.mention;
+    if (m.cycled) m.index = (m.index + step + m.candidates.length) % m.candidates.length;
+    m.cycled = true;
+    this.insertMention(false, base);
+    cx.notify();
+  }
+
+  mentionKey(e, cx) {
+    const k = e.keystroke;
+    const typed = this.tabTyped;
+    this.tabTyped = false; // only the Tab keystroke right after the change handler's cycle can be its echo
+    if (!this.mention) return;
+    if (k === "tab" || k === "shift-tab") {
+      if (!typed) this.cycleMention(k === "tab" ? 1 : -1, cx);
+    } else if (k === "up" || k === "down") {
+      const m = this.mention;
+      m.index = (m.index + (k === "down" ? 1 : -1) + m.candidates.length) % m.candidates.length;
+      cx.notify();
+    } else if (k === "enter") {
+      this.acceptMention(cx);
+    } else if (k === "escape") {
+      this.mention = null;
+      cx.notify();
+    } else {
+      return;
+    }
+    cx.stop_propagation();
+  }
+
+  mentionList(t) {
+    const m = this.mention;
+    const first = Math.max(0, Math.min(m.index - MENTION_ROWS + 1, m.candidates.length - MENTION_ROWS));
+    return v_flex().id("rooms-mentions").flex_none().mx(10).mt(6).py(2).rounded(6).border_1().border_color(t.border).bg(t.surface ?? t.background)
+      .children(m.candidates.slice(first, first + MENTION_ROWS).map((id, i) => h_flex().id(`mention-${id}`).h(22).flex_none().px(8).items_center()
+        .text_size(12).text_color(t.foreground).cursor_pointer()
+        .when(first + i === m.index, (e) => e.bg(t.selected)).hover((st) => st.bg(t.hover))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click((_e, cx) => { m.index = first + i; this.acceptMention(cx); })
+        .child(`@${id}`)));
   }
 
   // One window per room: its live member terminals on the left, the room on the right.
@@ -303,6 +399,11 @@ export default class Rooms extends View {
   roomBody(el, current, t) {
     const presence = current.summary.presence;
     const live = this.only ? [] : roomTerminals(terminals(), current.root, current.name, current.members);
+    // Moving the cursor out of the @word fires no change, so check it on every draw.
+    if (this.mention) {
+      const sel = this.draft.selected_range();
+      if (sel.start !== sel.end || sel.end < this.mention.start + 1 || sel.end > this.mention.end) this.mention = null;
+    }
     return el
       .child(h_flex().flex_none().px(12).py(6).gap(10).flex_wrap().items_center().border_b(1).border_color(t.border)
         .children(presence.map((p) => h_flex().gap(4).items_center()
@@ -316,9 +417,11 @@ export default class Rooms extends View {
           .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t))))
         .child(Scrollbar.vertical("rooms-timeline").absolute().inset_0()))
       .when(Boolean(this.note), (e) => e.child(div().px(12).py(4).text_size(11).text_color(t.ansi1).child(this.note)))
+      .when(!current.archived && Boolean(this.mention), (e) => e.child(this.mentionList(t)))
       .when(!current.archived, (e) => e.child(h_flex().flex_none().p(10).gap(8).items_end().border_t(1).border_color(t.border)
         .child(div().flex_1().min_w(0).rounded(8).border_1().border_color(t.border).p(6).cursor_text()
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+          .on_key_down((e, cx) => this.mentionKey(e, cx))
           .child(Textarea.new(this.draft).w_full().text_size(12).text_color(t.foreground)))
         .child(div().id("rooms-send").h(30).px(12).flex().items_center().rounded(8).bg(t.solid).text_color(t.solid_foreground)
           .text_size(12).cursor_pointer().on_click((_e, cx) => this.post(cx)).child(this.busy ? "Sending…" : "Send"))));
