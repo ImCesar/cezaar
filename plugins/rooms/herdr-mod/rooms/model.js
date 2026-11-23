@@ -150,3 +150,17 @@ export function roomTerminals(terminals, root, room, members) {
     }))
     .sort((a, b) => rank(a.id) - rank(b.id) || String(a.address).localeCompare(String(b.address)))
 }
+
+/**
+ * Fold read marks from elsewhere (a room window, through Herdr's shared state) into the panel's:
+ * per room the newer message id wins. Returns the merged marks and whether any moved.
+ */
+export function mergeRead(lastRead, other) {
+  const out = { ...(lastRead ?? {}) }
+  let changed = false
+  for (const [key, id] of Object.entries(other ?? {})) {
+    if (typeof id !== 'string') continue
+    if (out[key] === undefined || id > out[key]) { out[key] = id; changed = true }
+  }
+  return { lastRead: out, changed }
+}

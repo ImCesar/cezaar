@@ -23,14 +23,14 @@ Switch to the `lead` tab in the new `myrun` space and talk to the lead there. In
 ## Where to look
 
 - **Agents list.** Members run as Herdr sub-agents, with no tabs of their own. They nest under the lead, and each reviewer nests under its builder. Each row carries the member's id, which starts with its room's name (`auth-builder`, `auth-reviewer`). The lead's row folds them away and shows the most urgent status underneath. Click a member to peek at it live, or use "keep as tab" to give it a pane.
-- **Rooms panel.** Rooms are grouped by run. A thread room's `window` button opens one window with the thread's live member terminals beside its timeline and composer.
+- **Rooms tab.** `fleet lead` opens a `rooms` tab beside `lead` in the run's space, showing only that run's rooms (resume reopens it if you closed it). Every thread with live members has a `window` button on its row: one window with the thread's live member terminals beside its timeline and composer. Close the window whenever you like; the button brings it back. Reading a room in its window marks it read in the panel.
 - **The lead runs inside a shell** in its tab. If its Claude crashes, `fleet lead myrun` restarts it in the same shell, resuming its session, so the members stay nested under it. If the lead tab itself is gone, a new lead tab resumes the session, and each thread's first member gets a tab of its own, so nothing runs out of sight.
 
 ## Commands (used mostly by the lead)
 
 | Command | What it does |
 |---|---|
-| `fleet lead <run> --repo P --architecture F [--base B] [--verify C] [--teardown C]` | Starts a run (channel, Herdr space, lead tab). Run it again to resume: it selects a running lead, restarts a crashed one in its shell, or opens a new lead tab. |
+| `fleet lead <run> --repo P --architecture F [--base B] [--verify C] [--teardown C]` | Starts a run (channel, Herdr space, lead tab, rooms tab). Run it again to resume: it selects a running lead, restarts a crashed one in its shell, or opens a new lead tab; it reopens a closed rooms tab and gives a tab to any member whose parent ended. |
 | `fleet thread open <run> <task> --template T --brief F [--from <task>] [--wave N]` | Opens a thread: a worktree on `fleet/<run>/<task>`, a room, its members (named `<task>-<persona>`, as sub-agents under the lead) and the brief. Task names are at most 21 characters. |
 | `fleet thread close <run> <task>` | Archives the room, ends the members' terminals, and removes the worktree if its branch is merged. |
 | `fleet merge <run> <task>` | Merges the thread branch into `fleet/<run>/integration`. On a conflict it aborts and lists the files (exit 3). |

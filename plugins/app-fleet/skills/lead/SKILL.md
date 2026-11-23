@@ -25,7 +25,7 @@ This skill only starts things. The lead is a separate Claude session that `fleet
 4. **Tell the operator** where things are:
    - The `<run>` space has a `lead` tab, where they talk to the lead.
    - Thread members don't get tabs. They nest under the lead in the agents list, named `<task>-<persona>`. Click one to peek at it.
-   - The Rooms panel's `window` button on a thread room shows that thread's live terminals beside its room.
+   - The `rooms` tab beside `lead` lists the run's rooms. A thread row's `window` button shows that thread's live terminals beside its room; it can be reopened any time.
    - Rooms appear in the Rooms panel, grouped by run. Open the panel with `herdr-app do tab.new --name Rooms --mod rooms` if it isn't showing.
    - The run's result is the branch `fleet/<run>/integration`, left for them to merge or open a PR from.
 

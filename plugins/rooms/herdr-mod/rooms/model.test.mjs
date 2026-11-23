@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSaver, groupByRoot, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { createSaver, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -129,4 +129,13 @@ test('roomTerminals puts ids not in members last, and returns [] when nothing ma
   assert.deepEqual(roomTerminals(ts, '/r', 'auth', [{ id: 'auth-builder' }]).map(x => [x.id, x.status]), [['auth-builder', 'unknown'], ['stranger', 'idle']])
   assert.deepEqual(roomTerminals(ts, '/r', 'nope', []), [])
   assert.deepEqual(roomTerminals(undefined, '/r', 'auth', []), [])
+})
+
+test('mergeRead keeps the newer mark per room and reports whether anything moved', () => {
+  const mine = { a: '20261123T01', b: '20261123T05' }
+  const out = mergeRead(mine, { a: '20261123T03', b: '20261123T02', c: '20261123T09', bad: 7 })
+  assert.deepEqual(out.lastRead, { a: '20261123T03', b: '20261123T05', c: '20261123T09' })
+  assert.equal(out.changed, true)
+  assert.equal(mergeRead(out.lastRead, { a: '20261123T00' }).changed, false)
+  assert.deepEqual(mergeRead(undefined, null), { lastRead: {}, changed: false })
 })

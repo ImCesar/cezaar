@@ -6,12 +6,13 @@
 // The window puts the room's live member terminals (labelled rooms.root/room/id) beside the room.
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
-import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, terminals, theme, watchFolder, writeTextFile } from "herdr";
-import { createSaver, groupByRoot, liveRoots, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
+import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, setShared, shared, terminals, theme, watchFolder, writeTextFile } from "herdr";
+import { createSaver, groupByRoot, liveRoots, mergeRead, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
 const MOD = "rooms";
+const READ_KEY = "rooms.read"; // read marks a room window shares with the panel: {"<root>#<room>": lastId}
 // A room's run: rooms live in <home>/runs/<run>/rooms for app-fleet; otherwise the root's folder name.
 const runLabel = (root) => { const parts = String(root).split("/").filter(Boolean); return parts.at(-1) === "rooms" ? parts.at(-2) : parts.at(-1); };
 const statusColor = (t, s) => t[s] ?? (s === "gone" ? t.ansi1 : t.dim);
@@ -53,6 +54,8 @@ export default class Rooms extends View {
     this.view = p.view ?? "panel";
     // A window's room view shows one room: no list, no alerts, no saved read state.
     this.only = this.view === "room" ? { root: String(p.root), room: String(p.room) } : null;
+    // A panel opened with a root (app-fleet's per-run rooms tab) shows only that run's rooms.
+    this.rootFilter = this.view === "panel" && p.root ? String(p.root) : null;
     this.config = { operator: "cesar", cli: null };
     this.rooms = []; // [{ key, root, name, msgs, members, presences, archived, summary }]
     this.state = { lastRead: {}, lastNotified: {} };
@@ -104,7 +107,12 @@ export default class Rooms extends View {
   async reload(cx) {
     const cfg = await readJson(`${CONFIG_DIR()}/config.json`, {});
     this.config = { operator: String(cfg.operator ?? "cesar"), cli: cfg.cli ?? null };
-    const roots = this.only ? [{ path: this.only.root }] : await readJson(`${CONFIG_DIR()}/roots.json`, []);
+    const fixed = this.only?.root ?? this.rootFilter;
+    const roots = fixed ? [{ path: fixed }] : await readJson(`${CONFIG_DIR()}/roots.json`, []);
+    if (!this.only) {
+      const merged = mergeRead(this.state.lastRead, shared(READ_KEY));
+      if (merged.changed) { this.state.lastRead = merged.lastRead; this.save(); }
+    }
     const alive = [];
     for (const r of roots) if (r && typeof r.path === "string" && (await exists(r.path))) alive.push(r.path);
     const live = liveRoots(roots, (p) => alive.includes(p));
@@ -177,7 +185,9 @@ export default class Rooms extends View {
     if (this.state.lastRead[key] === last) return;
     this.state.lastRead[key] = last;
     r.summary = roomSummary(r.msgs, r.members, r.presences, this.config.operator, last);
-    this.save();
+    // A window doesn't write the panel's state file; it shares its read mark and the panel folds it in.
+    if (this.only) setShared(READ_KEY, { ...(shared(READ_KEY) ?? {}), [key]: last });
+    else this.save();
   }
 
   // One write at a time (writeTextFile is compare-and-swap); later states fold into one more write.
@@ -259,8 +269,9 @@ export default class Rooms extends View {
       .when(status !== "unknown", (e) => e.child(div().text_size(11).text_color(t.muted).child(status)));
   }
 
-  roomRow(r, t) {
+  roomRow(r, t, terms) {
     const s = r.summary;
+    const live = roomTerminals(terms, r.root, r.name, r.members).length > 0;
     const dot = s.needsYou > 0 ? t.blocked : s.unread > 0 ? t.accent : t.dim;
     return h_flex().id(`room-${r.key}`).h(30).flex_none().px(10).gap(8).items_center().rounded(7).cursor_pointer()
       .when(this.selected === r.key, (e) => e.bg(t.selected)).hover((st) => st.bg(t.hover))
@@ -268,7 +279,11 @@ export default class Rooms extends View {
       .child(div().size(8).rounded(4).flex_none().bg(dot))
       .child(div().flex_1().min_w(0).truncate().text_color(r.archived ? t.dim : t.foreground).child(`#${r.name}`))
       .when(s.needsYou > 0, (e) => e.child(div().px(6).rounded(4).bg(t.blocked).text_color(t.solid_foreground).text_size(11).child(`${s.needsYou} for you`)))
-      .when(s.needsYou === 0 && s.unread > 0, (e) => e.child(div().text_size(11).text_color(t.muted).child(String(s.unread))));
+      .when(s.needsYou === 0 && s.unread > 0, (e) => e.child(div().text_size(11).text_color(t.muted).child(String(s.unread))))
+      .when(live, (e) => e.child(div().id(`window-${r.key}`).px(6).rounded(5).border_1().border_color(t.border).text_size(10)
+        .text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover).text_color(t.foreground))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click(() => this.openWindow(r)).child("window")));
   }
 
   messageRow(m, t) {
@@ -320,9 +335,10 @@ export default class Rooms extends View {
     }
     const visible = sortRooms(this.rooms.filter((r) => this.showArchived || !r.archived).map((r) => ({ ...r, ...r.summary })));
     const current = this.rooms.find((r) => r.key === this.selected);
+    const terms = terminals();
     return v_flex().id("rooms").size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
       .child(h_flex().h(40).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border)
-        .child(div().font_semibold().child("Rooms"))
+        .child(div().font_semibold().child(this.rootFilter ? `Rooms · ${runLabel(this.rootFilter)}` : "Rooms"))
         .child(div().flex_1())
         .child(div().id("rooms-archived").text_size(11).text_color(t.muted).cursor_pointer()
           .on_click((_e, cx) => { this.showArchived = !this.showArchived; cx.notify(); })
@@ -331,7 +347,7 @@ export default class Rooms extends View {
         .child(v_flex().id("rooms-list").absolute().inset_0().overflow_y_scroll().p(6)
           .children(groupByRoot(visible).flatMap((g) => [
             div().h(22).flex_none().px(10).pt(4).text_size(10).text_color(t.dim).truncate().child(g.label),
-            ...g.rooms.map((r) => this.roomRow(r, t)),
+            ...g.rooms.map((r) => this.roomRow(r, t, terms)),
           ]))
           .when(visible.length === 0, (e) => e.child(div().p(8).text_color(t.dim).child("No rooms yet. Agents create them with `room create`."))))
         .child(Scrollbar.vertical("rooms-list").absolute().inset_0()))
