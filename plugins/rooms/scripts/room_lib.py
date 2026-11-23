@@ -238,6 +238,56 @@ def cmd_ls(a, root):
         print(f"{r['room']}{flag}: {r['members']} members, {r['messages']} messages")
 
 
+PRESENCE_STATES = ("working", "idle", "gone")
+DEFAULT_CONFIG = {"operator": "cesar", "quietMinutes": 10}
+
+
+def cmd_presence(a, root):
+    d = room_dir(root, a.room)
+    pdir = os.path.join(d, "presence")
+    os.makedirs(pdir, exist_ok=True)
+    path = os.path.join(pdir, f"{a.id}.json")
+    with locked(os.path.join(d, ".lock")):
+        cur = read_json(path, {})
+        cur.update({"id": a.id, "state": a.state, "ts": now_iso()})
+        if a.delivered:
+            cur["delivered"] = a.delivered
+        if a.session:
+            cur["session"] = a.session
+        write_atomic(path, cur)
+
+
+def cmd_presence_get(a, root):
+    d = room_dir(root, a.room)
+    json.dump(read_json(os.path.join(d, "presence", f"{a.id}.json"), {}), sys.stdout)
+    print()
+
+
+def cmd_archive(a, root):
+    d = room_dir(root, a.room)
+    open(os.path.join(d, "archived"), "a").close()
+
+
+def cli_path():
+    return os.path.realpath(os.environ.get("ROOMS_CLI_PATH") or os.path.join(os.path.dirname(__file__), "room"))
+
+
+def cmd_install(a, root):
+    target = cli_path()
+    bindir = os.environ.get("ROOMS_BIN_DIR") or os.path.expanduser("~/.local/bin")
+    os.makedirs(bindir, exist_ok=True)
+    link = os.path.join(bindir, "room")
+    if os.path.islink(link) or os.path.exists(link):
+        if os.path.realpath(link) != target:
+            os.remove(link)
+    if not os.path.lexists(link):
+        os.symlink(target, link)
+    cfg = os.path.join(config_dir(), "config.json")
+    if not os.path.exists(cfg):
+        write_atomic(cfg, DEFAULT_CONFIG)
+    print(target)
+
+
 # ---------- entry ----------
 
 def parser():
@@ -274,6 +324,26 @@ def parser():
     ls = sub.add_parser("ls", help="list rooms under the root")
     ls.add_argument("--json", action="store_true")
     ls.set_defaults(fn=cmd_ls)
+
+    pr = sub.add_parser("presence", help="record a member's heartbeat")
+    pr.add_argument("room")
+    pr.add_argument("id")
+    pr.add_argument("state", choices=PRESENCE_STATES)
+    pr.add_argument("--delivered", metavar="msg-id")
+    pr.add_argument("--session", metavar="session-id")
+    pr.set_defaults(fn=cmd_presence)
+
+    pg = sub.add_parser("presence-get", help="print a member's presence JSON")
+    pg.add_argument("room")
+    pg.add_argument("id")
+    pg.set_defaults(fn=cmd_presence_get)
+
+    ar = sub.add_parser("archive", help="archive a room (no more posts)")
+    ar.add_argument("room")
+    ar.set_defaults(fn=cmd_archive)
+
+    ins = sub.add_parser("install", help="put room on PATH and write default config")
+    ins.set_defaults(fn=cmd_install)
     return p
 
 

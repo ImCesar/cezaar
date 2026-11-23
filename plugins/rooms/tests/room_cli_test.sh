@@ -91,5 +91,46 @@ t_root_registered() {
   [ "$got" = "['$abs']" ] && ok root_registered || fail root_registered "got $got want $abs"
 }
 
+t_presence_roundtrip() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  "$ROOM" presence r a idle --delivered X >/dev/null 2>&1 && "$ROOM" presence r a working >/dev/null 2>&1 \
+    || { fail presence_roundtrip "presence failed"; return; }
+  got=$("$ROOM" presence-get r a 2>/dev/null | jq_py "(d.get('delivered'), d.get('state'), bool(d.get('ts')))")
+  [ "$got" = "('X', 'working', True)" ] && ok presence_roundtrip || fail presence_roundtrip "got $got"
+}
+
+t_presence_atomic() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  i=0
+  while [ $i -lt 20 ]; do "$ROOM" presence r a idle --delivered "d$i" >/dev/null 2>&1 & i=$((i + 1)); done
+  wait
+  got=$(jq_py "d['state']" < "$ROOMS_ROOT/r/presence/a.json" 2>/dev/null)
+  left=$(ls "$ROOMS_ROOT/r/presence" | grep -c tmp)
+  [ "$got" = idle ] && [ "$left" = 0 ] && ok presence_atomic || fail presence_atomic "got=$got tmpfiles=$left"
+}
+
+t_archive_blocks_post() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" archive r >/dev/null 2>&1 || { fail archive_blocks_post "archive failed"; return; }
+  "$ROOM" post r --as a "late" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] && [ -e "$ROOMS_ROOT/r/archived" ] && ok archive_blocks_post || fail archive_blocks_post "rc=$rc"
+}
+
+t_install_creates_link_and_config() {
+  fresh
+  out=$("$ROOM" install 2>/dev/null) || { fail install_creates_link_and_config "install failed"; return; }
+  want=$(cd "$HERE/../scripts" && pwd -P)/room
+  link=$(cd "$ROOMS_BIN_DIR" 2>/dev/null && python3 -I -c "import os;print(os.path.realpath('room'))")
+  cfg=$(jq_py "d" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  printf '{"operator": "someone", "quietMinutes": 3}\n' > "$ROOMS_CONFIG_DIR/config.json"
+  "$ROOM" install >/dev/null 2>&1
+  kept=$(jq_py "d['operator']" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  [ "$out" = "$want" ] && [ "$link" = "$want" ] && [ "$cfg" = "{'operator': 'cesar', 'quietMinutes': 10}" ] && [ "$kept" = someone ] \
+    && ok install_creates_link_and_config || fail install_creates_link_and_config "out=$out link=$link cfg=$cfg kept=$kept"
+}
+
 for t in $(grep -o '^t_[a-z_]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
