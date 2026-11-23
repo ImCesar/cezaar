@@ -131,3 +131,22 @@ export function createSaver(write, read, initial) {
     if (!running) drain()
   }
 }
+
+/**
+ * The live terminals that belong to a room: those labelled rooms.root / rooms.room / rooms.id
+ * (app-fleet labels its members this way). Ordered as the room's members.json lists them,
+ * unknown ids last. `status` is Herdr's word for the terminal (working, idle, blocked, ...).
+ */
+export function roomTerminals(terminals, root, room, members) {
+  const order = new Map((Array.isArray(members) ? members : []).map((m, i) => [m.id, i]))
+  const rank = id => (order.has(id) ? order.get(id) : Infinity)
+  return (Array.isArray(terminals) ? terminals : [])
+    .filter(t => t && (t.state === undefined || t.state === 'live') && t.labels &&
+      t.labels['rooms.root'] === root && t.labels['rooms.room'] === room)
+    .map(t => ({
+      address: t.address,
+      id: t.labels['rooms.id'] ?? t.address,
+      status: typeof t.status === 'string' ? t.status : t.status?.state ?? 'unknown',
+    }))
+    .sort((a, b) => rank(a.id) - rank(b.id) || String(a.address).localeCompare(String(b.address)))
+}

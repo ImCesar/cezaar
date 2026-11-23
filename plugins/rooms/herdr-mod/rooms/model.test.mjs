@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSaver, groupByRoot, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { createSaver, groupByRoot, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -104,4 +104,29 @@ test('createSaver runs one write at a time and lands the latest state', async ()
   await new Promise(r => setTimeout(r, 60))
   assert.equal(disk, 'c')
   assert.ok(writes <= 2, `writes=${writes}`)
+})
+
+const term = (address, room, id, extra = {}) => ({ address, state: 'live', status: 'idle', labels: { 'rooms.root': '/r', 'rooms.room': room, 'rooms.id': id }, ...extra })
+
+test('roomTerminals keeps live terminals of this root and room, in members order', () => {
+  const members = [{ id: 'auth-builder' }, { id: 'auth-reviewer' }, { id: 'cesar' }]
+  const ts = [
+    term('t3', 'auth', 'auth-reviewer', { status: { state: 'working', app: 'claude-code' } }),
+    term('t2', 'auth', 'auth-builder'),
+    term('t4', 'billing', 'billing-builder'),
+    { ...term('t5', 'auth', 'auth-builder'), labels: { 'rooms.root': '/other', 'rooms.room': 'auth', 'rooms.id': 'auth-builder' } },
+    term('t6', 'auth', 'auth-builder', { state: 'finished' }),
+    { address: 't7', state: 'live' },
+  ]
+  assert.deepEqual(roomTerminals(ts, '/r', 'auth', members), [
+    { address: 't2', id: 'auth-builder', status: 'idle' },
+    { address: 't3', id: 'auth-reviewer', status: 'working' },
+  ])
+})
+
+test('roomTerminals puts ids not in members last, and returns [] when nothing matches', () => {
+  const ts = [term('t9', 'auth', 'stranger'), term('t2', 'auth', 'auth-builder', { status: null })]
+  assert.deepEqual(roomTerminals(ts, '/r', 'auth', [{ id: 'auth-builder' }]).map(x => [x.id, x.status]), [['auth-builder', 'unknown'], ['stranger', 'idle']])
+  assert.deepEqual(roomTerminals(ts, '/r', 'nope', []), [])
+  assert.deepEqual(roomTerminals(undefined, '/r', 'auth', []), [])
 })
