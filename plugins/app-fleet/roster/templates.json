@@ -1,0 +1,8 @@
+{
+  "build": ["builder", "reviewer"],
+  "fix": ["builder", "reviewer"],
+  "research": ["researcher"],
+  "verify": ["runner"],
+  "judge": ["judge"],
+  "curate": ["curator"]
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Test stub for hc: logs argv; `get` answers $STUB_DIR/hc.get.out or an idle claude status.
+[ -n "$STUB_LOG" ] && echo "hc $*" >> "$STUB_LOG"
+case $1 in
+  kill) exit "${STUB_HC_KILL_STATUS:-0}" ;;
+  get) if [ -f "$STUB_DIR/hc.get.out" ]; then cat "$STUB_DIR/hc.get.out"; else echo '{"status":{"app":"claude-code","state":"idle"}}'; fi ;;
+  *) exit 0 ;;
+esac

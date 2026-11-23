@@ -1,10 +1,16 @@
 {
   "name": "rooms",
   "description": "A chat room per task for Claude agents: post and @-mention in a shared room; a Claude Code mod wakes mentioned sessions and a Herdr app panel lets the operator watch and post.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Cesar Avitia"
   },
   "repository": "https://github.com/ImCesar/cezaar",
-  "keywords": ["agents", "rooms", "chat", "herdr", "orchestration"]
+  "keywords": [
+    "agents",
+    "rooms",
+    "chat",
+    "herdr",
+    "orchestration"
+  ]
 }

@@ -1,0 +1,3 @@
+#!/bin/sh
+[ -n "$STUB_LOG" ] && echo "claude $*" >> "$STUB_LOG"
+exit 0

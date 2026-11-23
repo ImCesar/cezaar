@@ -88,7 +88,7 @@ export function formatBatch(msgs: Msg[], cap = BATCH_CAP): string {
 }
 
 /**
- * Members to report as gone quiet: a stale heartbeat, idle with no post for too long, or
+ * Members to report as gone quiet: a stale heartbeat, an unanswered mention for too long, or
  * no heartbeat at all `neverMs` after joining (its session never came online).
  */
 export function quietVerdicts(args: {
@@ -96,6 +96,7 @@ export function quietVerdicts(args: {
   members: Member[]
   presences: Record<string, Presence>
   lastPostTs: Record<string, number>
+  lastMentionTs: Record<string, number>
   done: Set<string>
   quietMs: number
   staleMs: number
@@ -110,13 +111,18 @@ export function quietVerdicts(args: {
       if (args.now - Date.parse(m.joinedAt) > args.neverMs) out.push({ id: m.id, reason: 'never' })
       continue
     }
+    if (p.state === 'gone') continue // ended on purpose (e.g. its thread closed): not silence
     const beat = Date.parse(p.ts)
     if (args.now - beat > args.staleMs) {
       out.push({ id: m.id, reason: 'stale' })
       continue
     }
-    const lastSaid = args.lastPostTs[m.id] ?? Date.parse(m.joinedAt)
-    if (p.state === 'idle' && args.now - lastSaid > args.quietMs) out.push({ id: m.id, reason: 'quiet' })
+    // Quiet means asked and not answered: mentioned, idle, and no post since the mention.
+    const asked = args.lastMentionTs[m.id]
+    const said = args.lastPostTs[m.id] ?? 0
+    if (p.state === 'idle' && asked !== undefined && asked > said && args.now - asked > args.quietMs) {
+      out.push({ id: m.id, reason: 'quiet' })
+    }
   }
   return out
 }
