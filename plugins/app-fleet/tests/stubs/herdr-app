@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+# Test stub for herdr-app: logs argv, keeps a tiny tab state, answers like the real CLI.
+import json, os, sys
+log = os.environ.get("STUB_LOG"); d = os.environ.get("STUB_DIR", "/tmp")
+os.makedirs(d, exist_ok=True)
+if log:
+    with open(log, "a") as fh: fh.write("herdr-app " + " ".join(sys.argv[1:]) + "\n")
+st_path = os.path.join(d, "herdr-state.json")
+st = json.load(open(st_path)) if os.path.exists(st_path) else {"n": 0, "tabs": {}}
+def save(): json.dump(st, open(st_path, "w"))
+def nid(p): st["n"] += 1; return f"{p}{st['n']}"
+def arg(name):
+    a = sys.argv
+    return a[a.index("--" + name) + 1] if "--" + name in a else None
+a = sys.argv[1:]
+if a[:1] == ["status"]:
+    sys.exit(int(os.environ.get("STUB_HERDR_STATUS", "0")))
+if a[:1] == ["ls"]:
+    tabs = [{"id": t, "name": v["name"], "terminals": v["terminals"]} for t, v in st["tabs"].items()]
+    print(json.dumps({"spaces": [{"id": "sp1", "name": "stub", "tabs": tabs}]})); sys.exit(0)
+if a[:1] == ["do"] and len(a) > 1:
+    cmd = a[1]
+    fail = os.environ.get("STUB_FAIL", "")
+    if cmd in fail.split(","):
+        print(json.dumps({"error": f"stub failure for {cmd}"})); sys.exit(1)
+    if cmd == "space.new":
+        print(json.dumps({"space": nid("sp"), "tab": nid("tb"), "terminal": nid("t")})); save(); sys.exit(0)
+    if cmd == "tab.new":
+        tab, term, pane = nid("tb"), nid("t"), nid("p")
+        st["tabs"][tab] = {"name": arg("name"), "terminals": [{"terminal": term, "pane": pane}]}
+        save(); print(json.dumps({"space": arg("space") or "sp1", "tab": tab, "terminal": term})); sys.exit(0)
+    if cmd == "pane.split":
+        term, pane = nid("t"), nid("p")
+        for v in st["tabs"].values():
+            if any(x["pane"] == arg("pane") for x in v["terminals"]):
+                v["terminals"].append({"terminal": term, "pane": pane})
+        save(); print(json.dumps({"pane": pane, "terminal": term})); sys.exit(0)
+    if cmd in ("tab.close", "space.close"):
+        tid = arg("id")
+        if tid in st["tabs"]: del st["tabs"][tid]; save(); print("{}"); sys.exit(0)
+        print(json.dumps({"error": f'no tab "{tid}"'})); sys.exit(1)
+    print("{}"); sys.exit(0)
+sys.exit(0)

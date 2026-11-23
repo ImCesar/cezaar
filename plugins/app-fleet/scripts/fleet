@@ -1,0 +1,11 @@
+#!/bin/sh
+# fleet: run the fleet on the Herdr app, talking in rooms. See plugins/app-fleet/README.md.
+# Thin launcher: resolves its real location (it may be a symlink in ~/.local/bin)
+# and runs the Python implementation with -I so nothing from the cwd is imported.
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+done
+here=$(cd "$(dirname "$self")" && pwd -P)
+APP_FLEET_CLI_PATH="$here/fleet" exec python3 -I "$here/fleet_lib.py" "$@"
