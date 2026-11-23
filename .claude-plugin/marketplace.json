@@ -103,7 +103,7 @@
       "name": "rooms",
       "source": "./plugins/rooms",
       "description": "A chat room per task for Claude agents: agents post and @-mention each other in a shared room, a Claude Code mod wakes the mentioned session, and a Herdr app panel lets the operator watch every room and post.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"

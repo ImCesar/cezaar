@@ -264,11 +264,14 @@ async function silenceCheck(s: State, $: EngineInterface, now: number) {
       if (p) presences[m.id] = p
     }
     const lastPostTs: Record<string, number> = {}
+    const lastMentionTs: Record<string, number> = {}
     const done = new Set<string>()
     for (const m of r.msgs) {
       const t = Date.parse(m.ts)
       if (!(lastPostTs[m.from]! >= t)) lastPostTs[m.from] = t
       if (m.kind === 'done') done.add(m.from)
+      const asked = (m.mentions ?? []).includes('all') ? judged.map(j => j.id) : (m.mentions ?? [])
+      for (const id of asked) if (id !== m.from && !(lastMentionTs[id]! >= t)) lastMentionTs[id] = t
     }
     // Clear flags for members heard from since they were flagged.
     for (const m of judged) {
@@ -284,7 +287,7 @@ async function silenceCheck(s: State, $: EngineInterface, now: number) {
     }
     const alreadyFlagged = new Set(judged.map(m => m.id).filter(id => s.flagged.has(`${name}/${id}`)))
     const verdicts = quietVerdicts({
-      now, members: judged, presences, lastPostTs, done, alreadyFlagged,
+      now, members: judged, presences, lastPostTs, lastMentionTs, done, alreadyFlagged,
       quietMs: s.quietMinutes * 60_000, staleMs: STALE_MS, neverMs: NEVER_MS,
     })
     for (const v of verdicts) {
@@ -293,7 +296,7 @@ async function silenceCheck(s: State, $: EngineInterface, now: number) {
         ? 'no heartbeat for over 2 minutes: crashed or closed?'
         : v.reason === 'never'
           ? 'never came online: its session has not started the rooms mod'
-          : `idle with no post for over ${s.quietMinutes} minutes`
+          : `mentioned and no reply for over ${s.quietMinutes} minutes`
       // Sent as the reserved `rooms` identity: a member never hears its own posts.
       await room(s, $, ['post', name, '--as', SYSTEM_ID, '--kind', 'system', `@${s.id} ${v.id} went quiet (${why})`])
     }

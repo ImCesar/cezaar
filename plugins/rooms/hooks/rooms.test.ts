@@ -218,9 +218,9 @@ test('a member whose heartbeat stopped is reported once', async ($: any, on: any
   expect(systemPosts(w).length).toBe(1)
 })
 
-test('an idle member with no post past the threshold is reported', async ($: any, on: any) => {
+test('an idle member with an unanswered mention past the threshold is reported', async ($: any, on: any) => {
   const clock = mock.clock(on, { now: T })
-  const w = leadWorld(on)
+  const w = leadWorld(on, 'lead', line('20261123T050000.000000Z-eeeeee', 'a', '@b over to you', ['b']))
   presence(w, 'a', T + 200_000)
   presence(w, 'b', T + 60_000, 'idle')
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
@@ -375,4 +375,14 @@ test('a pause notice that fails to post is tried again on the next refusal', asy
   await $.turn.complete({ answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer' })
   await clock.settle()
   expect(roomRuns(w, 'post').filter(a => a.includes('pause')).length).toBe(2)
+})
+
+test('a waiting member who was never asked is not reported', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  presence(w, 'a', T + 200_000)
+  presence(w, 'b', T + 60_000, 'idle')
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(120_000)
+  expect(systemPosts(w).map(a => a.join(' ')).filter(t => t.includes('b went quiet')).length).toBe(0)
 })
