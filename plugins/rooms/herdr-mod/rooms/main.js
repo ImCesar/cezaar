@@ -1,12 +1,20 @@
 // Rooms: watch every agent room and post into them. Reads the files `room` writes;
 // posts only through the room CLI. Never sends anything to a terminal.
+//
+// The same mod draws the pieces of a room's window (props().view): "title" (drag bar and close),
+// "member" (one member's name and Herdr status) and "room" (one room's timeline and composer).
+// The window puts the room's live member terminals (labelled rooms.root/room/id) beside the room.
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
-import { exec, home, notify, readTextFile, setBadge, theme, watchFolder, writeTextFile } from "herdr";
-import { createSaver, groupByRoot, liveRoots, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from "./model.js";
+import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, terminals, theme, watchFolder, writeTextFile } from "herdr";
+import { createSaver, groupByRoot, liveRoots, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
+const MOD = "rooms";
+// A room's run: rooms live in <home>/runs/<run>/rooms for app-fleet; otherwise the root's folder name.
+const runLabel = (root) => { const parts = String(root).split("/").filter(Boolean); return parts.at(-1) === "rooms" ? parts.at(-2) : parts.at(-1); };
+const statusColor = (t, s) => t[s] ?? (s === "gone" ? t.ansi1 : t.dim);
 
 async function readJson(path, fallback) {
   try {
@@ -41,6 +49,10 @@ async function listDirs(path) {
 
 export default class Rooms extends View {
   init(_props, cx) {
+    const p = props() ?? {};
+    this.view = p.view ?? "panel";
+    // A window's room view shows one room: no list, no alerts, no saved read state.
+    this.only = this.view === "room" ? { root: String(p.root), room: String(p.room) } : null;
     this.config = { operator: "cesar", cli: null };
     this.rooms = []; // [{ key, root, name, msgs, members, presences, archived, summary }]
     this.state = { lastRead: {}, lastNotified: {} };
@@ -54,6 +66,13 @@ export default class Rooms extends View {
     this.draft = TextareaState.new({ placeholder: "Message this room… (@name to mention)", rows: 3 });
     this.draft.set_auto_grow(2, 8);
     this.draft.on("submit", (_e, cx) => this.post(cx));
+    if (this.view === "title" || this.view === "member") return;
+    if (this.only) {
+      this.selected = `${this.only.root}#${this.only.room}`;
+      this.requestReload(cx);
+      cx.timer.every(10000, (cx) => this.requestReload(cx));
+      return;
+    }
     cx.spawn(async (cx) => {
       const path = `${CONFIG_DIR()}/panel-state.json`;
       const savedText = await readTextFile(path).catch(() => null);
@@ -85,14 +104,14 @@ export default class Rooms extends View {
   async reload(cx) {
     const cfg = await readJson(`${CONFIG_DIR()}/config.json`, {});
     this.config = { operator: String(cfg.operator ?? "cesar"), cli: cfg.cli ?? null };
-    const roots = await readJson(`${CONFIG_DIR()}/roots.json`, []);
+    const roots = this.only ? [{ path: this.only.root }] : await readJson(`${CONFIG_DIR()}/roots.json`, []);
     const alive = [];
     for (const r of roots) if (r && typeof r.path === "string" && (await exists(r.path))) alive.push(r.path);
     const live = liveRoots(roots, (p) => alive.includes(p));
     const rooms = [];
     for (const root of live) {
       this.watch(root.path, cx);
-      for (const name of await listDirs(root.path)) {
+      for (const name of this.only ? [this.only.room] : await listDirs(root.path)) {
         // One unreadable room must not stop the others from updating.
         try {
           const dir = `${root.path}/${name}`;
@@ -135,6 +154,7 @@ export default class Rooms extends View {
   }
 
   alert() {
+    if (this.only) return; // the panel alerts; a window would only repeat it
     let total = 0;
     let changed = false;
     for (const r of this.rooms) {
@@ -198,6 +218,47 @@ export default class Rooms extends View {
     cx.notify();
   }
 
+  // One window per room: its live member terminals on the left, the room on the right.
+  openWindow(r) {
+    const members = roomTerminals(terminals(), r.root, r.name, r.members);
+    if (!members.length) return;
+    const block = (props, px) => ({ type: "block", ...(px ? { size: { px } } : {}), content: { mod: MOD, props } });
+    openOverlay({
+      kind: "window", key: `room:${r.key}`, width: 0.85, height: 0.85,
+      layout: { type: "column", children: [
+        block({ view: "title", root: r.root, room: r.name }, 30),
+        { type: "row", children: [
+          { type: "column", size: { weight: 3 }, children: members.flatMap((m) => [
+            block({ view: "member", id: m.id, address: m.address }, 24),
+            { type: "block", content: { terminal: m.address } },
+          ]) },
+          { type: "block", size: { weight: 2 }, content: { mod: MOD, props: { view: "room", root: r.root, room: r.name } } },
+        ] },
+      ] },
+    });
+  }
+
+  renderTitle(t) {
+    const p = props() ?? {};
+    return h_flex().id("room-title").size_full().px(12).gap(8).items_center().bg(t.surface ?? t.background).text_color(t.foreground).text_size(13)
+      .child(div().font_semibold().child(`#${p.room}`))
+      .child(div().text_size(11).text_color(t.muted).child(runLabel(p.root)))
+      .child(div().flex_1())
+      .child(div().id("room-close").px(8).rounded(6).text_color(t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click(() => closeOverlay(p.overlay)).child("✕"));
+  }
+
+  renderMember(t) {
+    const p = props() ?? {};
+    const term = terminals().find((x) => x.address === p.address);
+    const status = term ? (typeof term.status === "string" ? term.status : term.status?.state ?? "unknown") : "gone";
+    return h_flex().id(`member-${p.address}`).size_full().px(10).gap(6).items_center().bg(t.background).border_t(1).border_color(t.border).text_size(12)
+      .child(div().size(7).rounded(4).flex_none().bg(statusColor(t, status)))
+      .child(div().font_semibold().text_color(t.foreground).child(String(p.id)))
+      .when(status !== "unknown", (e) => e.child(div().text_size(11).text_color(t.muted).child(status)));
+  }
+
   roomRow(r, t) {
     const s = r.summary;
     const dot = s.needsYou > 0 ? t.blocked : s.unread > 0 ? t.accent : t.dim;
@@ -223,11 +284,42 @@ export default class Rooms extends View {
       .when(Array.isArray(m.links) && m.links.length > 0, (e) => e.child(div().text_size(11).text_color(t.muted).child(m.links.join("  "))));
   }
 
+  // The open room: presence, timeline, composer. The panel and a window's room view share it.
+  roomBody(el, current, t) {
+    const presence = current.summary.presence;
+    const live = this.only ? [] : roomTerminals(terminals(), current.root, current.name, current.members);
+    return el
+      .child(h_flex().flex_none().px(12).py(6).gap(10).flex_wrap().items_center().border_b(1).border_color(t.border)
+        .children(presence.map((p) => h_flex().gap(4).items_center()
+          .child(div().size(7).rounded(4).bg(p.state === "working" ? t.working : p.state === "idle" ? t.idle ?? t.dim : t.ansi1))
+          .child(div().text_size(11).text_color(t.muted).child(`${p.id} ${p.state}`))))
+        .when(live.length > 0, (e) => e.child(div().flex_1()).child(div().id("rooms-window").px(8).py(2).rounded(6).border_1().border_color(t.border)
+          .text_size(11).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
+          .on_click(() => this.openWindow(current)).child("window"))))
+      .child(div().flex_1().min_h(0).relative()
+        .child(v_flex().id("rooms-timeline").absolute().inset_0().overflow_y_scroll().py(4)
+          .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t))))
+        .child(Scrollbar.vertical("rooms-timeline").absolute().inset_0()))
+      .when(Boolean(this.note), (e) => e.child(div().px(12).py(4).text_size(11).text_color(t.ansi1).child(this.note)))
+      .when(!current.archived, (e) => e.child(h_flex().flex_none().p(10).gap(8).items_end().border_t(1).border_color(t.border)
+        .child(div().flex_1().min_w(0).rounded(8).border_1().border_color(t.border).p(6).cursor_text()
+          .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+          .child(Textarea.new(this.draft).w_full().text_size(12).text_color(t.foreground)))
+        .child(div().id("rooms-send").h(30).px(12).flex().items_center().rounded(8).bg(t.solid).text_color(t.solid_foreground)
+          .text_size(12).cursor_pointer().on_click((_e, cx) => this.post(cx)).child(this.busy ? "Sending…" : "Send"))));
+  }
+
   render(cx) {
     const t = theme();
+    if (this.view === "title") return this.renderTitle(t);
+    if (this.view === "member") return this.renderMember(t);
+    if (this.only) {
+      const current = this.rooms.find((r) => r.key === this.selected);
+      const el = v_flex().id("room-view").size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13);
+      return current ? this.roomBody(el, current, t) : el.child(div().p(12).text_color(t.dim).child("Loading…"));
+    }
     const visible = sortRooms(this.rooms.filter((r) => this.showArchived || !r.archived).map((r) => ({ ...r, ...r.summary })));
     const current = this.rooms.find((r) => r.key === this.selected);
-    const presence = current ? current.summary.presence : [];
     return v_flex().id("rooms").size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
       .child(h_flex().h(40).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child("Rooms"))
@@ -243,22 +335,7 @@ export default class Rooms extends View {
           ]))
           .when(visible.length === 0, (e) => e.child(div().p(8).text_color(t.dim).child("No rooms yet. Agents create them with `room create`."))))
         .child(Scrollbar.vertical("rooms-list").absolute().inset_0()))
-      .when(Boolean(current), (e) => e
-        .child(h_flex().flex_none().px(12).py(6).gap(10).flex_wrap().border_b(1).border_color(t.border)
-          .children(presence.map((p) => h_flex().gap(4).items_center()
-            .child(div().size(7).rounded(4).bg(p.state === "working" ? t.working : p.state === "idle" ? t.idle ?? t.dim : t.ansi1))
-            .child(div().text_size(11).text_color(t.muted).child(`${p.id} ${p.state}`)))))
-        .child(div().flex_1().min_h(0).relative()
-          .child(v_flex().id("rooms-timeline").absolute().inset_0().overflow_y_scroll().py(4)
-            .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t))))
-          .child(Scrollbar.vertical("rooms-timeline").absolute().inset_0()))
-        .when(Boolean(this.note), (e) => e.child(div().px(12).py(4).text_size(11).text_color(t.ansi1).child(this.note)))
-        .when(!current.archived, (e) => e.child(h_flex().flex_none().p(10).gap(8).items_end().border_t(1).border_color(t.border)
-          .child(div().flex_1().min_w(0).rounded(8).border_1().border_color(t.border).p(6).cursor_text()
-            .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-            .child(Textarea.new(this.draft).w_full().text_size(12).text_color(t.foreground)))
-          .child(div().id("rooms-send").h(30).px(12).flex().items_center().rounded(8).bg(t.solid).text_color(t.solid_foreground)
-            .text_size(12).cursor_pointer().on_click((_e, cx) => this.post(cx)).child(this.busy ? "Sending…" : "Send")))))
+      .when(Boolean(current), (e) => this.roomBody(e, current, t))
       .when(!current, (e) => e.child(div().flex_1().p(12).text_color(t.dim).child(visible.length ? "Pick a room to read it." : "")));
   }
 }

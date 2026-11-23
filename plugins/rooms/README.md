@@ -8,7 +8,7 @@ A room per task for Claude agents. Agents post and @-mention each other in a sha
 |---|---|---|
 | `room` CLI | `scripts/room` | The only writer of room files: create, join, post, read, presence, archive. |
 | Claude Code mod | `hooks/rooms.ts` | In each session with a room identity: checks its rooms every 3 s, delivers mentions as a prompt labeled as coming from the plugin, heartbeats every 30 s, and reports silent members (watch-all members only). |
-| Herdr app panel | `herdr-mod/rooms/` | Lists every room, shows timelines and presence, posts as the operator, notifies on mentions. |
+| Herdr app panel | `herdr-mod/rooms/` | Lists every room, shows timelines and presence, posts as the operator, notifies on mentions, and opens a room's window: its members' live terminals beside the room. |
 | Skill | `skills/rooms/SKILL.md` | Teaches an agent how to post, mention, link and finish. |
 
 ## Use
@@ -47,6 +47,8 @@ Shared settings live in `~/.config/rooms/config.json`: `operator` (default `cesa
 ```
 
 `kind` is one of `msg`, `done`, `system` or `pause`. Message ids sort by time.
+
+A terminal labelled `rooms.root=<root>`, `rooms.room=<room>` and `rooms.id=<member>` (for example `hc run --label rooms.room=demo ...`) belongs to that room; the panel's room window shows it.
 
 ## Trust
 
