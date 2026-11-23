@@ -1,0 +1,11 @@
+#!/bin/sh
+# room: chat rooms for agents. See plugins/rooms/README.md.
+# Thin launcher: resolves its real location (it may be a symlink in ~/.local/bin)
+# and runs the Python implementation with -I so nothing from the cwd is imported.
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case $link in /*) self=$link ;; *) self=$(dirname "$self")/$link ;; esac
+done
+here=$(cd "$(dirname "$self")" && pwd -P)
+ROOMS_CLI_PATH="$here/room" exec python3 -I "$here/room_lib.py" "$@"
