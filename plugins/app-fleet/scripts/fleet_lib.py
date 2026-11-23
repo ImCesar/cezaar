@@ -409,9 +409,14 @@ def close_thread(run, task):
     t = run["threads"].get(task)
     if not t:
         raise Refused(f"fleet: no thread {task!r} in run {run['run']}", 3)
-    room(run, "archive", t.get("room", task), check=False)
     for term in t.get("terminals", []):
         tool(["hc", "kill", term])  # a terminal that already ended is fine
+    # Ended on purpose, not crashed: say so in every room they were in, so the lead's
+    # silence check does not report them as gone quiet in the channel.
+    for mid in t.get("members", []):
+        for rn in (t.get("room", task), run["stage"]):
+            room(run, "presence", rn, mid, "gone", check=False)
+    room(run, "archive", t.get("room", task), check=False)
     if t.get("tab"):
         tool(["herdr-app", "do", "tab.close", "--id", t["tab"], "--confirmed", "true"])  # killing usually closes it
     note = ""

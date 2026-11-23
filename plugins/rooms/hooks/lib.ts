@@ -111,6 +111,7 @@ export function quietVerdicts(args: {
       if (args.now - Date.parse(m.joinedAt) > args.neverMs) out.push({ id: m.id, reason: 'never' })
       continue
     }
+    if (p.state === 'gone') continue // ended on purpose (e.g. its thread closed): not silence
     const beat = Date.parse(p.ts)
     if (args.now - beat > args.staleMs) {
       out.push({ id: m.id, reason: 'stale' })

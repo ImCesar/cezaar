@@ -102,3 +102,14 @@ test('quiet needs an unanswered mention', async () => {
   })
   expect(out).toEqual([{ id: 'unanswered', reason: 'quiet' }])
 })
+
+test('a member marked gone is never judged, however old its presence', async () => {
+  const now = Date.parse('2026-11-23T06:00:00.000Z')
+  const members: Member[] = [{ id: 'g', joinedAt: new Date(now - 3_600_000).toISOString() }]
+  const out = quietVerdicts({
+    now, members, presences: { g: { id: 'g', state: 'gone', ts: new Date(now - 3_000_000).toISOString() } },
+    lastPostTs: {}, lastMentionTs: { g: now - 3_000_000 }, done: new Set(), alreadyFlagged: new Set(),
+    quietMs: 600_000, staleMs: 120_000, neverMs: 300_000,
+  })
+  expect(out).toEqual([])
+})

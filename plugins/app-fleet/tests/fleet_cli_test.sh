@@ -330,5 +330,15 @@ t_thread_open_accepts_brief_already_in_run() {
   [ "$rc" = 0 ] && ok thread_open_accepts_brief_already_in_run || fail thread_open_accepts_brief_already_in_run "rc=$rc $out"
 }
 
+t_thread_close_marks_members_gone_everywhere() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  r="$APP_FLEET_HOME/runs/r1/rooms"
+  ch=$(jq_py "d.get('state')" < "$r/execution/presence/builder-t1.json" 2>/dev/null)
+  th=$(jq_py "d.get('state')" < "$r/t1/presence/reviewer-t1.json" 2>/dev/null)
+  [ "$ch" = gone ] && [ "$th" = gone ] && ok thread_close_marks_members_gone_everywhere || fail thread_close_marks_members_gone_everywhere "channel=$ch thread=$th"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
