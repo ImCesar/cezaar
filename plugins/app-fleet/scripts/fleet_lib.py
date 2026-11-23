@@ -1,7 +1,7 @@
 """Implementation of the `fleet` CLI: the fleet on the Herdr app, talking in rooms.
 
 Python 3.9+, stdlib only, run with -I. Drives git (worktrees, merges), `room` (channels and
-threads), `herdr-app do` (spaces, tabs, panes) and `hc` (terminals).
+threads), `herdr-app do` (spaces, tabs) and `hc` (members run as Herdr sub-agents under the lead).
 
 Exit codes: 0 ok, 2 bad usage, 3 refused by state, 4 an external tool failed.
 """
@@ -293,12 +293,21 @@ TRUST_MSG = "trust this folder"
 MAX_TASK = 21
 
 
-def term_status(term):
+def term_info(term):
+    """`hc get <term>` as a dict ({} when hc can't say)."""
     r = tool(["hc", "get", term, "--json"])
     try:
-        return json.loads(r.stdout or "{}").get("status") or {}
+        return json.loads(r.stdout or "{}") or {}
     except ValueError:
         return {}
+
+
+def term_status(term):
+    return term_info(term).get("status") or {}
+
+
+def term_live(term):
+    return bool(term) and term_info(term).get("state") == "live"
 
 
 def clear_trust(term, timeout_s=None):
@@ -315,32 +324,63 @@ def clear_trust(term, timeout_s=None):
     return False
 
 
-def pane_of(tab):
-    reply = tool(["herdr-app", "ls"])
+def live_terminal_names():
     try:
-        for sp in json.loads(reply.stdout or "{}").get("spaces", []):
-            for t in sp.get("tabs", []):
-                if t.get("id") == tab and t.get("terminals"):
-                    return t["terminals"][0]["pane"]
-    except (ValueError, KeyError, IndexError):
-        pass
-    raise Refused(f"fleet: could not find the pane of tab {tab}", 4)
+        ts = json.loads(tool(["hc", "ls", "--json"]).stdout or "{}").get("terminals", [])
+    except ValueError:
+        ts = []
+    return {t["name"] for t in ts if t.get("name") and t.get("state", "live") == "live"}
 
 
-def spawn_members(run, task, folder, composed, made):
-    """First member in a new tab named after the task, the rest split beside it.
-    Records the tab and each terminal in `made` as it goes, so a failure can end them."""
-    first = composed[0]
-    reply = herdr("tab.new", "--name", task, *(("--space", run["space"]) if run.get("space") else ()),
-                  "--focus", "false", "--folder", folder, "--argv", json.dumps(first["argv"]))
-    made["tab"] = reply["tab"]
-    made["terminals"].append(reply["terminal"])
-    clear_trust(reply["terminal"])
-    pane = pane_of(reply["tab"])
-    for c in composed[1:]:
-        r = herdr("pane.split", "--direction", "right", "--pane", pane, "--argv", json.dumps(c["argv"]))
-        made["terminals"].append(r["terminal"])
-    return made["tab"], list(made["terminals"])
+def lead_parent(run):
+    """The terminal members nest under: the lead's shell, else the terminal fleet was called from."""
+    for term in (run.get("leadTerminal"), os.environ.get("HC_TERMINAL_ID")):
+        if term_live(term):
+            return term
+    return None
+
+
+def member_name(run, member_id, taken):
+    """The member's terminal name (its agents-list row): its id, or <id>-<run> when that is taken."""
+    for name in (member_id, f"{member_id}-{run['run']}"[:32]):
+        if name not in taken:
+            return name
+    return None
+
+
+def keep_visible(term):
+    """Give a member with no live parent a tab of its own, so it never runs out of sight."""
+    tool(["herdr-app", "do", "terminal.keep", "--terminal", term])
+
+
+def spawn_members(run, task, folder, composed, ids, room_name, made):
+    """Start each member as a Herdr sub-agent: the first under the lead, the rest under the first
+    (a reviewer nests under its builder). Records each terminal in `made` as it goes."""
+    taken = live_terminal_names()
+    lead = lead_parent(run)
+    for i, (c, mid) in enumerate(zip(composed, ids)):
+        parent = lead if i == 0 else made["terminals"][0]
+        name = member_name(run, mid, taken)
+        argv = ["hc", "run", "--json", "--bg", "--no-notify", "--outlive-parent",
+                *(["--parent", parent] if parent else ["--no-parent"]),
+                *(["--name", name] if name else []), "--cwd", folder,
+                "--label", f"fleet.run={run['run']}", "--label", f"fleet.thread={task}",
+                "--label", f"rooms.root={rooms_root(run)}", "--label", f"rooms.room={room_name}",
+                "--label", f"rooms.id={mid}", "--", *c["argv"]]
+        r = tool(argv)
+        try:
+            addr = json.loads(r.stdout or "{}").get("address") if r.returncode == 0 else None
+        except ValueError:
+            addr = None
+        if not addr:
+            raise Refused(f"fleet: could not start {mid}: {(r.stderr or r.stdout).strip()}", 4)
+        made["terminals"].append(addr)
+        taken.add(name)
+        if not parent:
+            keep_visible(addr)
+        if i == 0:
+            clear_trust(addr)
+    return list(made["terminals"])
 
 
 # ---------- threads ----------
@@ -376,7 +416,7 @@ def cmd_thread_open(a):
             raise Refused(f"fleet: a judge thread is named judge-<task> after an existing thread", 2)
         a.folder = run["threads"][disputed]["worktree"]
     require_app()
-    made = {"worktree": None, "branch": None, "room": None, "tab": None, "terminals": []}
+    made = {"worktree": None, "branch": None, "room": None, "terminals": []}
     try:
         open_thread(run, task, a.template, a.brief, a.from_, a.wave, made, folder=a.folder)
     except BaseException:
@@ -410,7 +450,7 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
          "--member", f"{op}:operator")
     made["room"] = os.path.join(rooms_root(run), room_name)
     composed = [compose_member(run, i, p, task, worktree=wt, room_name=room_name) for i, p in zip(ids, personas)]
-    tab, terms = spawn_members(run, task, wt, composed, made)
+    terms = spawn_members(run, task, wt, composed, ids, room_name, made)
     # Join the channel only once the members exist: an undo then has nothing to take back there.
     for i, p in zip(ids, personas):
         room(run, "join", run["stage"], i, "--role", p)
@@ -418,15 +458,13 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     # message, and a mention they don't answer yet would read as "gone quiet".
     room(run, "post", room_name, "--as", "lead", f"@{ids[0]} brief: {os.path.join(d, 'briefs', task + '.md')}")
     run["threads"][task] = {"template": template, "room": room_name, "branch": branch, "worktree": wt,
-                            "tab": tab, "terminals": terms, "members": ids, "state": "open", "wave": wave}
+                            "terminals": terms, "members": ids, "state": "open", "wave": wave}
     save_run(run)
 
 
 def undo_open(run, task, made):
     for term in made.get("terminals", []):
         tool(["hc", "kill", term])
-    if made.get("tab"):
-        tool(["herdr-app", "do", "tab.close", "--id", made["tab"], "--confirmed", "true"])
     if made.get("worktree"):
         git(run["repo"], "worktree", "remove", "--force", made["worktree"], check=False)
     if made.get("branch"):
@@ -471,8 +509,8 @@ def close_thread(run, task):
         for rn in (t.get("room", task), run["stage"]):
             room(run, "presence", rn, mid, "gone", check=False)
     room(run, "archive", t.get("room", task), check=False)
-    if t.get("tab"):
-        tool(["herdr-app", "do", "tab.close", "--id", t["tab"], "--confirmed", "true"])  # killing usually closes it
+    if t.get("tab"):  # threads opened before members were sub-agents had a tab of their own
+        tool(["herdr-app", "do", "tab.close", "--id", t["tab"], "--confirmed", "true"])
     note = remove_if_done(run, t)
     t["state"] = "closed"
     save_run(run)

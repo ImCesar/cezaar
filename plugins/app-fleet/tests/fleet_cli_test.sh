@@ -10,7 +10,7 @@ fresh() {
   T=$(mktemp -d)
   export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg"
   export PATH="$HERE/stubs:$ROOMS_SCRIPTS:$ORIG_PATH"
-  unset STUB_HERDR_STATUS STUB_FAIL STUB_HC_KILL_STATUS APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT
+  unset STUB_HERDR_STATUS STUB_FAIL STUB_HC_KILL_STATUS STUB_HC_RUN_FAIL_AT APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT HC_TERMINAL_ID HC_SCOPE
   mkdir -p "$STUB_DIR" "$ROOMS_CONFIG_DIR"
   printf '{"operator":"cesar","quietMinutes":10}\n' > "$ROOMS_CONFIG_DIR/config.json"
   REPO="$T/repo"; mkdir -p "$REPO"
@@ -22,11 +22,12 @@ fail() { echo "not ok $1: $2"; FAILS=$((FAILS + 1)); }
 jq_py() { python3 -I -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
 ORIG_PATH=$PATH
 
-# A run.json written directly, for tests of commands that read runs.
+# A run.json written directly, for tests of commands that read runs. $2: the lead's terminal (optional).
 seed_run() {
   mkdir -p "$APP_FLEET_HOME/runs/$1/rooms"
-  printf '{"run":"%s","repo":"%s","stage":"execution","base":"main","integration":"fleet/%s","space":"sp1","leadTab":null,"maxThreads":4,"verify":null,"teardown":null,"architecture":null,"threads":{}}\n' \
-    "$1" "$REPO" "$1/integration" > "$APP_FLEET_HOME/runs/$1/run.json"
+  lt=null; [ -n "$2" ] && lt="\"$2\""
+  printf '{"run":"%s","repo":"%s","stage":"execution","base":"main","integration":"fleet/%s","space":"sp1","leadTab":null,"leadTerminal":%s,"maxThreads":4,"verify":null,"teardown":null,"architecture":null,"threads":{}}\n' \
+    "$1" "$REPO" "$1/integration" "$lt" > "$APP_FLEET_HOME/runs/$1/run.json"
 }
 
 t_status_of_missing_run_exits_3() {
@@ -109,7 +110,7 @@ t_compose_runner_grants_verify() {
 brief() { printf '# Task %s\nDo the thing.\n' "$1" > "$T/$1.brief.md"; echo "$T/$1.brief.md"; }
 
 t_thread_open_creates_everything() {
-  fresh; seed_run r1
+  fresh; seed_run r1 t9
   out=$("$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" 2>&1) || { fail thread_open_creates_everything "rc=$? $out"; return; }
   wt="$REPO/.worktrees/r1/t1"
   br=$(git -C "$wt" branch --show-current 2>/dev/null)
@@ -117,13 +118,17 @@ t_thread_open_creates_everything() {
   mem_t1=$(jq_py "sorted(m['id'] for m in d)" < "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json")
   mem_ch=$(jq_py "sorted(m['id'] for m in d)" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json")
   first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "sorted(d['mentions'])")
-  tabs=$(grep -c "do tab.new --name t1" "$STUB_LOG"); splits=$(grep -c "do pane.split" "$STUB_LOG")
+  tabs=$(grep -c "do tab.new\|do pane.split" "$STUB_LOG"); runs=$(grep -c "^hc run" "$STUB_LOG")
+  b=$(grep "^hc run.*--name t1-builder " "$STUB_LOG"); r=$(grep "^hc run.*--name t1-reviewer " "$STUB_LOG")
+  flags=0; for f in "--parent t9" --outlive-parent --no-notify "--label rooms.room=t1" "--label rooms.id=t1-builder" "--label fleet.thread=t1" "--label fleet.run=r1"; do
+    case $b in *"$f"*) ;; *) flags=$((flags + 1)) ;; esac; done
+  case $r in *"--parent tm1 "*) rp=1 ;; *) rp=0 ;; esac
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
   [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['cesar', 't1-builder', 't1-reviewer']" ] \
     && case $mem_ch in *t1-builder*t1-reviewer*) true ;; *) false ;; esac \
     && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['t1-builder']" ] \
-    && [ "$tabs" = 1 ] && [ "$splits" = 1 ] && [ "$state" = open ] \
-    && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs splits=$splits state=$state"
+    && [ "$tabs" = 0 ] && [ "$runs" = 2 ] && [ "$flags" = 0 ] && [ "$rp" = 1 ] && [ "$state" = open ] \
+    && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs runs=$runs flags=$flags rp=$rp state=$state"
 }
 
 t_thread_open_refuses_duplicate_and_bad_names() {
@@ -160,7 +165,7 @@ t_thread_open_without_app_makes_nothing() {
 }
 
 t_thread_open_undoes_on_spawn_failure() {
-  fresh; seed_run r1; export STUB_FAIL=tab.new
+  fresh; seed_run r1; export STUB_HC_RUN_FAIL_AT=1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
   br=$(git -C "$REPO" branch --list fleet/r1/t1)
   thr=$(jq_py "list(d['threads'])" < "$APP_FLEET_HOME/runs/r1/run.json")
@@ -176,7 +181,7 @@ t_thread_close_archives_kills_and_removes() {
   kills=0; for t in $terms; do grep -q "hc kill $t" "$STUB_LOG" && kills=$((kills + 1)); done
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
   [ "$rc" = 0 ] && [ -e "$APP_FLEET_HOME/runs/r1/rooms/t1/archived" ] && [ "$kills" = 2 ] \
-    && grep -q "do tab.close" "$STUB_LOG" && [ ! -e "$REPO/.worktrees/r1/t1" ] && [ "$state" = closed ] \
+    && [ ! -e "$REPO/.worktrees/r1/t1" ] && [ "$state" = closed ] \
     && ok thread_close_archives_kills_and_removes || fail thread_close_archives_kills_and_removes "rc=$rc kills=$kills state=$state"
 }
 
@@ -245,7 +250,7 @@ t_verify_opens_runner_thread_on_integration() {
   "$FLEET" config r1 verify "make verify" >/dev/null 2>&1; "$FLEET" config r1 teardown "make down" >/dev/null 2>&1
   "$FLEET" verify r1 1 >/dev/null 2>&1; rc=$?
   b="$APP_FLEET_HOME/runs/r1/briefs/verify-w1.md"
-  [ "$rc" = 0 ] && grep -q "do tab.new --name verify-w1" "$STUB_LOG" && grep -q -- "--folder $REPO/.worktrees/r1/_integration" "$STUB_LOG" \
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name verify-w1-runner " "$STUB_LOG" && grep -q -- "--cwd $REPO/.worktrees/r1/_integration" "$STUB_LOG" \
     && grep -q "make verify" "$b" && grep -q "make down" "$b" \
     && [ "$(jq_py "d['threads']['verify-w1']['members']" < "$APP_FLEET_HOME/runs/r1/run.json")" = "['verify-w1-runner']" ] \
     && ok verify_opens_runner_thread_on_integration || fail verify_opens_runner_thread_on_integration "rc=$rc"
@@ -375,10 +380,10 @@ t_merge_refuses_dirty_thread() {
 }
 
 t_undo_kills_spawned_members() {
-  fresh; seed_run r1; export STUB_FAIL=pane.split
+  fresh; seed_run r1; export STUB_HC_RUN_FAIL_AT=2
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
   ch=$(jq_py "[m['id'] for m in d]" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json" 2>/dev/null)
-  [ "$rc" = 4 ] && grep -q "^hc kill t" "$STUB_LOG" && grep -q "do tab.close" "$STUB_LOG" && case $ch in *t1-builder*) false ;; *) true ;; esac \
+  [ "$rc" = 4 ] && grep -q "^hc kill tm1" "$STUB_LOG" && case $ch in *t1-builder*) false ;; *) true ;; esac \
     && ok undo_kills_spawned_members || fail undo_kills_spawned_members "rc=$rc ch=$ch"
 }
 
@@ -491,6 +496,30 @@ t_long_task_name_refused() {
   fresh; seed_run r1
   "$FLEET" thread open r1 abcdefghijklmnopqrstuv --template build --brief "$(brief x)" >/dev/null 2>&1; rc=$?
   [ "$rc" = 2 ] && [ ! -e "$REPO/.worktrees/r1/abcdefghijklmnopqrstuv" ] && ok long_task_name_refused || fail long_task_name_refused "rc=$rc"
+}
+
+t_member_parent_is_lead_terminal() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *"--parent t9 "*) p=1 ;; *) p=0 ;; esac
+  [ "$rc" = 0 ] && [ "$p" = 1 ] && ! grep -q "terminal.keep" "$STUB_LOG" && ok member_parent_is_lead_terminal || fail member_parent_is_lead_terminal "rc=$rc first=$first"
+}
+
+t_members_without_live_lead_get_tabs() {
+  fresh; seed_run r1 t9; echo t9 > "$STUB_DIR/hc.dead"
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *--no-parent*) p=1 ;; *) p=0 ;; esac
+  [ "$rc" = 0 ] && [ "$p" = 1 ] && grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" \
+    && ok members_without_live_lead_get_tabs || fail members_without_live_lead_get_tabs "rc=$rc first=$first"
+}
+
+t_member_name_collision_gets_run_suffix() {
+  fresh; seed_run r1 t9; echo "tx5 t1-builder" > "$STUB_DIR/hc.ls.extra"
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name t1-builder-r1 " "$STUB_LOG" && grep -q "^hc run.*--name t1-reviewer " "$STUB_LOG" \
+    && ok member_name_collision_gets_run_suffix || fail member_name_collision_gets_run_suffix "rc=$rc"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
