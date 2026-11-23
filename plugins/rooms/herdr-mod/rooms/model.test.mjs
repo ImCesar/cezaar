@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSaver, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, createSaver, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -138,4 +138,35 @@ test('mergeRead keeps the newer mark per room and reports whether anything moved
   assert.equal(out.changed, true)
   assert.equal(mergeRead(out.lastRead, { a: '20261123T00' }).changed, false)
   assert.deepEqual(mergeRead(undefined, null), { lastRead: {}, changed: false })
+})
+
+test('mentionQuery finds the @-word at the cursor', () => {
+  assert.deepEqual(mentionQuery('hi @su', 6), { start: 3, end: 6, query: 'su' })
+  assert.equal(mentionQuery('a@b', 3), null)
+  assert.deepEqual(mentionQuery('@', 1), { start: 0, end: 1, query: '' })
+  assert.equal(mentionQuery('@ab cd', 6), null)
+  assert.deepEqual(mentionQuery('x @abc', 4), { start: 2, end: 4, query: 'a' })
+  assert.deepEqual(mentionQuery('a\n@b', 4), { start: 2, end: 4, query: 'b' })
+})
+
+test('mentionCandidates orders members then first posters, drops the operator and duplicates', () => {
+  const members = [{ id: 'store-builder' }, { id: 'store-reviewer' }, { id: 'cesar' }]
+  const msgs = [{ from: 'lead' }, { from: 'store-builder' }, { from: 'cesar' }, { from: 'judge' }, { from: 'lead' }]
+  assert.deepEqual(mentionCandidates(members, msgs, 'cesar', ''), ['store-builder', 'store-reviewer', 'lead', 'judge'])
+})
+
+test('mentionCandidates filters ignoring case, starts-with before contains, keeping order', () => {
+  const members = [{ id: 'store-reviewer' }, { id: 'Reviewer' }, { id: 'x-rev' }, { id: 'lead' }]
+  assert.deepEqual(mentionCandidates(members, [{ from: 'revisor' }], 'cesar', 'REV'), ['Reviewer', 'revisor', 'store-reviewer', 'x-rev'])
+})
+
+test('mentionCandidates tolerates missing and bad entries', () => {
+  assert.deepEqual(mentionCandidates(undefined, null, 'cesar', ''), [])
+  assert.deepEqual(mentionCandidates([null, {}, { id: 7 }, { id: 'a' }], [null, {}, { from: {} }, { from: 'b' }], 'cesar', ''), ['a', 'b'])
+  assert.deepEqual(mentionCandidates([{ id: 'cesar' }], [], undefined, ''), ['cesar'])
+})
+
+test('applyMention replaces the query and places the cursor after it', () => {
+  assert.deepEqual(applyMention('hi @su there', 3, 6, 'store', true), { text: 'hi @store  there', cursor: 10 })
+  assert.deepEqual(applyMention('hi @su', 3, 6, 'store', false), { text: 'hi @store', cursor: 9 })
 })

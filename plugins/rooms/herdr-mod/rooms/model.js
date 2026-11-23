@@ -164,3 +164,36 @@ export function mergeRead(lastRead, other) {
   }
   return { lastRead: out, changed }
 }
+
+/**
+ * The @-mention being typed at `cursor`, or null. Active when `@` sits at the start of the text or
+ * after whitespace and only id characters lie between it and the cursor. Offsets are UTF-16 indexes.
+ */
+export function mentionQuery(text, cursor) {
+  const before = String(text ?? '').slice(0, cursor)
+  const m = /(?:^|\s)@([A-Za-z0-9_-]*)$/.exec(before)
+  if (!m) return null
+  return { start: cursor - m[1].length - 1, end: cursor, query: m[1] }
+}
+
+/**
+ * Ids to suggest for `@query`: members in order, then other posters in first-post order, never the
+ * operator, no duplicates. Ids starting with the query (any case) come before ids only containing it.
+ */
+export function mentionCandidates(members, msgs, operator, query) {
+  const ids = []
+  const add = id => { if (typeof id === 'string' && id && id !== operator && !ids.includes(id)) ids.push(id) }
+  for (const m of Array.isArray(members) ? members : []) add(m?.id)
+  for (const m of Array.isArray(msgs) ? msgs : []) add(m?.from)
+  const q = String(query ?? '').toLowerCase()
+  const starts = ids.filter(id => id.toLowerCase().startsWith(q))
+  const contains = ids.filter(id => !id.toLowerCase().startsWith(q) && id.toLowerCase().includes(q))
+  return [...starts, ...contains]
+}
+
+/** Replace `text[start, end)` with `@id` (plus a space when `trailingSpace`); cursor lands after it. */
+export function applyMention(text, start, end, id, trailingSpace) {
+  const insert = `@${id}${trailingSpace ? ' ' : ''}`
+  const s = String(text ?? '')
+  return { text: s.slice(0, start) + insert + s.slice(end), cursor: start + insert.length }
+}
