@@ -5,6 +5,8 @@ import {
   formatBatch,
   mentionsFor,
   parseLines,
+  quietVerdicts,
+  sleptRecently,
   startCursor,
   type Member,
   type Msg,
@@ -13,6 +15,8 @@ import {
 
 export const CHECK_MS = 3_000
 export const HEARTBEAT_MS = 30_000
+export const SILENCE_MS = 120_000
+export const STALE_MS = 120_000
 
 type RoomState = {
   offset: number
@@ -38,6 +42,10 @@ type State = {
   pausePosted: boolean
   rootMissingLogged: boolean
   watchAll: boolean
+  lastTick?: number
+  lastSilenceTick?: number
+  graceUntil: number
+  flagged: Map<string, { at: number; reason: 'stale' | 'quiet' }> // key: room/id
 }
 
 let st: State | undefined
@@ -186,6 +194,59 @@ async function heartbeat(s: State, $: EngineInterface) {
   }
 }
 
+async function readPresence($: EngineInterface, dir: string, id: string): Promise<Presence | undefined> {
+  try {
+    const p = JSON.parse(String(await $.fs.read(`${dir}/presence/${id}.json`)))
+    return p && typeof p.ts === 'string' ? (p as Presence) : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Watch-all members only: report members that crashed (stale heartbeat) or went quiet. */
+async function silenceCheck(s: State, $: EngineInterface, now: number) {
+  if (!s.watchAll || now < s.graceUntil) return
+  for (const [name, r] of s.rooms) {
+    const dir = `${s.root}/${name}`
+    const judged = r.members.filter(m => m.id !== s.id && !m.watchAll && m.id !== s.operator)
+    const presences: Record<string, Presence> = {}
+    for (const m of judged) {
+      const p = await readPresence($, dir, m.id)
+      if (p) presences[m.id] = p
+    }
+    const lastPostTs: Record<string, number> = {}
+    const done = new Set<string>()
+    for (const m of r.msgs) {
+      const t = Date.parse(m.ts)
+      if (!(lastPostTs[m.from]! >= t)) lastPostTs[m.from] = t
+      if (m.kind === 'done') done.add(m.from)
+    }
+    // Clear flags for members heard from since they were flagged.
+    for (const m of judged) {
+      const key = `${name}/${m.id}`
+      const f = s.flagged.get(key)
+      if (!f) continue
+      const p = presences[m.id]
+      const posted = (lastPostTs[m.id] ?? 0) > f.at
+      const beating = f.reason === 'stale' && p !== undefined && now - Date.parse(p.ts) <= STALE_MS
+      const working = f.reason === 'quiet' && p?.state === 'working'
+      if (posted || beating || working) s.flagged.delete(key)
+    }
+    const alreadyFlagged = new Set(judged.map(m => m.id).filter(id => s.flagged.has(`${name}/${id}`)))
+    const verdicts = quietVerdicts({
+      now, members: judged, presences, lastPostTs, done, alreadyFlagged,
+      quietMs: s.quietMinutes * 60_000, staleMs: STALE_MS,
+    })
+    for (const v of verdicts) {
+      s.flagged.set(`${name}/${v.id}`, { at: now, reason: v.reason })
+      const why = v.reason === 'stale'
+        ? 'no heartbeat for over 2 minutes: crashed or closed?'
+        : `idle with no post for over ${s.quietMinutes} minutes`
+      await room(s, $, ['post', name, '--as', s.id, '--kind', 'system', `@${s.id} ${v.id} went quiet (${why})`])
+    }
+  }
+}
+
 function unblock(s: State | undefined) {
   if (s) s.blocked = false
 }
@@ -211,8 +272,13 @@ export const register: Register = on => {
       pausePosted: false,
       rootMissingLogged: false,
       watchAll: false,
+      graceUntil: 0,
+      flagged: new Map(),
     }
     st = s
+    const t0 = await $.clock.now()
+    s.lastTick = t0
+    s.lastSilenceTick = t0
     // Put `room` on PATH for this session and everything it starts (the Bash tool included).
     const path = (await $.env.get('PATH')) ?? ''
     const scripts = `${$.plugin.root}/scripts`
@@ -224,7 +290,19 @@ export const register: Register = on => {
       }
     }
     $.clock.every(CHECK_MS, () => {
+      void $.clock.now().then(now => {
+        s.graceUntil = sleptRecently(s.lastTick ?? now, now, CHECK_MS, s.graceUntil).graceUntil
+        s.lastTick = now
+      })
       void refresh(s, $).then(ok => (ok ? deliver(s, $) : undefined))
+    })
+    $.clock.every(SILENCE_MS, () => {
+      void $.clock.now().then(async now => {
+        s.graceUntil = sleptRecently(s.lastSilenceTick ?? now, now, SILENCE_MS, s.graceUntil).graceUntil
+        s.lastSilenceTick = now
+        await refresh(s, $)
+        await silenceCheck(s, $, now)
+      })
     })
     $.clock.every(HEARTBEAT_MS, () => {
       void heartbeat(s, $)

@@ -181,3 +181,92 @@ test('a missing root stays quiet', async ($: any, on: any) => {
   expect(w.submits.length).toBe(0)
   expect(w.logs.length <= 1).toBe(true)
 })
+
+// ---- silence check (watch-all members) ----
+
+const T = Date.parse('2026-11-23T06:00:00.000Z')
+const iso = (ms: number) => new Date(ms).toISOString()
+const systemPosts = (w: World) => roomRuns(w, 'post').filter(a => a.includes('system'))
+
+function leadWorld(on: any, me = 'lead', log = '') {
+  const w = world(on, { env: { ROOM_ID: me, ROOMS_ROOT: '/rooms', ROOMS_CONFIG_DIR: '/cfg', HOME: '/home' }, log })
+  w.files['/rooms/r/members.json'] = JSON.stringify([
+    { id: 'lead', role: 'orchestrator', joinedAt: JOINED, watchAll: true },
+    { id: 'a', role: 'builder', joinedAt: JOINED },
+    { id: 'b', role: 'reviewer', joinedAt: JOINED },
+    { id: 'cesar', role: 'operator', joinedAt: JOINED },
+  ])
+  return w
+}
+const presence = (w: World, id: string, ms: number, state = 'working') => {
+  w.files[`/rooms/r/presence/${id}.json`] = JSON.stringify({ id, state, ts: iso(ms) })
+}
+
+test('a member whose heartbeat stopped is reported once', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  presence(w, 'a', T + 200_000)
+  presence(w, 'b', T - 180_000)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(120_000)
+  expect(systemPosts(w).length).toBe(1)
+  expect(systemPosts(w)[0]!.join(' ')).toContain('@lead b went quiet')
+  await clock.advance(120_000)
+  expect(systemPosts(w).length).toBe(1)
+})
+
+test('an idle member with no post past the threshold is reported', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  presence(w, 'a', T + 200_000)
+  presence(w, 'b', T + 60_000, 'idle')
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(120_000)
+  expect(systemPosts(w).map(a => a.join(' ')).filter(t => t.includes('b went quiet')).length).toBe(1)
+})
+
+test('a member that posted done is not judged', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on, 'lead', line('20261123T055000.000000Z-dddddd', 'b', '@lead done', ['lead'], 'done'))
+  presence(w, 'a', T + 200_000)
+  presence(w, 'b', T - 180_000)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(120_000)
+  expect(systemPosts(w).length).toBe(0)
+})
+
+test('only watch-all members run the silence check', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on, 'b')
+  presence(w, 'a', T - 180_000)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(240_000)
+  expect(systemPosts(w).length).toBe(0)
+})
+
+test('a sleep gap holds off silence reports for the grace window', async ($: any, on: any) => {
+  // A clock of the test's own: each timer period waits until the test releases it, so a jump
+  // fires each timer once, as a Mac waking from sleep does.
+  let now = T
+  const waits: { due: number; go: () => void }[] = []
+  on('clock.now', () => ({ value: now }))
+  const hold = (_: any, e: any) => new Promise(res => waits.push({ due: now + e.ms, go: () => res({ value: undefined }) }))
+  on('clock.every', hold)
+  on('clock.after', hold)
+  const settle = () => new Promise(r => setTimeout(r, 2))
+  const jump = async (ms: number) => {
+    now += ms
+    for (const w of waits.splice(0).filter(x => (x.due <= now ? true : (waits.push(x), false)))) w.go()
+    await settle()
+  }
+  const w = leadWorld(on)
+  presence(w, 'a', T + 3_600_000)
+  presence(w, 'b', T)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await settle()
+  await jump(30 * 60_000)
+  for (let t = 0; t < 170_000; t += 3_000) await jump(3_000)
+  expect(systemPosts(w).length).toBe(0)
+  for (let t = 0; t < 140_000; t += 3_000) await jump(3_000)
+  expect(systemPosts(w).map(a => a.join(' ')).filter(x => x.includes('b went quiet')).length).toBe(1)
+})
