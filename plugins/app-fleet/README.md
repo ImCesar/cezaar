@@ -2,7 +2,7 @@
 
 The fleet on the Herdr app, with agents talking in rooms. This is a rebuild of herdr-fleet's execution stage, not a port. herdr-fleet stays as it is, as the fallback.
 
-- **The lead sets the work.** It turns an architecture into waves of tasks and opens a **thread** per task: a room, a worktree, and members (for example a builder and a reviewer), each in its own pane.
+- **The lead sets the work.** It turns an architecture into waves of tasks and opens a **thread** per task: a room, a worktree, and members (for example a builder and a reviewer).
 - **The thread runs itself.** Members hand off by @-mention in their room. The reviewer's APPROVE closes the thread, and the builder posts `done @lead`. Members never pass messages through the lead.
 - **The stage has a channel** (`execution`) that every member belongs to, for questions that cross threads.
 - **The lead merges** each finished thread into `fleet/<run>/integration`, and runs the full suite once per wave in a verify thread. The branch is left for you; nothing is pushed or merged into your base branch.
@@ -20,13 +20,19 @@ fleet lead myrun --repo ~/repos/myproj --architecture ~/repos/myproj/ARCHITECTUR
 
 Switch to the `lead` tab in the new `myrun` space and talk to the lead there. Inside Claude, `/app-fleet:lead` walks you through the same thing. To resume a run after a crash or a `/clear`, run `fleet lead myrun`.
 
+## Where to look
+
+- **Agents list.** Members run as Herdr sub-agents, with no tabs of their own. They nest under the lead, and each reviewer nests under its builder. Each row carries the member's id, which starts with its room's name (`auth-builder`, `auth-reviewer`). The lead's row folds them away and shows the most urgent status underneath. Click a member to peek at it live, or use "keep as tab" to give it a pane.
+- **Rooms panel.** Rooms are grouped by run. A thread room's `window` button opens one window with the thread's live member terminals beside its timeline and composer.
+- **The lead runs inside a shell** in its tab. If its Claude crashes, `fleet lead myrun` restarts it in the same shell, resuming its session, so the members stay nested under it. If the lead tab itself is gone, a new lead tab resumes the session, and each thread's first member gets a tab of its own, so nothing runs out of sight.
+
 ## Commands (used mostly by the lead)
 
 | Command | What it does |
 |---|---|
-| `fleet lead <run> --repo P --architecture F [--base B] [--verify C] [--teardown C]` | Starts a run (channel, Herdr space, lead tab). Run it again to resume. |
-| `fleet thread open <run> <task> --template T --brief F [--from <task>] [--wave N]` | Opens a thread: a worktree on `fleet/<run>/<task>`, a room, its members and the brief. |
-| `fleet thread close <run> <task>` | Archives the room, ends the members' terminals, closes the tab, and removes the worktree if its branch is merged. |
+| `fleet lead <run> --repo P --architecture F [--base B] [--verify C] [--teardown C]` | Starts a run (channel, Herdr space, lead tab). Run it again to resume: it selects a running lead, restarts a crashed one in its shell, or opens a new lead tab. |
+| `fleet thread open <run> <task> --template T --brief F [--from <task>] [--wave N]` | Opens a thread: a worktree on `fleet/<run>/<task>`, a room, its members (named `<task>-<persona>`, as sub-agents under the lead) and the brief. Task names are at most 21 characters. |
+| `fleet thread close <run> <task>` | Archives the room, ends the members' terminals, and removes the worktree if its branch is merged. |
 | `fleet merge <run> <task>` | Merges the thread branch into `fleet/<run>/integration`. On a conflict it aborts and lists the files (exit 3). |
 | `fleet verify <run> <wave>` | Opens a runner thread on the integration worktree: verify, then teardown, then report. |
 | `fleet status <run> [--json]` | Shows threads and their members' working, idle or gone state. |

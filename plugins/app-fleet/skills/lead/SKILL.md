@@ -21,10 +21,11 @@ This skill only starts things. The lead is a separate Claude session that `fleet
    ```sh
    fleet lead <run> --repo <path> --architecture <file.md> --verify "<cmd>" --teardown "<cmd>"
    ```
-3. **For an existing run** (after a crash, a `/clear`, or a compacted lead), run `fleet lead <run>`. It reopens the lead tab, and the lead first reads `fleet status` and the channel. Nothing is reset.
+3. **For an existing run** (after a crash, a `/clear`, or a compacted lead), run `fleet lead <run>`. It selects a running lead, restarts a crashed one in its shell (resuming its session), or opens a new lead tab. The lead first reads `fleet status` and the channel. Nothing is reset.
 4. **Tell the operator** where things are:
    - The `<run>` space has a `lead` tab, where they talk to the lead.
-   - Each thread gets its own tab when it opens.
+   - Thread members don't get tabs. They nest under the lead in the agents list, named `<task>-<persona>`. Click one to peek at it.
+   - The Rooms panel's `window` button on a thread room shows that thread's live terminals beside its room.
    - Rooms appear in the Rooms panel, grouped by run. Open the panel with `herdr-app do tab.new --name Rooms --mod rooms` if it isn't showing.
    - The run's result is the branch `fleet/<run>/integration`, left for them to merge or open a PR from.
 

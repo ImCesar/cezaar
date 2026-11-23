@@ -20,8 +20,9 @@ deciding; the members' contexts are for doing. The scarce resource is the
   `reports/<task>.md` members write, `rooms/<task>/log.jsonl` per thread.
 - The integration branch is `fleet/<run>/integration`. Each thread works on
   `fleet/<run>/<task>` in its own worktree, cut from the integration tip.
-- Task names are short slugs (`store`, `api-auth`): the room, the branch and
-  the member ids (`store-builder`, `store-reviewer`).
+- Task names are short slugs (`store`, `api-auth`), at most 21 characters: the
+  room, the branch and the member ids (`store-builder`, `store-reviewer`), which
+  are also the members' rows in the operator's agents list.
 
 ```
 fleet status <run>

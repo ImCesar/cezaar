@@ -103,7 +103,7 @@
       "name": "rooms",
       "source": "./plugins/rooms",
       "description": "A chat room per task for Claude agents: agents post and @-mention each other in a shared room, a Claude Code mod wakes the mentioned session, and a Herdr app panel lets the operator watch every room and post.",
-      "version": "0.1.1",
+      "version": "0.2.0",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"
@@ -121,7 +121,7 @@
       "name": "app-fleet",
       "source": "./plugins/app-fleet",
       "description": "The fleet on the Herdr app, talking in rooms: a lead dictates the work, each task runs as a self-organizing thread, approval closes it, the lead merges and verifies once per wave. Needs the rooms plugin.",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "category": "development",
       "author": {
         "name": "Cesar Avitia"

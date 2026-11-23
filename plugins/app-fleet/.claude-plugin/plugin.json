@@ -1,7 +1,7 @@
 {
   "name": "app-fleet",
   "description": "The fleet on the Herdr app, talking in rooms: a lead dictates the work, each task runs as a self-organizing thread (builder + reviewer), approval closes it, the lead merges and verifies once per wave.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Cesar Avitia"
   },
