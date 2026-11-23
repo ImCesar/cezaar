@@ -253,7 +253,8 @@ test('a sleep gap holds off silence reports for the grace window', async ($: any
   const hold = (_: any, e: any) => new Promise(res => waits.push({ due: now + e.ms, go: () => res({ value: undefined }) }))
   on('clock.every', hold)
   on('clock.after', hold)
-  const settle = () => new Promise(r => setTimeout(r, 2))
+  const later = (globalThis as any).setTimeout as (fn: () => void, ms: number) => unknown
+  const settle = () => new Promise<void>(r => { later(() => r(), 2) })
   const jump = async (ms: number) => {
     now += ms
     for (const w of waits.splice(0).filter(x => (x.due <= now ? true : (waits.push(x), false)))) w.go()

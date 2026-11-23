@@ -132,5 +132,16 @@ t_install_creates_link_and_config() {
     && ok install_creates_link_and_config || fail install_creates_link_and_config "out=$out link=$link cfg=$cfg kept=$kept"
 }
 
+t_herdr_install_to_temp_dest() {
+  fresh
+  dest="$T/mods/rooms"
+  ROOMS_SKIP_HERDR_CHECK=1 "$ROOM" herdr-install --dest "$dest" >/dev/null 2>&1 || { fail herdr_install_to_temp_dest "herdr-install failed"; return; }
+  cli=$(jq_py "d.get('cli', '')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  op=$(jq_py "d.get('operator')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  [ -f "$dest/main.js" ] && [ -f "$dest/model.js" ] && [ -f "$dest/mod.json" ] && [ ! -e "$dest/model.test.mjs" ] \
+    && case $cli in /*) [ -x "$cli" ] ;; *) false ;; esac && [ "$op" = cesar ] \
+    && ok herdr_install_to_temp_dest || fail herdr_install_to_temp_dest "cli=$cli op=$op files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
+}
+
 for t in $(grep -o '^t_[a-z_]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]

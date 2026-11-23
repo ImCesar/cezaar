@@ -288,6 +288,31 @@ def cmd_install(a, root):
     print(target)
 
 
+def cmd_herdr_install(a, root):
+    import shutil
+    import subprocess
+    cmd_install(a, root)
+    src = os.path.join(os.path.dirname(os.path.dirname(cli_path())), "herdr-mod", "rooms")
+    dest = a.dest or os.path.expanduser("~/.config/herdr-app/mods/rooms")
+    os.makedirs(dest, exist_ok=True)
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".test.mjs") or name == "package.json":
+            continue
+        shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+    cfg_path = os.path.join(config_dir(), "config.json")
+    with locked(os.path.join(config_dir(), ".lock")):
+        cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
+        cfg["cli"] = cli_path()
+        write_atomic(cfg_path, cfg)
+    print(dest)
+    if os.environ.get("ROOMS_SKIP_HERDR_CHECK") or not shutil.which("herdr-app"):
+        return
+    r = subprocess.run(["herdr-app", "check", dest], capture_output=True, text=True)
+    print((r.stdout + r.stderr).strip())
+    if r.returncode != 0:
+        raise Refused("room: herdr-app check failed for the installed panel", 4)
+
+
 # ---------- entry ----------
 
 def parser():
@@ -344,6 +369,10 @@ def parser():
 
     ins = sub.add_parser("install", help="put room on PATH and write default config")
     ins.set_defaults(fn=cmd_install)
+
+    hi = sub.add_parser("herdr-install", help="install, then copy the Rooms panel into the Herdr app")
+    hi.add_argument("--dest", metavar="dir", help="default ~/.config/herdr-app/mods/rooms")
+    hi.set_defaults(fn=cmd_herdr_install)
     return p
 
 
