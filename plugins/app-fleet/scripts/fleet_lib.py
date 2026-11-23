@@ -372,7 +372,9 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     d = run_dir(run["run"])
     os.makedirs(os.path.join(d, "briefs"), exist_ok=True)
     os.makedirs(os.path.join(d, "reports"), exist_ok=True)
-    shutil.copyfile(brief_src, os.path.join(d, "briefs", f"{task}.md"))
+    dest = os.path.join(d, "briefs", f"{task}.md")
+    if os.path.realpath(brief_src) != os.path.realpath(dest):  # the lead may write it there directly
+        shutil.copyfile(brief_src, dest)
     ids = [task] if template == "judge" else [f"{p}-{task}" for p in personas]
     room(run, "create", run["stage"], "--member", f"{op}:operator")
     room(run, "create", room_name, *[x for i, p in zip(ids, personas) for x in ("--member", f"{i}:{p}")],

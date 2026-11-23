@@ -323,5 +323,12 @@ t_compose_grants_run_dir() {
   case $got in *"$rd"*"Edit($rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
 }
 
+t_thread_open_accepts_brief_already_in_run() {
+  fresh; seed_run r1
+  mkdir -p "$APP_FLEET_HOME/runs/r1/briefs"; printf '# t1\n' > "$APP_FLEET_HOME/runs/r1/briefs/t1.md"
+  out=$("$FLEET" thread open r1 t1 --template build --brief "$APP_FLEET_HOME/runs/r1/briefs/t1.md" 2>&1); rc=$?
+  [ "$rc" = 0 ] && ok thread_open_accepts_brief_already_in_run || fail thread_open_accepts_brief_already_in_run "rc=$rc $out"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
