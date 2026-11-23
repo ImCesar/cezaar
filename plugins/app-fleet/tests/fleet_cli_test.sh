@@ -552,6 +552,7 @@ t_resume_after_tab_closed_keeps_members() {
   "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   rj="$APP_FLEET_HOME/runs/p1/run.json"; sess=$(jq_py "d['leadSession']" < "$rj")
   herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$rj")" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$rj" > "$STUB_DIR/hc.dead"   # closing a tab ends its terminal
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   [ "$rc" = 0 ] && grep "do tab.new --name lead" "$STUB_LOG" | grep -q -- "--resume $sess" \
     && grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" && ! grep -q "do terminal.keep --terminal tm2" "$STUB_LOG" \
@@ -572,6 +573,46 @@ PY
   sess=$(jq_py "d.get('leadSession') or ''" < "$APP_FLEET_HOME/runs/r1/run.json")
   "$FLEET" thread close r1 t1 >/dev/null 2>&1; b=$?
   [ "$a$b" = 00 ] && [ -n "$sess" ] && ok resume_old_run_without_lead_terminal || fail resume_old_run_without_lead_terminal "codes=$a$b sess=$sess"
+}
+
+t_stale_status_with_shell_in_front_restarts_lead() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; term=$(jq_py "d['leadTerminal']" < "$rj")
+  echo "$term" > "$STUB_DIR/hc.shell"   # Herdr still reports app=claude-code, but a shell is in front
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc send $term .*--resume" "$STUB_LOG" \
+    && ok stale_status_with_shell_in_front_restarts_lead || fail stale_status_with_shell_in_front_restarts_lead "rc=$rc"
+}
+
+t_caller_terminal_is_parent_only_for_the_lead() {
+  fresh; seed_run r1 t9; echo t9 > "$STUB_DIR/hc.dead"
+  HC_TERMINAL_ID=t5 "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; a=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *--no-parent*) p1=1 ;; *) p1=0 ;; esac
+  HC_TERMINAL_ID=t5 ROOM_ID=lead "$FLEET" thread open r1 t2 --template build --brief "$(brief t2)" >/dev/null 2>&1; b=$?
+  second=$(grep "^hc run.*--name t2-builder " "$STUB_LOG")
+  case $second in *"--parent t5 "*) p2=1 ;; *) p2=0 ;; esac
+  [ "$a$b" = 00 ] && [ "$p1$p2" = 11 ] && ok caller_terminal_is_parent_only_for_the_lead || fail caller_terminal_is_parent_only_for_the_lead "codes=$a$b p=$p1$p2"
+}
+
+t_resume_rescues_members_whose_parent_died() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; term=$(jq_py "d['leadTerminal']" < "$rj")
+  echo tm1 > "$STUB_DIR/hc.dead"; echo "$term" > "$STUB_DIR/hc.noapp"   # the builder died; the lead's Claude too
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "do terminal.keep --terminal tm2" "$STUB_LOG" && ! grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" \
+    && ok resume_rescues_members_whose_parent_died || fail resume_rescues_members_whose_parent_died "rc=$rc"
+}
+
+t_judge_thread_fits_a_long_disputed_task() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 billing-webhooks --template build --brief "$(brief b)" >/dev/null 2>&1; a=$?
+  "$FLEET" thread open r1 judge-billing-webhooks --template judge --brief "$(brief j)" >/dev/null 2>&1; b=$?
+  [ "$a$b" = 00 ] && grep -q "^hc run.*--name judge-billing-webhooks " "$STUB_LOG" \
+    && ok judge_thread_fits_a_long_disputed_task || fail judge_thread_fits_a_long_disputed_task "codes=$a$b"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

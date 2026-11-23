@@ -335,8 +335,11 @@ def live_terminal_names():
 
 
 def lead_parent(run):
-    """The terminal members nest under: the lead's shell, else the terminal fleet was called from."""
-    for term in (run.get("leadTerminal"), os.environ.get("HC_TERMINAL_ID")):
+    """The terminal members nest under: the lead's recorded shell, else the lead's own terminal when
+    the lead is the caller. Any other caller (a plain shell) is no parent: members under a terminal
+    that is not an agent don't show in the agents list at all."""
+    caller = os.environ.get("HC_TERMINAL_ID") if os.environ.get("ROOM_ID") == "lead" else None
+    for term in (run.get("leadTerminal"), caller):
         if term_live(term):
             return term
     return None
@@ -394,8 +397,11 @@ def open_threads(run):
 def cmd_thread_open(a):
     run = load_run(a.run)
     task = check_name("task", a.task)
-    if len(task) > MAX_TASK:  # <task>-<persona> must fit Herdr's 32-character terminal names
-        raise Refused(f"fleet: task names are at most {MAX_TASK} characters ({task!r} has {len(task)})", 2)
+    # Member ids name terminals, which Herdr caps at 32 characters: <task>-<persona> for most
+    # templates, the bare task (judge-<task>) for a judge.
+    limit = 32 if a.template == "judge" else MAX_TASK
+    if len(task) > limit:
+        raise Refused(f"fleet: task names are at most {limit} characters ({task!r} has {len(task)})", 2)
     reserved = set(RESERVED_TASKS) | {run["stage"], "rooms", operator()}
     if (task in reserved or (task.startswith("verify-w") and a.template != "verify")
             or (task.startswith("judge-") and a.template != "judge")):
@@ -652,9 +658,15 @@ def shell_hosted(argv):
 
 
 def lead_running(run):
-    """Claude is running in the lead's terminal (an agent there reports an app)."""
+    """Claude is in front in the lead's terminal. Herdr wraps the argv in its own shell, so after a
+    crash the agent status can linger while a nested shell is in front: trust the foreground."""
     info = term_info(run["leadTerminal"]) if run.get("leadTerminal") else {}
-    return info.get("state") == "live" and bool((info.get("status") or {}).get("app"))
+    if info.get("state") != "live":
+        return False
+    fg = ((info.get("foreground") or {}).get("argv") or [""])[0]
+    if fg:
+        return os.path.basename(fg) == "claude"
+    return bool((info.get("status") or {}).get("app"))
 
 
 def launch_lead(run, first_message, resume=False):
@@ -667,6 +679,22 @@ def launch_lead(run, first_message, resume=False):
     run["leadTab"], run["leadTerminal"] = reply.get("tab"), reply.get("terminal")
     clear_trust(reply["terminal"])
     save_run(run)
+
+
+def rescue_orphans(run):
+    """Give a tab to each live member of an open thread whose parent terminal has ended (a crashed
+    lead shell, a crashed builder): a member with a dead parent drops out of the agents list."""
+    rescued = []
+    for t in run["threads"].values():
+        if t.get("state") != "open":
+            continue
+        for term in t.get("terminals", []):
+            info = term_info(term)
+            parent = info.get("parent")
+            if info.get("state") == "live" and parent and not term_live(parent):
+                keep_visible(term)
+                rescued.append(term)
+    return rescued
 
 
 def restart_lead_in_shell(run, first_message):
@@ -689,22 +717,21 @@ def cmd_lead(a):
         msg = (f"You are the lead of run {name}, resuming. Run `fleet status {name}` and "
                f"`room read {run['stage']}` first, then carry on.")
         if tab_alive and (lead_running(run) or not run.get("leadTerminal")):  # never start a second lead
+            rescue_orphans(run)
             herdr("tab.select", "--id", run["leadTab"])
             print(f"run {name}'s lead is still running: switched to its tab")
             return
         if tab_alive and term_live(run["leadTerminal"]):  # Claude ended, its shell is still there
             restart_lead_in_shell(run, msg)
+            rescue_orphans(run)
             herdr("tab.select", "--id", run["leadTab"])
             print(f"resumed run {name} in its lead tab; the members are still under it")
             return
         if not space_alive:
             run["space"] = None
         launch_lead(run, msg, resume=True)
-        # The old lead's shell is gone, and members whose parent is gone drop out of the agents list:
-        # give each thread's first member a tab (the rest nest under it).
-        for t in run["threads"].values():
-            if t.get("state") == "open" and t.get("terminals") and term_live(t["terminals"][0]):
-                keep_visible(t["terminals"][0])
+        # The old lead's shell is gone: members that hung off it get tabs (the rest nest under them).
+        rescue_orphans(run)
         print(f"resumed run {name}: switch to its lead tab")
         return
     if not a.repo or not a.architecture:

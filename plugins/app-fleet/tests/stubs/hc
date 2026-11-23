@@ -4,6 +4,8 @@
 #             else live, with an idle claude status (no `app` when <t> is listed in hc.noapp).
 #   run       a new address tm<N>; fails on call number $STUB_HC_RUN_FAIL_AT.
 #   ls        the terminals `run` started plus the "address name" lines in hc.ls.extra.
+#   get also reports `foreground` (claude, or zsh when listed in hc.shell or hc.noapp) and `parent`
+#   (from hc.parents, which `run` appends to).
 import json, os, sys
 log = os.environ.get("STUB_LOG"); d = os.environ.get("STUB_DIR", "/tmp")
 os.makedirs(d, exist_ok=True)
@@ -29,7 +31,9 @@ if cmd == "get":
         print(json.dumps({"address": t, "state": "finished", "status": None}))
     else:
         st = {"state": "idle"} if listed("hc.noapp", t) else {"app": "claude-code", "state": "idle"}
-        print(json.dumps({"address": t, "state": "live", "status": st}))
+        fg = "/bin/zsh" if listed("hc.noapp", t) or listed("hc.shell", t) else "claude"
+        parent = next((x[1] for x in lines("hc.parents") if x[0] == t and len(x) > 1), None)
+        print(json.dumps({"address": t, "state": "live", "status": st, "foreground": {"argv": [fg]}, "parent": parent}))
     sys.exit(0)
 if cmd == "run":
     n_path = os.path.join(d, "hc.n")
@@ -40,6 +44,8 @@ if cmd == "run":
     name = a[a.index("--name") + 1] if "--name" in a else ""
     addr = f"tm{n}"
     with open(os.path.join(d, "hc.names"), "a") as fh: fh.write(f"{addr} {name or '-'}\n")
+    if "--parent" in a:
+        with open(os.path.join(d, "hc.parents"), "a") as fh: fh.write(f"{addr} {a[a.index('--parent') + 1]}\n")
     print(json.dumps({"address": addr, "name": name or None, "state": "live"}))
     sys.exit(0)
 if cmd == "ls":
