@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { liveRoots, newOperatorMentions, parseLog, roomSummary, sortRooms } from './model.js'
+import { liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -48,4 +48,20 @@ test('newOperatorMentions returns only new mentions of the operator by others', 
 test('liveRoots drops roots whose folder is gone', () => {
   const roots = [{ path: '/a', lastUsed: 'x' }, { path: '/gone', lastUsed: 'y' }]
   assert.deepEqual(liveRoots(roots, p => p !== '/gone').map(r => r.path), ['/a'])
+})
+
+test('shouldReload ignores heartbeat-only changes but not logs, members or a root refresh', () => {
+  const root = '/r'
+  assert.equal(shouldReload(['/r/k/presence/a.json', '/r/k/presence/b.json.123.tmp'], root), false)
+  assert.equal(shouldReload(['/r/k/presence/a.json', '/r/k/log.jsonl'], root), true)
+  assert.equal(shouldReload(['/r/k/members.json'], root), true)
+  assert.equal(shouldReload(['/r'], root), true)
+  assert.equal(shouldReload([], root), true)
+})
+
+test('parseTail drops the partial first line of a tail read', () => {
+  const tail = `xt":"cut off"}\n${JSON.stringify(m('5', 'a', 'whole'))}\n`
+  const out = parseTail(tail)
+  assert.deepEqual(out.msgs.map(x => x.id), ['5'])
+  assert.equal(out.bad, 0)
 })

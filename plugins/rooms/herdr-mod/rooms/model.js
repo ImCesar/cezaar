@@ -58,3 +58,20 @@ export function newOperatorMentions(prevLastNotified, msgs, operator) {
 export function liveRoots(roots, exists) {
   return (Array.isArray(roots) ? roots : []).filter(r => r && typeof r.path === 'string' && exists(r.path))
 }
+
+/** Parse the tail of a big log: its first line is usually cut, so drop it. */
+export function parseTail(text) {
+  const s = String(text ?? '')
+  const nl = s.indexOf('\n')
+  return parseLog(nl < 0 ? '' : s.slice(nl + 1))
+}
+
+/**
+ * Whether a watch batch needs a full reload. Heartbeats (presence files) change every 30 s per
+ * session; the panel's 10 s timer picks those up, so a batch of only presence changes is skipped.
+ * An empty batch, or one naming the root itself, means "refresh everything".
+ */
+export function shouldReload(paths, root) {
+  if (!Array.isArray(paths) || paths.length === 0) return true
+  return paths.some(p => p === root || !String(p).includes('/presence/'))
+}

@@ -85,7 +85,7 @@ t_read_skips_garbled() {
 
 t_root_registered() {
   fresh
-  "$ROOM" ls >/dev/null 2>&1
+  "$ROOM" create r >/dev/null 2>&1
   abs=$(mkdir -p "$ROOMS_ROOT" && cd "$ROOMS_ROOT" && pwd -P)
   got=$(jq_py "[r['path'] for r in d]" < "$ROOMS_CONFIG_DIR/roots.json" 2>/dev/null)
   [ "$got" = "['$abs']" ] && ok root_registered || fail root_registered "got $got want $abs"
@@ -143,5 +143,44 @@ t_herdr_install_to_temp_dest() {
     && ok herdr_install_to_temp_dest || fail herdr_install_to_temp_dest "cli=$cli op=$op files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
 }
 
-for t in $(grep -o '^t_[a-z_]*' "$0"); do "$t"; done
+t_truncated_utf8_line_does_not_crash_or_eat_next() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a "before" >/dev/null 2>&1
+  printf '{"id":"zz","text":"caf\303' >> "$ROOMS_ROOT/r/log.jsonl"
+  "$ROOM" post r --as a "@b after" >/dev/null 2>&1
+  got=$("$ROOM" read r --json 2>/dev/null | jq_py "[m['text'] for m in d]"); rc=$?
+  "$ROOM" ls >/dev/null 2>&1; lsrc=$?
+  [ "$got" = "['before', '@b after']" ] && [ "$lsrc" = 0 ] \
+    && ok truncated_utf8_line_does_not_crash_or_eat_next || fail truncated_utf8_line_does_not_crash_or_eat_next "got=$got ls=$lsrc"
+}
+
+t_missing_root_not_recreated() {
+  fresh
+  "$ROOM" post r --as a "hello" >/dev/null 2>&1; rc=$?
+  "$ROOM" presence r a idle >/dev/null 2>&1; prc=$?
+  reg=$(cat "$ROOMS_CONFIG_DIR/roots.json" 2>/dev/null)
+  [ "$rc" = 3 ] && [ "$prc" = 3 ] && [ ! -e "$ROOMS_ROOT" ] && [ -z "$reg" -o "$reg" = "[]" ] \
+    && ok missing_root_not_recreated || fail missing_root_not_recreated "rc=$rc prc=$prc exists=$([ -e "$ROOMS_ROOT" ] && echo y) reg=$reg"
+}
+
+t_dead_roots_pruned() {
+  fresh
+  mkdir -p "$ROOMS_CONFIG_DIR"
+  printf '[{"path": "/nonexistent/rooms-root", "lastUsed": "x"}]\n' > "$ROOMS_CONFIG_DIR/roots.json"
+  "$ROOM" create r >/dev/null 2>&1
+  got=$(jq_py "[r['path'] for r in d if 'nonexistent' in r['path']]" < "$ROOMS_CONFIG_DIR/roots.json" 2>/dev/null)
+  [ "$got" = "[]" ] && ok dead_roots_pruned || fail dead_roots_pruned "got $got"
+}
+
+t_install_refuses_regular_file() {
+  fresh
+  mkdir -p "$ROOMS_BIN_DIR"
+  printf 'mine\n' > "$ROOMS_BIN_DIR/room"
+  "$ROOM" install >/dev/null 2>&1; rc=$?
+  kept=$(cat "$ROOMS_BIN_DIR/room")
+  [ "$rc" != 0 ] && [ "$kept" = mine ] && ok install_refuses_regular_file || fail install_refuses_regular_file "rc=$rc kept=$kept"
+}
+
+for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]

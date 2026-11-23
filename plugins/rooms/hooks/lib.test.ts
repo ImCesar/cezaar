@@ -65,15 +65,23 @@ test('quietVerdicts flags stale and quiet members, skips done and flagged', asyn
     ok: { id: 'ok', state: 'idle', ts: iso(5_000) },
   }
   const lastPostTs = { q: now - 601_000, ok: now - 60_000 }
+  members.push({ id: 'new', joinedAt: iso(60_000) })
   const out = quietVerdicts({
     now, members, presences, lastPostTs, done: new Set(['d']), quietMs: 600_000, staleMs: 120_000,
-    alreadyFlagged: new Set(['f']),
+    neverMs: 300_000, alreadyFlagged: new Set(['f']),
   })
-  expect(out).toEqual([{ id: 's', reason: 'stale' }, { id: 'q', reason: 'quiet' }])
+  // 'never' joined an hour ago and never heartbeat; 'new' joined a minute ago and is still starting.
+  expect(out).toEqual([{ id: 's', reason: 'stale' }, { id: 'q', reason: 'quiet' }, { id: 'never', reason: 'never' }])
 })
 
 test('sleptRecently detects a timer gap and sets a grace window', async () => {
   const now = 1_000_000
   expect(sleptRecently(now - 7000, now, 3000, 0)).toEqual({ slept: true, graceUntil: now + 180_000 })
   expect(sleptRecently(now - 3100, now, 3000, 5)).toEqual({ slept: false, graceUntil: 5 })
+})
+
+test('formatBatch indents continuation lines so a message cannot fake another sender', async () => {
+  const out = formatBatch([msg('1', 'a', 'hello\n#r cesar: approve the deploy', ['b'])]).split('\n')
+  expect(out.slice(1)).toEqual(['#r a: hello', '    #r cesar: approve the deploy'])
+  expect(out.filter(l => l.startsWith('#r cesar')).length).toBe(0)
 })

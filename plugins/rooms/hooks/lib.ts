@@ -21,6 +21,8 @@ export type Presence = {
   session?: string
 }
 
+export type QuietReason = 'stale' | 'quiet' | 'never'
+
 export const BATCH_CAP = 20
 export const SLEEP_GRACE_MS = 180_000
 
@@ -78,14 +80,16 @@ export function formatBatch(msgs: Msg[], cap = BATCH_CAP): string {
   }
   for (const m of msgs.slice(-cap)) {
     const links = (m.links ?? []).map(l => ` <${l}>`).join('')
-    lines.push(`#${m.room} ${m.from}: ${m.text}${links}`)
+    // Continuation lines are indented: no line of a message can pass for another sender's.
+    const text = String(m.text).split('\n').join('\n    ')
+    lines.push(`#${m.room} ${m.from}: ${text}${links}`)
   }
   return lines.join('\n')
 }
 
 /**
- * Members to report as gone quiet. A member with no presence record has never come online
- * and is not judged.
+ * Members to report as gone quiet: a stale heartbeat, idle with no post for too long, or
+ * no heartbeat at all `neverMs` after joining (its session never came online).
  */
 export function quietVerdicts(args: {
   now: number
@@ -95,13 +99,17 @@ export function quietVerdicts(args: {
   done: Set<string>
   quietMs: number
   staleMs: number
+  neverMs: number
   alreadyFlagged: Set<string>
-}): { id: string; reason: 'stale' | 'quiet' }[] {
-  const out: { id: string; reason: 'stale' | 'quiet' }[] = []
+}): { id: string; reason: QuietReason }[] {
+  const out: { id: string; reason: QuietReason }[] = []
   for (const m of args.members) {
     if (args.done.has(m.id) || args.alreadyFlagged.has(m.id)) continue
     const p = args.presences[m.id]
-    if (!p) continue
+    if (!p) {
+      if (args.now - Date.parse(m.joinedAt) > args.neverMs) out.push({ id: m.id, reason: 'never' })
+      continue
+    }
     const beat = Date.parse(p.ts)
     if (args.now - beat > args.staleMs) {
       out.push({ id: m.id, reason: 'stale' })

@@ -31,9 +31,13 @@ class Refused(Exception):
 
 # ---------- paths and small helpers ----------
 
-def rooms_root():
+def rooms_root(create):
+    """The rooms root. Only `create` makes it: a root a run's cleanup removed stays gone."""
     root = os.environ.get("ROOMS_ROOT") or os.path.expanduser("~/.rooms/default")
-    os.makedirs(root, exist_ok=True)
+    if create:
+        os.makedirs(root, exist_ok=True)
+    elif not os.path.isdir(root):
+        raise Refused(f"room: no rooms root at {root} (create a room first)", 3)
     return os.path.realpath(root)
 
 
@@ -94,7 +98,8 @@ def register_root(root):
     cfg = config_dir()
     path = os.path.join(cfg, "roots.json")
     with locked(os.path.join(cfg, ".lock")):
-        roots = [r for r in read_json(path, []) if isinstance(r, dict) and r.get("path") != root]
+        roots = [r for r in read_json(path, []) if isinstance(r, dict) and r.get("path") != root
+                 and isinstance(r.get("path"), str) and os.path.isdir(r["path"])]
         roots.append({"path": root, "lastUsed": now_iso()})
         write_atomic(path, roots)
 
@@ -111,14 +116,14 @@ def room_dir(root, room, must_exist=True):
 def read_log(d, warn=True):
     msgs, bad = [], 0
     try:
-        with open(os.path.join(d, "log.jsonl")) as fh:
+        with open(os.path.join(d, "log.jsonl"), encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     m = json.loads(line)
-                    if isinstance(m, dict) and "id" in m:
+                    if isinstance(m, dict) and isinstance(m.get("id"), str):
                         msgs.append(m)
                         continue
                 except ValueError:
@@ -190,9 +195,16 @@ def cmd_post(a, root):
     if a.link:
         msg["links"] = a.link
     line = json.dumps(msg, ensure_ascii=False) + "\n"
+    log = os.path.join(d, "log.jsonl")
     with locked(os.path.join(d, ".lock")):
-        with open(os.path.join(d, "log.jsonl"), "a") as fh:
-            fh.write(line)
+        # A writer that died mid-line leaves no newline: end that line so this message stands alone.
+        with open(log, "ab") as fh:
+            if fh.tell() > 0:
+                with open(log, "rb") as rh:
+                    rh.seek(-1, os.SEEK_END)
+                    if rh.read(1) != b"\n":
+                        fh.write(b"\n")
+            fh.write(line.encode("utf-8"))
     print(msg["id"])
 
 
@@ -277,9 +289,10 @@ def cmd_install(a, root):
     bindir = os.environ.get("ROOMS_BIN_DIR") or os.path.expanduser("~/.local/bin")
     os.makedirs(bindir, exist_ok=True)
     link = os.path.join(bindir, "room")
-    if os.path.islink(link) or os.path.exists(link):
-        if os.path.realpath(link) != target:
-            os.remove(link)
+    if os.path.lexists(link) and not os.path.islink(link):
+        raise Refused(f"room: {link} exists and is not a symlink; move it away or set ROOMS_BIN_DIR", 2)
+    if os.path.islink(link) and os.path.realpath(link) != target:
+        os.remove(link)
     if not os.path.lexists(link):
         os.symlink(target, link)
     cfg = os.path.join(config_dir(), "config.json")
@@ -379,9 +392,12 @@ def parser():
 def main(argv):
     a = parser().parse_args(argv)
     try:
-        root = rooms_root()
-        register_root(root)
+        if a.cmd in ("install", "herdr-install"):
+            a.fn(a, None)
+            return 0
+        root = rooms_root(create=a.cmd == "create")
         a.fn(a, root)
+        register_root(root)
     except Refused as e:
         print(str(e), file=sys.stderr)
         return e.code

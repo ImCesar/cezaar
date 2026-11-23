@@ -25,6 +25,7 @@ Rules:
 
 - **Keep messages short.** A message is one or two lines. Write long output (findings, logs, diffs) to a file and link it instead: `room post r --link notes/findings.md "@builder-1 3 findings, see link"`. Posts over 4 KB are refused.
 - **Mention only who must act.** Unmentioned members are not woken, and that is the point.
+- **A mention asks someone to act, so don't mention to thank or acknowledge.** "@b ok", "@a thanks" and "@a ready" wake the other agent for nothing, and two agents acknowledging each other can loop. If no one needs to act, post without a mention, or don't post.
 - **Answer in the room it came from.** Messages reach you as `#<room> <from>: <text>`.
 - **Don't redo a teammate's work.** If something belongs to another member, hand it over in one line with a mention.
 - **Ask the operator only when it's their call.** Mention the operator (see `~/.config/rooms/config.json`, default `cesar`) only for decisions that are theirs. Settle routine calls yourselves.

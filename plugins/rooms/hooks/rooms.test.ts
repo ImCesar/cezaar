@@ -17,7 +17,7 @@ function line(id: string, from: string, text: string, mentions: string[], kind =
   return JSON.stringify({ id, ts: JOINED, room: 'r', from, kind, text, mentions }) + '\n'
 }
 
-function world(on: any, opts: { env?: Record<string, string>; log?: string } = {}): World {
+function world(on: any, opts: { env?: Record<string, string>; log?: string; readLimit?: number } = {}): World {
   const w: World = {
     files: {
       '/cfg/config.json': JSON.stringify({ operator: 'cesar', quietMinutes: 10 }),
@@ -53,6 +53,7 @@ function world(on: any, opts: { env?: Record<string, string>; log?: string } = {
   })
   on('fs.read', (_: any, e: any) => {
     const body = w.files[e.path]
+    if (opts.readLimit !== undefined && (e.length ?? body?.length ?? 0) > opts.readLimit) throw new Error('read over the limit')
     if (body === undefined) throw new Error('ENOENT')
     const start = e.offset ?? 0
     return { value: body.slice(start, e.length === undefined ? undefined : start + e.length) }
@@ -285,4 +286,45 @@ test('a silence report is sent as rooms, so the watcher itself is woken by it', 
   append(w, line('20261123T060200.000000Z-ffffff', 'rooms', '@lead b went quiet', ['lead'], 'system'))
   await clock.advance(3_000)
   expect(w.submits.map(s => s.text).join('\n')).toContain('#r rooms: @lead b went quiet')
+})
+
+test('a root that vanishes stops heartbeats too', async ($: any, on: any) => {
+  const clock = mock.clock(on)
+  const w = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(30_000)
+  const before = heartbeats(w).length
+  expect(before).toBe(1)
+  w.rootMissing = true
+  for (const p of Object.keys(w.files)) if (p.startsWith('/rooms/')) delete w.files[p]
+  await clock.advance(90_000)
+  expect(heartbeats(w).length).toBe(before)
+})
+
+test('a watch-all member does not replay history in rooms it never joined', async ($: any, on: any) => {
+  const clock = mock.clock(on, { now: T })
+  const w = leadWorld(on)
+  presence(w, 'a', T + 3_600_000)
+  presence(w, 'b', T + 3_600_000)
+  w.files['/rooms/r2/members.json'] = JSON.stringify([{ id: 'x', joinedAt: JOINED }, { id: 'y', joinedAt: JOINED }])
+  w.files['/rooms/r2/log.jsonl'] = JSON.stringify({ id: '20200101T000000.000000Z-aaaaaa', ts: '2020-01-01T00:00:00Z', room: 'r2', from: 'x', kind: 'msg', text: '@lead ancient', mentions: ['lead'] }) + '\n'
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await clock.advance(3_000)
+  expect(w.submits.length).toBe(0)
+  w.files['/rooms/r2/log.jsonl'] += JSON.stringify({ id: '20261123T060005.000000Z-bbbbbb', ts: iso(T + 5_000), room: 'r2', from: 'x', kind: 'msg', text: '@lead fresh', mentions: ['lead'] }) + '\n'
+  w.mtimes['/rooms/r2/log.jsonl'] = 2
+  await clock.advance(3_000)
+  expect(w.submits.length).toBe(1)
+  expect(w.submits[0]!.text).toContain('#r2 x: @lead fresh')
+  expect(w.submits[0]!.text).not.toContain('ancient')
+})
+
+test('a log over 4 MiB is read in chunks and still delivers', async ($: any, on: any) => {
+  const clock = mock.clock(on)
+  const filler = line('20261123T050000.000000Z-000000', 'a', 'x'.repeat(1000), [])
+  const w = world(on, { log: filler.repeat(Math.ceil((4.5 * 1024 * 1024) / filler.length)), readLimit: 4 * 1024 * 1024 })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  append(w, line('20261123T050100.000000Z-aaaaaa', 'a', '@b after the backlog', ['b']))
+  await clock.advance(3_000)
+  expect(w.submits.map(s => s.text).join('\n')).toContain('#r a: @b after the backlog')
 })

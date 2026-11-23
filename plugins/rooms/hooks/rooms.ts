@@ -8,7 +8,9 @@ import {
   quietVerdicts,
   sleptRecently,
   startCursor,
+  toIdPrefix,
   type Member,
+  type QuietReason,
   type Msg,
   type Presence,
 } from './lib'
@@ -18,10 +20,11 @@ export const HEARTBEAT_MS = 30_000
 export const SILENCE_MS = 120_000
 export const STALE_MS = 120_000
 export const SYSTEM_ID = 'rooms'
+export const NEVER_MS = 300_000
+export const READ_CHUNK = 4 * 1024 * 1024
 
 type RoomState = {
-  offset: number
-  rest: string
+  offset: number // bytes of log.jsonl consumed, always at a line end
   mtimeMs: number
   membersMtime: number
   members: Member[]
@@ -46,7 +49,8 @@ type State = {
   lastTick?: number
   lastSilenceTick?: number
   graceUntil: number
-  flagged: Map<string, { at: number; reason: 'stale' | 'quiet' }> // key: room/id
+  flagged: Map<string, { at: number; reason: QuietReason }> // key: room/id
+  startedIso: string
 }
 
 let st: State | undefined
@@ -86,30 +90,40 @@ async function refresh(s: State, $: EngineInterface): Promise<boolean> {
   } catch {
     if (!s.rootMissingLogged) $.ui.log(`rooms: ${s.root} is not there; waiting for it`)
     s.rootMissingLogged = true
+    s.rooms.clear() // nothing to heartbeat or judge in a root that is gone
     return false
   }
   s.rootMissingLogged = false
+  // Pass 1: membership, so watch-all is known before any cursor is chosen.
+  const names: string[] = []
   for (const ent of entries) {
     if (ent.kind !== 'dir') continue
     if (s.only && !s.only.has(ent.name)) continue
     const dir = `${s.root}/${ent.name}`
-    let r = s.rooms.get(ent.name)
     try {
       const ms = await $.fs.stat(`${dir}/members.json`)
+      let r = s.rooms.get(ent.name)
       if (!r || ms.mtimeMs !== r.membersMtime) {
         const members = await readMembers($, dir)
-        if (!r) r = { offset: 0, rest: '', mtimeMs: -1, membersMtime: ms.mtimeMs, members, msgs: [] }
+        if (!r) r = { offset: 0, mtimeMs: -1, membersMtime: ms.mtimeMs, members, msgs: [] }
         r.members = members
         r.membersMtime = ms.mtimeMs
         s.rooms.set(ent.name, r)
       }
+      if (r.members.find(m => m.id === s.id)?.watchAll) s.watchAll = true
+      names.push(ent.name)
     } catch {
       continue
     }
-    const me = r.members.find(m => m.id === s.id)
-    if (me?.watchAll) s.watchAll = true
-    if (r.cursor === undefined && me) {
-      const got = await room(s, $, ['presence-get', ent.name, s.id])
+  }
+  // Pass 2: cursors and new log lines.
+  for (const name of names) {
+    const r = s.rooms.get(name)!
+    if (!isMember(s, r)) continue
+    const dir = `${s.root}/${name}`
+    if (r.cursor === undefined) {
+      const me = r.members.find(m => m.id === s.id)
+      const got = await room(s, $, ['presence-get', name, s.id])
       let pres: Presence | undefined
       try {
         const parsed = got ? JSON.parse(got.stdout || '{}') : {}
@@ -117,28 +131,44 @@ async function refresh(s: State, $: EngineInterface): Promise<boolean> {
       } catch {
         pres = undefined
       }
-      r.cursor = startCursor(me, pres)
+      // A room this member never joined (watch-all) starts at this session's start: no replay.
+      r.cursor = me ? startCursor(me, pres) : pres?.delivered ?? toIdPrefix(s.startedIso)
     }
     try {
       const ls = await $.fs.stat(`${dir}/log.jsonl`)
       if (ls.mtimeMs === r.mtimeMs && ls.size === r.offset) continue
-      if (ls.size < r.offset) {
-        r.offset = 0
-        r.rest = ''
-      }
-      if (ls.size > r.offset) {
-        const chunk = String(await $.fs.read(`${dir}/log.jsonl`, { offset: r.offset, length: ls.size - r.offset }))
-        r.offset = ls.size
-        const out = parseLines(r.rest + chunk)
-        r.rest = out.rest
-        r.msgs.push(...out.msgs)
-      }
+      if (ls.size < r.offset) r.offset = 0
+      r.offset = await readNewLines($, `${dir}/log.jsonl`, r, ls.size)
       r.mtimeMs = ls.mtimeMs
     } catch {
       // the log may not exist yet
     }
   }
   return true
+}
+
+/**
+ * Read whole new lines in chunks of at most READ_CHUNK bytes (the engine's read limit).
+ * Only text through the last newline is consumed, and the offset moves by its UTF-8 length,
+ * so a partial line or a character cut by a chunk edge is read again next time.
+ */
+async function readNewLines($: EngineInterface, path: string, r: RoomState, size: number): Promise<number> {
+  let off = r.offset
+  const enc = new TextEncoder()
+  while (off < size) {
+    const len = Math.min(READ_CHUNK, size - off)
+    const text = String(await $.fs.read(path, { offset: off, length: len }))
+    const cut = text.lastIndexOf('\n')
+    if (cut < 0) {
+      if (len < READ_CHUNK) break // a line still being written
+      off += len // a line longer than a chunk cannot be a valid message
+      continue
+    }
+    const take = text.slice(0, cut + 1)
+    r.msgs.push(...parseLines(take).msgs)
+    off += enc.encode(take).length
+  }
+  return off
 }
 
 function isMember(s: State, r: RoomState) {
@@ -152,7 +182,7 @@ async function deliver(s: State, $: EngineInterface) {
   const newest = new Map<string, string>()
   for (const [name, r] of s.rooms) {
     if (!isMember(s, r)) continue
-    const cursor = r.cursor ?? (s.watchAll ? '' : undefined)
+    const cursor = r.cursor
     if (cursor === undefined) continue
     const mine = mentionsFor(r.msgs, s.id, cursor)
     if (mine.length === 0) continue
@@ -231,18 +261,21 @@ async function silenceCheck(s: State, $: EngineInterface, now: number) {
       const posted = (lastPostTs[m.id] ?? 0) > f.at
       const beating = f.reason === 'stale' && p !== undefined && now - Date.parse(p.ts) <= STALE_MS
       const working = f.reason === 'quiet' && p?.state === 'working'
-      if (posted || beating || working) s.flagged.delete(key)
+      const arrived = f.reason === 'never' && p !== undefined
+      if (posted || beating || working || arrived) s.flagged.delete(key)
     }
     const alreadyFlagged = new Set(judged.map(m => m.id).filter(id => s.flagged.has(`${name}/${id}`)))
     const verdicts = quietVerdicts({
       now, members: judged, presences, lastPostTs, done, alreadyFlagged,
-      quietMs: s.quietMinutes * 60_000, staleMs: STALE_MS,
+      quietMs: s.quietMinutes * 60_000, staleMs: STALE_MS, neverMs: NEVER_MS,
     })
     for (const v of verdicts) {
       s.flagged.set(`${name}/${v.id}`, { at: now, reason: v.reason })
       const why = v.reason === 'stale'
         ? 'no heartbeat for over 2 minutes: crashed or closed?'
-        : `idle with no post for over ${s.quietMinutes} minutes`
+        : v.reason === 'never'
+          ? 'never came online: its session has not started the rooms mod'
+          : `idle with no post for over ${s.quietMinutes} minutes`
       // Sent as the reserved `rooms` identity: a member never hears its own posts.
       await room(s, $, ['post', name, '--as', SYSTEM_ID, '--kind', 'system', `@${s.id} ${v.id} went quiet (${why})`])
     }
@@ -276,9 +309,11 @@ export const register: Register = on => {
       watchAll: false,
       graceUntil: 0,
       flagged: new Map(),
+      startedIso: '',
     }
     st = s
     const t0 = await $.clock.now()
+    s.startedIso = new Date(t0).toISOString()
     s.lastTick = t0
     s.lastSilenceTick = t0
     // Put `room` on PATH for this session and everything it starts (the Bash tool included).

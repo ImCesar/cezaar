@@ -3,7 +3,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
 import { exec, home, notify, readTextFile, setBadge, theme, watchFolder, writeTextFile } from "herdr";
-import { liveRoots, newOperatorMentions, parseLog, roomSummary, sortRooms } from "./model.js";
+import { liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
@@ -20,6 +20,18 @@ async function readJson(path, fallback) {
 async function exists(path) {
   const r = await exec("/bin/test", ["-d", path]);
   return r.code === 0;
+}
+
+// readTextFile stops at 1 MiB: past that, read the last part of the log only.
+async function readLog(path) {
+  try {
+    const text = await readTextFile(path);
+    if (text != null) return parseLog(text);
+  } catch {
+    // too big or unreadable as UTF-8: fall through to the tail
+  }
+  const r = await exec("/usr/bin/tail", ["-c", "524288", path]);
+  return r.code === 0 ? parseTail(r.stdout) : { msgs: [], bad: 0 };
 }
 
 async function listDirs(path) {
@@ -43,9 +55,23 @@ export default class Rooms extends View {
     cx.spawn(async (cx) => {
       this.savedText = await readTextFile(`${CONFIG_DIR()}/panel-state.json`).catch(() => null);
       try { if (this.savedText) this.state = { ...this.state, ...JSON.parse(this.savedText) }; } catch { /* start fresh */ }
-      await this.reload(cx);
+      this.requestReload(cx);
     });
-    cx.timer.every(10000, (cx) => this.reload(cx));
+    cx.timer.every(10000, (cx) => this.requestReload(cx));
+  }
+
+  // One reload at a time; changes that arrive meanwhile fold into one more pass.
+  requestReload(cx) {
+    if (this.reloading) { this.dirty = true; return; }
+    this.reloading = true;
+    cx.spawn(async (cx) => {
+      try { await this.reload(cx); } catch (e) { this.note = `Reload failed: ${e.message ?? e}`; }
+      finally {
+        this.reloading = false;
+        if (this.dirty) { this.dirty = false; this.requestReload(cx); }
+        cx.notify();
+      }
+    });
   }
 
   async reload(cx) {
@@ -59,19 +85,24 @@ export default class Rooms extends View {
     for (const root of live) {
       this.watch(root.path, cx);
       for (const name of await listDirs(root.path)) {
-        const dir = `${root.path}/${name}`;
-        const members = await readJson(`${dir}/members.json`, null);
-        if (!Array.isArray(members)) continue;
-        const { msgs } = parseLog((await readTextFile(`${dir}/log.jsonl`)) ?? "");
-        const presences = {};
-        for (const m of members) {
-          const p = await readJson(`${dir}/presence/${m.id}.json`, null);
-          if (p) presences[m.id] = p;
+        // One unreadable room must not stop the others from updating.
+        try {
+          const dir = `${root.path}/${name}`;
+          const members = await readJson(`${dir}/members.json`, null);
+          if (!Array.isArray(members)) continue;
+          const { msgs } = await readLog(`${dir}/log.jsonl`);
+          const presences = {};
+          for (const m of members) {
+            const p = await readJson(`${dir}/presence/${m.id}.json`, null);
+            if (p) presences[m.id] = p;
+          }
+          const archived = (await readTextFile(`${dir}/archived`).catch(() => null)) != null;
+          const key = `${root.path}#${name}`;
+          const summary = roomSummary(msgs, members, presences, this.config.operator, this.state.lastRead[key]);
+          rooms.push({ key, root: root.path, name, msgs, members, presences, archived, summary });
+        } catch {
+          continue;
         }
-        const archived = (await readTextFile(`${dir}/archived`)) != null;
-        const key = `${root.path}#${name}`;
-        const summary = roomSummary(msgs, members, presences, this.config.operator, this.state.lastRead[key]);
-        rooms.push({ key, root: root.path, name, msgs, members, presences, archived, summary });
       }
     }
     this.rooms = rooms;
@@ -86,8 +117,8 @@ export default class Rooms extends View {
     cx.spawn(async (cx) => {
       try {
         for (;;) {
-          await watchFolder(root);
-          await this.reload(cx);
+          const paths = await watchFolder(root);
+          if (shouldReload(paths, root)) this.requestReload(cx);
         }
       } catch {
         this.watching.delete(root);
@@ -166,7 +197,7 @@ export default class Rooms extends View {
         this.note = `Post failed: ${e.message ?? e}`;
       } finally {
         this.busy = false;
-        await this.reload(cx);
+        this.requestReload(cx);
       }
     });
     cx.notify();
