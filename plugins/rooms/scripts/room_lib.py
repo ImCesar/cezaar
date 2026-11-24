@@ -17,7 +17,7 @@ import re
 import secrets
 import sys
 
-MAX_TEXT = 4096
+MAX_TEXT = 16384
 KINDS = ("msg", "done", "system", "pause")
 MENTION = re.compile(r"@([a-z0-9][a-z0-9_-]*)")
 ROOM_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
@@ -202,9 +202,23 @@ def cmd_post(a, root):
     sender = a.as_ or me()
     if not sender:
         raise Refused("room: who is posting? pass --as <id> or set ROOM_ID")
-    text = " ".join(a.text)
+    if a.text and a.body_file is not None:
+        raise Refused("room: give the text or --body-file, not both")
+    if a.body_file is not None:
+        try:
+            if a.body_file == "-":
+                text = sys.stdin.buffer.read().decode("utf-8")
+            else:
+                with open(a.body_file, encoding="utf-8") as f:
+                    text = f.read()
+        except (OSError, UnicodeDecodeError) as e:
+            raise Refused(f"room: cannot read --body-file {a.body_file}: {e}")
+    elif a.text:
+        text = " ".join(a.text)
+    else:
+        raise Refused("room post: the following arguments are required: text (or --body-file)")
     if len(text.encode()) > MAX_TEXT:
-        raise Refused(f"room: message is over {MAX_TEXT} bytes; write long output to a file and post a link (--link <path>)")
+        raise Refused("room: message is over 16 KB; write long output to a file and post a link (--link <path>)")
     if os.path.exists(os.path.join(d, "archived")):
         raise Refused(f"room: {a.room} is archived", 3)
     ts = now_iso()
@@ -371,7 +385,8 @@ def parser():
     po.add_argument("--as", dest="as_", metavar="id")
     po.add_argument("--kind", choices=KINDS, default="msg")
     po.add_argument("--link", action="append", metavar="path")
-    po.add_argument("text", nargs="+")
+    po.add_argument("--body-file", metavar="path|-", help="read the text from a file, or stdin with -, as UTF-8")
+    po.add_argument("text", nargs="*")
     po.set_defaults(fn=cmd_post)
 
     r = sub.add_parser("read", help="read messages")
@@ -414,7 +429,17 @@ def parser():
 
 
 def main(argv):
-    a = parser().parse_args(argv)
+    p = parser()
+    a, extra = p.parse_known_args(argv)
+    # `text` is nargs="*" so --body-file can stand in for it, and argparse then
+    # leaves words given after an option (`post r --as a hi`) unparsed.
+    if extra and a.cmd == "post":
+        words = extra[1:] if extra[0] == "--" else extra
+        if extra[0] != "--" and any(w.startswith("-") for w in words):
+            p.error("unrecognized arguments: " + " ".join(extra))
+        a.text += words
+    elif extra:
+        p.error("unrecognized arguments: " + " ".join(extra))
     try:
         if a.cmd in ("install", "herdr-install"):
             a.fn(a, None)
