@@ -435,6 +435,44 @@ def cmd_thread_open(a):
     print(f"opened #{task} ({a.template}): {', '.join(run['threads'][task]['members'])}")
 
 
+BRIEF_FIELDS = ("Goal", "Scope", "Interfaces and contracts", "Builds on", "Targeted test", "Done when", "Report")
+ROOT_POST_MAX = 4000
+
+
+def root_post(task, brief_text, member_ids, brief_path):
+    """The thread's opening post, built from its brief: headline, Goal, Scope, Done when, brief path."""
+    lines = brief_text.splitlines()
+    headings = [l.lstrip("#").strip() for l in lines if re.match(r"#+\s", l)]
+    title = next((l for l in lines if l.startswith("# ")), "")
+    if re.match(rf"#\s+{re.escape(task)}:\s*\S", title):
+        headline = title.split(":", 1)[1].strip()
+    else:
+        headline = headings[0] if headings else task
+    fields, cur = {}, None
+    label = re.compile(r"^(%s):\s*(.*)$" % "|".join(re.escape(f) for f in BRIEF_FIELDS))
+    for l in lines:
+        m = label.match(l)
+        if m:
+            cur = m.group(1)
+            fields[cur] = [m.group(2)] if m.group(2) else []
+        elif cur:
+            fields[cur].append(l)
+    fields = {k: "\n".join(v).strip() for k, v in fields.items()}
+    head = f"{' '.join('@' + i for i in member_ids)} — **{headline}**"
+    tail = f"Full brief: `{brief_path}`"
+    body = []
+    if fields.get("Goal"):
+        body.append(f"**Goal:** {fields['Goal']}")
+    if fields.get("Scope"):
+        body.append(f"**Scope:** {fields['Scope']}")
+    if fields.get("Done when"):
+        body.append(f"**Done when:**\n{fields['Done when']}")
+    post = "\n\n".join([head, "\n".join(body), tail] if body else [head, tail])
+    if len(post.encode()) > ROOT_POST_MAX:
+        post = f"{head}\n\n{tail}"
+    return post
+
+
 def open_thread(run, task, template, brief_src, from_task, wave, made, folder=None):
     personas = templates()[template]
     op = operator()
@@ -464,9 +502,9 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     # Join the channel only once the members exist: an undo then has nothing to take back there.
     for i, p in zip(ids, personas):
         room(run, "join", run["stage"], i, "--role", p)
-    # Mention only the first member (the builder): the others read the brief from their first
-    # message, and a mention they don't answer yet would read as "gone quiet".
-    room(run, "post", room_name, "--as", "lead", f"@{ids[0]} brief: {os.path.join(d, 'briefs', task + '.md')}")
+    with open(dest, encoding="utf-8") as f:
+        brief_text = f.read()
+    room(run, "post", room_name, "--as", "lead", "--link", dest, root_post(task, brief_text, ids, dest))
     run["threads"][task] = {"template": template, "room": room_name, "branch": branch, "worktree": wt,
                             "terminals": terms, "members": ids, "state": "open", "wave": wave}
     save_run(run)
