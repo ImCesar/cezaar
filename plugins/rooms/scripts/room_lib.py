@@ -324,7 +324,8 @@ def cmd_install(a, root):
 def cmd_herdr_install(a, root):
     import shutil
     import subprocess
-    cmd_install(a, root)
+    if not a.panel_only:  # --panel-only: try a worktree's panel without repointing `room` at it
+        cmd_install(a, root)
     src = os.path.join(os.path.dirname(os.path.dirname(cli_path())), "herdr-mod", "rooms")
     dest = a.dest or os.path.expanduser("~/.config/herdr-app/mods/rooms")
     os.makedirs(dest, exist_ok=True)
@@ -332,11 +333,12 @@ def cmd_herdr_install(a, root):
         if name.endswith(".test.mjs") or name == "package.json":
             continue
         shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
-    cfg_path = os.path.join(config_dir(), "config.json")
-    with locked(os.path.join(config_dir(), ".lock")):
-        cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
-        cfg["cli"] = cli_path()
-        write_atomic(cfg_path, cfg)
+    if not a.panel_only:
+        cfg_path = os.path.join(config_dir(), "config.json")
+        with locked(os.path.join(config_dir(), ".lock")):
+            cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
+            cfg["cli"] = cli_path()
+            write_atomic(cfg_path, cfg)
     print(dest)
     if os.environ.get("ROOMS_SKIP_HERDR_CHECK") or not shutil.which("herdr-app"):
         return
@@ -405,6 +407,8 @@ def parser():
 
     hi = sub.add_parser("herdr-install", help="install, then copy the Rooms panel into the Herdr app")
     hi.add_argument("--dest", metavar="dir", help="default ~/.config/herdr-app/mods/rooms")
+    hi.add_argument("--panel-only", action="store_true",
+                    help="copy only the panel: leave the room link and config.json's cli as they are")
     hi.set_defaults(fn=cmd_herdr_install)
     return p
 

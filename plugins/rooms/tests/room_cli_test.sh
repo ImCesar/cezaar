@@ -143,6 +143,19 @@ t_herdr_install_to_temp_dest() {
     && ok herdr_install_to_temp_dest || fail herdr_install_to_temp_dest "cli=$cli op=$op files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
 }
 
+t_herdr_install_panel_only_leaves_link_and_config() {
+  fresh
+  dest="$T/mods/rooms"
+  mkdir -p "$ROOMS_CONFIG_DIR" "$ROOMS_BIN_DIR"
+  printf '{"operator": "cesar", "cli": "/keep/room"}' > "$ROOMS_CONFIG_DIR/config.json"
+  ln -s /keep/room "$ROOMS_BIN_DIR/room"
+  ROOMS_SKIP_HERDR_CHECK=1 "$ROOM" herdr-install --panel-only --dest "$dest" >/dev/null 2>&1 || { fail herdr_install_panel_only_leaves_link_and_config "install failed"; return; }
+  cli=$(jq_py "d.get('cli', '')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  link=$(readlink "$ROOMS_BIN_DIR/room")
+  [ -f "$dest/main.js" ] && [ -f "$dest/model.js" ] && [ "$cli" = /keep/room ] && [ "$link" = /keep/room ] \
+    && ok herdr_install_panel_only_leaves_link_and_config || fail herdr_install_panel_only_leaves_link_and_config "cli=$cli link=$link files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
+}
+
 t_truncated_utf8_line_does_not_crash_or_eat_next() {
   fresh
   "$ROOM" create r >/dev/null 2>&1

@@ -24,7 +24,7 @@ NAME = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 # git cannot hold a branch that is also a folder of branches, so the integration branch
 # lives beside the thread branches: fleet/<run>/integration and fleet/<run>/<task>.
 RESERVED_TASKS = ("integration", "lead")
-CONFIG_KEYS = {"maxThreads": int, "verify": str, "teardown": str}
+CONFIG_KEYS = {"maxThreads": int, "verify": str, "teardown": str, "try": str}
 
 
 class Refused(Exception):
@@ -240,7 +240,9 @@ def compose_member(run, member_id, persona_name, task, worktree=None, room_name=
         for k in ("verify", "teardown"):
             if run.get(k):
                 allow += [f"Bash({run[k]})", f"Bash({run[k]} *)"]
-    env = {"ROOM_ID": member_id, "ROOMS_ROOT": rooms_root(run), "APP_FLEET_RUN": run["run"], "APP_FLEET_HOME": home()}
+    # Members run under hc, whose PATH is not the operator's (no nvm node, say): give them the run's.
+    env = {"ROOM_ID": member_id, "ROOMS_ROOT": rooms_root(run), "APP_FLEET_RUN": run["run"], "APP_FLEET_HOME": home(),
+           "PATH": run.get("path") or os.environ.get("PATH", "")}
     settings_path = os.path.join(members, f"{member_id}.settings.json")
     with open(settings_path, "w") as fh:
         json.dump({"env": env, "permissions": {"allow": allow, "additionalDirectories": dirs,
@@ -594,6 +596,72 @@ Do not fix anything yourself. The lead opens fix threads from your report.
 """
 
 
+CURATE_BRIEF = """# {task}: what run {run} taught each role
+
+Read what this run did and keep the lessons that would change how a future member of each role works.
+
+Sources (run directory `{rundir}`):
+{sources}
+
+Memory files: write only these, and your report. Every future member of that role reads its file;
+only the first 4 KB reaches them, so keep each short and the most useful lessons first.
+{memory}
+
+These files are the only place lessons live: never edit the persona files in the roster, and never
+touch the repo, its branches or your worktree.
+
+Candidate lessons from the lead (confirm each against the sources; drop what doesn't hold, add what you find):
+{notes}
+
+Report: `reports/{task}.md` in the run directory, as your persona describes. Then post:
+`room post {task} --kind done "@lead done: memory curated — <n> added, <m> merged, <k> removed — report: <path>"`
+"""
+
+
+def cmd_curate(a):
+    """Write the curate brief from the run itself (its logs, reports and roles) and open the thread."""
+    run = load_run(a.run)
+    d = run_dir(run["run"])
+    task, n = "curate", 1
+    while task in run["threads"]:
+        n += 1
+        task = f"curate-{n}"
+    sources = [f"- `rooms/{run['stage']}/log.jsonl` (the stage channel)"]
+    roles = ["lead"]
+    for name, t in run["threads"].items():
+        sources.append(f"- `rooms/{t.get('room', name)}/log.jsonl`")
+        reports = os.path.join(d, "reports")
+        for f in sorted(os.listdir(reports)) if os.path.isdir(reports) else []:
+            if f == f"{name}.md" or f.startswith(f"{name}."):
+                sources.append(f"- `reports/{f}`")
+        for p in templates().get(t.get("template"), []):
+            if p not in roles:
+                roles.append(p)
+    memory = "\n".join(f"- `{os.path.join(home(), 'memory', p, 'MEMORY.md')}` ({p})" for p in roles)
+    notes = "\n".join(f"- {x}" for x in (a.note or [])) or "- (none)"
+    tmp = os.path.join(d, f".{task}.brief.md")
+    with open(tmp, "w") as fh:
+        fh.write(CURATE_BRIEF.format(task=task, run=run["run"], rundir=d, sources="\n".join(sources), memory=memory, notes=notes))
+    a2 = argparse.Namespace(run=a.run, task=task, template="curate", brief=tmp, from_=None, wave=None,
+                            folder=ensure_integration(run))
+    try:
+        cmd_thread_open(a2)
+    finally:
+        os.remove(tmp)
+
+
+def cmd_try(a):
+    """Run the run's `try` command in the integration worktree: the merged work, live, before it merges."""
+    run = load_run(a.run)
+    if not run.get("try"):
+        raise Refused("fleet: no try command for this run; set it with `fleet config <run> try \"<cmd>\"`", 3)
+    folder = ensure_integration(run)
+    r = subprocess.run(run["try"], shell=True, cwd=folder)
+    if r.returncode != 0:
+        raise Refused(f"fleet: try failed (exit {r.returncode}): {run['try']}", 4)
+    print(f"tried run {run['run']}: `{run['try']}` in {folder}")
+
+
 def cmd_verify(a):
     run = load_run(a.run)
     if not run.get("verify"):
@@ -747,6 +815,9 @@ def cmd_lead(a):
     if os.path.exists(path):  # resume: never reset rooms or threads
         run = load_run(name)
         require_app()
+        if not run.get("path"):  # a run from before members got the operator's PATH
+            run["path"] = os.environ.get("PATH")
+            save_run(run)
         space_alive, tabs = space_tabs(run)
         tab_alive = bool(run.get("leadTab")) and run["leadTab"] in tabs
         msg = resume_message(run)
@@ -790,6 +861,7 @@ def cmd_lead(a):
         raise Refused(f"fleet: {repo} is on a detached HEAD; pass --base <branch>", 3)
     run = {"run": name, "repo": repo, "stage": "execution", "base": base, "integration": f"fleet/{name}/integration",
            "space": None, "leadTab": None, "roomsTab": None, "leadTerminal": None, "leadSession": None, "maxThreads": 4, "verify": a.verify, "teardown": a.teardown,
+           "try": a.try_, "path": os.environ.get("PATH"),
            "architecture": arch, "threads": {}}
     try:
         save_run(run)
@@ -860,7 +932,8 @@ def cmd_status(a):
         print()
         return
     print(f"run {run['run']}  repo {run['repo']}  integration {run['integration']}  max {run['maxThreads']} threads")
-    print(f"  verify: {run.get('verify') or '(not set)'}  teardown: {run.get('teardown') or '(not set)'}")
+    print(f"  verify: {run.get('verify') or '(not set)'}  teardown: {run.get('teardown') or '(not set)'}"
+          f"  try: {run.get('try') or '(not set)'}")
     if not rows:
         print("  no threads yet")
     for r in rows:
@@ -874,7 +947,7 @@ def parser():
     p = argparse.ArgumentParser(prog="fleet", description="Run the fleet on the Herdr app, talking in rooms.")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    c = sub.add_parser("config", help="change a run setting (maxThreads, verify, teardown)")
+    c = sub.add_parser("config", help="change a run setting (maxThreads, verify, teardown, try)")
     c.add_argument("run")
     c.add_argument("key")
     c.add_argument("value")
@@ -927,6 +1000,15 @@ def parser():
     vf.add_argument("wave", type=int)
     vf.set_defaults(fn=cmd_verify, locks=True)
 
+    cu = sub.add_parser("curate", help="open the stage's curate thread with a brief written from the run")
+    cu.add_argument("run")
+    cu.add_argument("--note", action="append", metavar="lesson", help="a candidate lesson for the curator (repeatable)")
+    cu.set_defaults(fn=cmd_curate, locks=True)
+
+    tr = sub.add_parser("try", help="run the run's try command in the integration worktree")
+    tr.add_argument("run")
+    tr.set_defaults(fn=cmd_try, locks=True)
+
     ld = sub.add_parser("lead", help="start a run and its lead (or resume an existing run's lead)")
     ld.add_argument("run")
     ld.add_argument("--repo")
@@ -934,6 +1016,7 @@ def parser():
     ld.add_argument("--base")
     ld.add_argument("--verify")
     ld.add_argument("--teardown")
+    ld.add_argument("--try", dest="try_", metavar="CMD", help="how the operator tries the merged work live (fleet try)")
     ld.set_defaults(fn=cmd_lead, locks=True)
 
     ins = sub.add_parser("install", help="put fleet on PATH (~/.local/bin)")

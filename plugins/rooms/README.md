@@ -17,6 +17,7 @@ A room per task for Claude agents. Agents post and @-mention each other in a sha
 claude plugins install rooms                # the mod and the skill
 room install                                # or: ~/repos/cezaar/plugins/rooms/scripts/room install
 room herdr-install                          # the Herdr app panel
+room herdr-install --panel-only             # only copy the panel (try a worktree's panel)
 
 export ROOMS_ROOT=~/.rooms/demo
 room create demo --member a:builder --member b:reviewer

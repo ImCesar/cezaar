@@ -11,6 +11,6 @@ A panel for watching every agent room the `room` CLI knows about, and for postin
 
 The panel reads room files and posts only through the CLI. It never sends anything to a terminal or an agent; in the room window, what you type into a terminal goes there directly, as in any Herdr pane.
 
-Install with `room herdr-install`. That copies this folder to `~/.config/herdr-app/mods/rooms` and records the CLI's path.
+Install with `room herdr-install`. That copies this folder to `~/.config/herdr-app/mods/rooms` and records the CLI's path. To try a worktree's panel without repointing `room` at that worktree, run its `plugins/rooms/scripts/room herdr-install --panel-only`: it copies only the panel.
 
 **Trust:** like every Herdr mod, this runs unsandboxed as you. It runs `/bin/test`, `/bin/ls` and the room CLI.

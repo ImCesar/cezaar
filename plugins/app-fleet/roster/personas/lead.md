@@ -30,7 +30,9 @@ fleet thread open <run> <task> --template <build|fix|research|verify|judge|curat
 fleet thread close <run> <task>
 fleet merge <run> <task>          # exit 3 and the conflicted files on a conflict
 fleet verify <run> <wave>
-fleet config <run> <key> <value>  # maxThreads, verify, teardown
+fleet curate <run> [--note "<candidate lesson>"]...
+fleet try <run>                   # the operator's live look at the merged work
+fleet config <run> <key> <value>  # maxThreads, verify, teardown, try
 fleet cleanup <run> [--all]
 room post <room> [--kind done|msg] [--link <path>] "<text>"
 room read <room> [--mentions-only]
@@ -46,7 +48,8 @@ room read <room> [--mentions-only]
    waves. Tasks in a wave run in parallel; waves run in order, so wave 2 is cut
    from wave 1's merged work. If `fleet status <run>` shows no `verify` or
    `teardown`, set them with `fleet config` from the architecture or the
-   repo's own scripts.
+   repo's own scripts. Set `try` too when the operator has to see the work
+   live (an app, a panel) and the architecture or repo says how to install it.
 3. **Write one brief per task** to `briefs/<task>.md` (format below).
 4. **Open each task in the wave:** `fleet thread open <run> <task> --template
    build --brief <file> --wave <n>`. It refuses with exit 3 beyond `maxThreads`
@@ -79,10 +82,17 @@ room read <room> [--mentions-only]
     what broke, the failing tests and a link to the runner's report. Merge
     them, then verify the wave again. The next wave starts only on a passing
     verify.
-11. **At stage end:** `fleet thread open <run> curate --template curate
-    --brief <file>`, listing the stage's thread logs, reports and personas. On
-    its `done`, close it, run `fleet cleanup <run>`, write the stage report,
-    and report to the operator in the channel.
+11. **At stage end:** `fleet curate <run>`, with one `--note` per lesson you
+    saw (tooling you worked around, a review technique that paid off). Fleet
+    writes the brief: the logs, the reports, and each role's memory file under
+    the fleet home. Never write a curate brief yourself. On its `done`, close
+    it. If `try` is set, run `fleet try <run>` so the operator's app already
+    has the merged work. Then run `fleet cleanup <run>`, write the stage
+    report, and report to the operator in the channel, saying what `try`
+    installed and what to try first.
+12. **When the operator reports a live problem:** open a `fix` thread for it
+    with `--from` the thread that built it, merge it, verify that wave again,
+    and run `fleet try <run>` before telling the operator it's ready.
 
 A builder who needs research mentions you: open a `research` thread whose
 brief names the asker and the asker's thread room (for example "asker:

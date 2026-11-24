@@ -109,6 +109,81 @@ t_compose_runner_grants_verify() {
 
 brief() { printf '# Task %s\nDo the thing.\n' "$1" > "$T/$1.brief.md"; echo "$T/$1.brief.md"; }
 
+# Members run under hc, whose PATH is not the operator's: nvm's node, say, is missing there.
+t_members_get_the_runs_path() {
+  fresh; seed_run r1
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['path']='/nvm/bin:/usr/bin:/bin'; json.dump(d, open(p,'w'))" "$APP_FLEET_HOME/runs/r1/run.json"
+  out=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null)
+  settings=$(printf '%s' "$out" | jq_py "d['settings_path']")
+  env_path=$(jq_py "d['env'].get('PATH')" < "$settings")
+  in_argv=$(printf '%s' "$out" | jq_py "'PATH=/nvm/bin:/usr/bin:/bin' in d['argv']")
+  [ "$env_path" = /nvm/bin:/usr/bin:/bin ] && [ "$in_argv" = True ] && ok members_get_the_runs_path || fail members_get_the_runs_path "env=$env_path argv=$in_argv"
+}
+
+t_lead_records_the_operators_path() {
+  fresh
+  PATH="$PATH:/nvm/bin" "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('path', '')" < "$APP_FLEET_HOME/runs/p1/run.json" 2>/dev/null)
+  case $got in *:/nvm/bin) [ "$rc" = 0 ] && ok lead_records_the_operators_path || fail lead_records_the_operators_path "rc=$rc" ;; *) fail lead_records_the_operators_path "path=$got" ;; esac
+}
+
+t_resume_records_path_for_old_run() {
+  fresh; seed_run r1 t9
+  PATH="$PATH:/nvm/bin" "$FLEET" lead r1 >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('path', '')" < "$APP_FLEET_HOME/runs/r1/run.json" 2>/dev/null)
+  case $got in *:/nvm/bin) [ "$rc" = 0 ] && ok resume_records_path_for_old_run || fail resume_records_path_for_old_run "rc=$rc" ;; *) fail resume_records_path_for_old_run "rc=$rc path=$got" ;; esac
+}
+
+# The lead wrote its own curate brief and sent the curator to persona files: fleet writes it now.
+t_curate_writes_brief_and_opens_thread() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" curate r1 --note "verify shell had no node" >/dev/null 2>&1; rc=$?
+  b="$APP_FLEET_HOME/runs/r1/briefs/curate.md"
+  m="$APP_FLEET_HOME/memory"
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name curate-curator " "$STUB_LOG" \
+    && grep -q "rooms/t1/log.jsonl" "$b" && grep -q "$m/builder/MEMORY.md" "$b" && grep -q "$m/reviewer/MEMORY.md" "$b" \
+    && grep -q "$m/lead/MEMORY.md" "$b" && grep -q "verify shell had no node" "$b" && grep -q "never edit the persona files" "$b" \
+    && ok curate_writes_brief_and_opens_thread || fail curate_writes_brief_and_opens_thread "rc=$rc brief=$(head -c 400 "$b" 2>/dev/null)"
+}
+
+t_curate_twice_gets_new_name() {
+  fresh; seed_run r1 t9
+  "$FLEET" curate r1 >/dev/null 2>&1; "$FLEET" curate r1 >/dev/null 2>&1; rc=$?
+  got=$(jq_py "sorted(t for t in d['threads'] if t.startswith('curate'))" < "$APP_FLEET_HOME/runs/r1/run.json")
+  [ "$rc" = 0 ] && [ "$got" = "['curate', 'curate-2']" ] && ok curate_twice_gets_new_name || fail curate_twice_gets_new_name "rc=$rc got=$got"
+}
+
+# `fleet try`: put the run's merged work where the operator can use it live, before it merges.
+t_try_runs_in_the_integration_worktree() {
+  fresh; seed_run r1
+  "$FLEET" config r1 try "pwd -P > \"$T/try.out\"" >/dev/null 2>&1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  want="$(cd "$REPO" && pwd -P)/.worktrees/r1/_integration"
+  [ "$rc" = 0 ] && [ "$(cat "$T/try.out" 2>/dev/null)" = "$want" ] && ok try_runs_in_the_integration_worktree || fail try_runs_in_the_integration_worktree "rc=$rc got=$(cat "$T/try.out" 2>/dev/null)"
+}
+
+t_try_without_command_exits_3() {
+  fresh; seed_run r1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] && ok try_without_command_exits_3 || fail try_without_command_exits_3 "rc=$rc"
+}
+
+t_try_failure_exits_4() {
+  fresh; seed_run r1
+  "$FLEET" config r1 try "exit 7" >/dev/null 2>&1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 4 ] && ok try_failure_exits_4 || fail try_failure_exits_4 "rc=$rc"
+}
+
+t_lead_takes_try() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" --try "make try" >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('try')" < "$APP_FLEET_HOME/runs/p1/run.json" 2>/dev/null)
+  shown=$("$FLEET" status p1 2>/dev/null | grep -c "try: make try")
+  [ "$rc" = 0 ] && [ "$got" = "make try" ] && [ "$shown" = 1 ] && ok lead_takes_try || fail lead_takes_try "rc=$rc got=$got shown=$shown"
+}
+
 t_thread_open_creates_everything() {
   fresh; seed_run r1 t9
   out=$("$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" 2>&1) || { fail thread_open_creates_everything "rc=$? $out"; return; }
