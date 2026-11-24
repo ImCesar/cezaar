@@ -201,7 +201,7 @@ t_thread_open_creates_everything() {
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
   [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['cesar', 't1-builder', 't1-reviewer']" ] \
     && case $mem_ch in *t1-builder*t1-reviewer*) true ;; *) false ;; esac \
-    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['t1-builder']" ] \
+    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['t1-builder', 't1-reviewer']" ] \
     && [ "$tabs" = 0 ] && [ "$runs" = 2 ] && [ "$flags" = 0 ] && [ "$rp" = 1 ] && [ "$state" = open ] \
     && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs runs=$runs flags=$flags rp=$rp state=$state"
 }
@@ -479,11 +479,45 @@ t_reserved_names_refused() {
   [ "$a$b$c$d" = 2222 ] && ok reserved_names_refused || fail reserved_names_refused "codes=$a$b$c$d"
 }
 
-t_brief_post_mentions_only_builder() {
+# The thread's first post, as JSON fields: text, mentions, links.
+root_of() { head -1 "$APP_FLEET_HOME/runs/r1/rooms/$1/log.jsonl"; }
+
+t_root_post_full_brief() {
+  fresh; seed_run r1
+  b="$T/t1.brief.md"
+  printf '# t1: make the widget readable\nGoal: widgets read well.\nScope: in - widget.py. out - the rest.\nInterfaces and contracts (quoted verbatim, task 3):\n- secret contract text\nNotes: secret notes\nDone when:\n- [ ] widgets read well\n- [ ] tests pass\nReport: somewhere\n' > "$b"
+  "$FLEET" thread open r1 t1 --template build --brief "$b" >/dev/null 2>&1
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "(sorted(d['mentions']), d['links'], d['text'])")
+  want=$(printf '%s' "(['t1-builder', 't1-reviewer'], ['$dest'], '@t1-builder @t1-reviewer — **make the widget readable**\\n\\n**Goal:** widgets read well.\\n**Scope:** in - widget.py. out - the rest.\\n**Done when:**\\n- [ ] widgets read well\\n- [ ] tests pass\\n\\nFull brief: \`$dest\`')")
+  [ "$got" = "$want" ] && ok root_post_full_brief || fail root_post_full_brief "got $got"
+}
+
+t_root_post_title_only_brief() {
   fresh; seed_run r1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
-  first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "d['mentions']")
-  [ "$first" = "['t1-builder']" ] && ok brief_post_mentions_only_builder || fail brief_post_mentions_only_builder "got $first"
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "d['text']")
+  want=$(printf '@t1-builder @t1-reviewer — **Task t1**\n\nFull brief: `%s`' "$dest")
+  [ "$got" = "$want" ] && ok root_post_title_only_brief || fail root_post_title_only_brief "got $got"
+}
+
+t_root_post_oversized_falls_back() {
+  fresh; seed_run r1
+  b="$T/t1.brief.md"
+  { printf '# t1: big one\nGoal: '; python3 -I -c "print('x' * 5000)"; printf 'Done when:\n- [ ] done\n'; } > "$b"
+  "$FLEET" thread open r1 t1 --template build --brief "$b" >/dev/null 2>&1; rc=$?
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "(sorted(d['mentions']), d['text'])")
+  want="(['t1-builder', 't1-reviewer'], '@t1-builder @t1-reviewer — **big one**\\n\\nFull brief: \`$dest\`')"
+  [ "$rc" = 0 ] && [ "$got" = "$want" ] && ok root_post_oversized_falls_back || fail root_post_oversized_falls_back "rc=$rc got $got"
+}
+
+t_verify_thread_root_from_title() {
+  fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
+  "$FLEET" verify r1 1 >/dev/null 2>&1
+  got=$(root_of verify-w1 | jq_py "(d['mentions'], d['text'].split(chr(10))[0])")
+  [ "$got" = "(['verify-w1-runner'], '@verify-w1-runner — **Verify wave 1**')" ] && ok verify_thread_root_from_title || fail verify_thread_root_from_title "got $got"
 }
 
 t_research_answers_go_to_the_askers_thread() {
