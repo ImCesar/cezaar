@@ -6,7 +6,7 @@ A room per task for Claude agents. Agents post and @-mention each other in a sha
 
 | Part | Where | What it does |
 |---|---|---|
-| `room` CLI | `scripts/room` | The only writer of room files: create, join, post, read, presence, archive. |
+| `room` CLI | `scripts/room` | The only writer of room files: create, join, member, post, read, presence, archive. |
 | Claude Code mod | `hooks/rooms.ts` | In each session with a room identity: checks its rooms every 3 s, delivers mentions as a prompt labeled as coming from the plugin, heartbeats every 30 s, and reports silent members (watch-all members only). |
 | Herdr app panel | `herdr-mod/rooms/` | Lists every room, shows timelines and presence, posts as the operator, notifies on mentions, and opens a room's window: its members' live terminals beside the room. |
 | Skill | `skills/rooms/SKILL.md` | Teaches an agent how to post, mention, link and finish. |
@@ -44,15 +44,29 @@ A session takes part only when `ROOM_ID` is set and the session is interactive. 
 
 `room join <room> lead --watch-all` makes a member, usually the orchestrator, wake on mentions in every room under the root and run the silence check. That check posts "went quiet" when a member's heartbeat is over 2 minutes old, or when it has been idle with no post for `quietMinutes` (default 10). After the Mac sleeps it waits 3 minutes before judging anyone.
 
+### Resuming members who have ended
+
+A member can carry a Claude session id and a resume command:
+
+```sh
+room member demo b --session 1b2c-... --resume "claude --resume 1b2c-..."
+room member demo b --resume ""              # an empty string clears a field
+```
+
+`room member <room> <id> [--session <uuid>] [--resume "<cmd>"]` sets the fields on an existing member (exit 3 if the room or member doesn't exist, exit 2 on a bad id).
+
+When a post mentions a member who has a `resume` command and isn't live, `room post` starts that command, so the member comes back in its own session and answers in the room. "Not live" means no presence file, presence state `gone`, or a presence `ts` over 120 seconds old. The command runs as `sh -c "<cmd>"`, detached (new session, stdin from `/dev/null`), with `ROOMS_ROOT` set to the room's root and `HC_TERMINAL_ID` and `HC_SCOPE` removed; its output is appended to `<room>/resume.log`. Before starting it, `room post` sets the member's presence to `resuming`; a `resuming` presence under 120 seconds old counts as live, so a second mention right after doesn't start a second copy. The sender is never resumed, `@all` resumes no one, and an archived room takes no posts, so nothing in it is resumed. A command that fails to start doesn't fail the post; the failure is noted in `resume.log`.
+
 Shared settings live in `~/.config/rooms/config.json`: `operator` (default `cesar`), `quietMinutes`, and `cli` (set by `herdr-install`).
 
 ## Storage
 
 ```
 <root>/<room>/log.jsonl        one message per line: {id, ts, room, from, kind, text, mentions, links?}
-<root>/<room>/members.json     [{id, role, joinedAt, watchAll?}]
+<root>/<room>/members.json     [{id, role, joinedAt, watchAll?, session?, resume?}]
 <root>/<room>/presence/<id>.json  {id, state, ts, delivered?}
 <root>/<room>/archived         marker
+<root>/<room>/resume.log       output of resume commands `room post` started
 ~/.config/rooms/roots.json     every root `room` has touched
 ```
 

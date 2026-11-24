@@ -2,9 +2,10 @@
 
 Storage (under a rooms root, $ROOMS_ROOT, default ~/.rooms/default):
   <room>/log.jsonl       one message per line, append-only, written under <room>/.lock
-  <room>/members.json    [{id, role, joinedAt, watchAll?}]
+  <room>/members.json    [{id, role, joinedAt, watchAll?, session?, resume?}]
   <room>/presence/<id>.json
   <room>/archived        marker
+  <room>/resume.log      output of resume commands `room post` started
 """
 
 import argparse
@@ -15,6 +16,7 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import sys
 
 MAX_TEXT = 16384
@@ -23,6 +25,7 @@ MENTION = re.compile(r"@([a-z0-9][a-z0-9_-]*)")
 ROOM_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 SYSTEM_ID = "rooms"  # the sender of the mod's own reports; no member may take it
 REGISTER_EVERY_S = 600
+LIVE_S = 120  # a presence older than this is not live; the mod heartbeats more often
 
 
 class Refused(Exception):
@@ -217,6 +220,78 @@ def cmd_join(a, root):
         write_atomic(os.path.join(d, "members.json"), members)
 
 
+def cmd_member(a, root):
+    check_member_id(a.id)
+    d = room_dir(root, a.room)
+    with locked(os.path.join(d, ".lock")):
+        members = read_json(os.path.join(d, "members.json"), [])
+        entry = next((m for m in members if isinstance(m, dict) and m.get("id") == a.id), None)
+        if entry is None:
+            raise Refused(f"room: no member {a.id!r} in {a.room}", 3)
+        for field in ("session", "resume"):
+            value = getattr(a, field)
+            if value is None:
+                continue
+            if value:
+                entry[field] = value
+            else:
+                entry.pop(field, None)
+        write_atomic(os.path.join(d, "members.json"), members)
+
+
+def presence_live(p):
+    """Whether a presence record shows a live (or just-resumed) member."""
+    if not isinstance(p, dict) or p.get("state") not in ("working", "idle", "resuming"):
+        return False
+    try:
+        ts = datetime.datetime.strptime(p.get("ts", ""), "%Y-%m-%dT%H:%M:%S.%fZ")
+    except (TypeError, ValueError):
+        return False
+    return (datetime.datetime.utcnow() - ts).total_seconds() < LIVE_S
+
+
+def resume_log(d, line):
+    with open(os.path.join(d, "resume.log"), "a") as fh:
+        fh.write(f"{now_iso()} {line}\n")
+
+
+def resume_mentioned(d, root, mentions, sender):
+    """Start the resume command of each mentioned member who has one and isn't live."""
+    ids = [m for m in mentions if m != "all" and m != sender]
+    if not ids:
+        return
+    to_start = []
+    with locked(os.path.join(d, ".lock")):
+        members = {m.get("id"): m for m in read_json(os.path.join(d, "members.json"), []) if isinstance(m, dict)}
+        for mid in ids:
+            cmd = (members.get(mid) or {}).get("resume")
+            if not isinstance(cmd, str) or not cmd:
+                continue
+            path = os.path.join(d, "presence", f"{mid}.json")
+            cur = read_json(path, {})
+            if presence_live(cur):
+                continue
+            if not isinstance(cur, dict):
+                cur = {}
+            cur.update({"id": mid, "state": "resuming", "ts": now_iso()})
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            write_atomic(path, cur)
+            to_start.append((mid, cmd))
+    env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
+    env["ROOMS_ROOT"] = root
+    for mid, cmd in to_start:
+        try:
+            resume_log(d, f"resuming {mid}: {cmd}")
+            with open(os.path.join(d, "resume.log"), "ab") as out:
+                subprocess.Popen(["sh", "-c", cmd], stdin=subprocess.DEVNULL, stdout=out,
+                                 stderr=subprocess.STDOUT, env=env, start_new_session=True)
+        except OSError as e:
+            try:
+                resume_log(d, f"could not start resume for {mid}: {e}")
+            except OSError:
+                pass
+
+
 def cmd_post(a, root):
     d = room_dir(root, a.room)
     sender = a.as_ or me()
@@ -258,6 +333,8 @@ def cmd_post(a, root):
                         fh.write(b"\n")
             fh.write(line.encode("utf-8"))
     print(msg["id"])
+    sys.stdout.flush()
+    resume_mentioned(d, root, msg["mentions"], sender)
 
 
 def cmd_read(a, root):
@@ -302,7 +379,7 @@ def cmd_ls(a, root):
         print(f"{r['room']}{flag}: {r['members']} members, {r['messages']} messages")
 
 
-PRESENCE_STATES = ("working", "idle", "gone")
+PRESENCE_STATES = ("working", "idle", "gone", "resuming")
 DEFAULT_CONFIG = {"operator": "cesar", "quietMinutes": 10}
 
 
@@ -399,6 +476,13 @@ def parser():
     j.add_argument("--role")
     j.add_argument("--watch-all", action="store_true", help="woken by mentions in every room under the root")
     j.set_defaults(fn=cmd_join)
+
+    mb = sub.add_parser("member", help="set a member's Claude session id and resume command")
+    mb.add_argument("room")
+    mb.add_argument("id")
+    mb.add_argument("--session", metavar="uuid", help="empty string clears it")
+    mb.add_argument("--resume", metavar="cmd", help="run with sh -c when a post mentions this member and it isn't live; empty clears it")
+    mb.set_defaults(fn=cmd_member)
 
     po = sub.add_parser("post", help="post a message")
     po.add_argument("room")
