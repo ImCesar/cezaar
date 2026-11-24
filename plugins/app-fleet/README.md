@@ -22,6 +22,8 @@ Switch to the `lead` tab in the new `myrun` space and talk to the lead there. In
 
 Members run under Herdr's `hc`, whose PATH isn't your shell's. `fleet lead` records your PATH in the run and gives it to every member, so tools such as nvm's `node` are found. Start a run from a shell where the verify command works.
 
+Fleet runs the `room` that sits beside it in this repo. Members and the lead get this repo's `plugins/rooms/scripts` first on PATH, and the installed rooms plugin's `scripts` last. That plugin adds its own `scripts` to the front of PATH only when they're missing, so listing them last keeps this repo's `room` in front, even when the installed plugin is an older release.
+
 ## Where to look
 
 - **Agents list.** Members run as Herdr sub-agents, with no tabs of their own. They nest under the lead, and each reviewer nests under its builder. Each row carries the member's id, which starts with its room's name (`auth-builder`, `auth-reviewer`). The lead's row folds them away and shows the most urgent status underneath. Click a member to peek at it live, or use "keep as tab" to give it a pane.

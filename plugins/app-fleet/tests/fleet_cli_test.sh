@@ -8,7 +8,7 @@ FAILS=0
 
 fresh() {
   T=$(mktemp -d)
-  export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg"
+  export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg" CLAUDE_CONFIG_DIR="$T/claude"
   export PATH="$HERE/stubs:$ROOMS_SCRIPTS:$ORIG_PATH"
   unset STUB_HERDR_STATUS STUB_FAIL STUB_FAIL_ROOMS_TAB STUB_HC_KILL_STATUS STUB_HC_RUN_FAIL_AT APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT HC_TERMINAL_ID HC_SCOPE
   mkdir -p "$STUB_DIR" "$ROOMS_CONFIG_DIR"
@@ -116,8 +116,8 @@ t_members_get_the_runs_path() {
   out=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null)
   settings=$(printf '%s' "$out" | jq_py "d['settings_path']")
   env_path=$(jq_py "d['env'].get('PATH')" < "$settings")
-  in_argv=$(printf '%s' "$out" | jq_py "'PATH=/nvm/bin:/usr/bin:/bin' in d['argv']")
-  [ "$env_path" = /nvm/bin:/usr/bin:/bin ] && [ "$in_argv" = True ] && ok members_get_the_runs_path || fail members_get_the_runs_path "env=$env_path argv=$in_argv"
+  in_argv=$(printf '%s' "$out" | jq_py "'PATH=$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:/bin' in d['argv']")
+  [ "$env_path" = "$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:/bin" ] && [ "$in_argv" = True ] && ok members_get_the_runs_path || fail members_get_the_runs_path "env=$env_path argv=$in_argv"
 }
 
 t_lead_records_the_operators_path() {
@@ -854,6 +854,44 @@ t_thread_resume_recreates_removed_worktree() {
   br=$(git -C "$REPO/.worktrees/r1/t1" branch --show-current 2>/dev/null)
   [ "$rc" = 0 ] && [ "$gone" = 1 ] && [ "$br" = fleet/r1/t1 ] && grep -q "^hc run.*--name t1-reviewer .*--cwd $REPO/.worktrees/r1/t1 " "$STUB_LOG" \
     && ok thread_resume_recreates_removed_worktree || fail thread_resume_recreates_removed_worktree "rc=$rc gone=$gone br=$br"
+}
+
+# fleet cleanup deletes merged task branches: the session needs its folder back, so the integration
+# branch (which holds the task's merged work) is checked out there, detached.
+t_thread_resume_after_branch_deleted_uses_integration() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  git -C "$REPO" branch -D fleet/r1/t1 >/dev/null 2>&1
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1; rc=$?
+  has=0; [ -f "$REPO/.worktrees/r1/t1/one.txt" ] && has=1
+  [ "$rc" = 0 ] && [ "$has" = 1 ] && grep -q "^hc run.*--name t1-builder .*--cwd $REPO/.worktrees/r1/t1 " "$STUB_LOG" \
+    && ok thread_resume_after_branch_deleted_uses_integration || fail thread_resume_after_branch_deleted_uses_integration "rc=$rc has=$has"
+}
+
+# Every Claude session's rooms plugin puts its own scripts first on PATH, so a bare `room` there is
+# the installed copy, not this repo's: fleet calls the room beside it.
+t_fleet_calls_the_room_beside_it() {
+  fresh; seed_run r1 t9
+  mkdir -p "$T/oldroom"; printf '#!/bin/sh\necho "$@" >> "%s/oldroom.log"\nexit 9\n' "$T" > "$T/oldroom/room"; chmod +x "$T/oldroom/room"
+  PATH="$T/oldroom:$PATH" "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$T/oldroom.log" ] && [ -f "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json" ] \
+    && ok fleet_calls_the_room_beside_it || fail fleet_calls_the_room_beside_it "rc=$rc old=$(cat "$T/oldroom.log" 2>/dev/null | head -2)"
+}
+
+# Members get this repo's rooms scripts first, and the installed plugin's scripts already on PATH (at
+# the end), so the plugin doesn't put its older copy in front.
+t_members_path_puts_repo_room_first() {
+  fresh; seed_run r1
+  mkdir -p "$T/claude/plugins"
+  printf '{"version":2,"plugins":{"rooms@cezaar":[{"scope":"user","installPath":"%s/cache/rooms/0.1.1"}]}}\n' "$T" > "$T/claude/plugins/installed_plugins.json"
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['path']='/nvm/bin:/usr/bin'; json.dump(d, open(p,'w'))" "$APP_FLEET_HOME/runs/r1/run.json"
+  settings=$(CLAUDE_CONFIG_DIR="$T/claude" "$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
+  got=$(jq_py "d['env']['PATH']" < "$settings")
+  want="$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:$T/cache/rooms/0.1.1/scripts"
+  [ "$got" = "$want" ] && ok members_path_puts_repo_room_first || fail members_path_puts_repo_room_first "got=$got want=$want"
 }
 
 t_thread_resume_refuses_archived_room_and_old_thread() {

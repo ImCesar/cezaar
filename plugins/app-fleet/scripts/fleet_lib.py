@@ -104,9 +104,50 @@ def tool(argv, env=None, cwd=None, check=False):
     return r
 
 
+def rooms_scripts():
+    """This repo's rooms scripts folder, when fleet sits beside the rooms plugin (else None)."""
+    d = os.path.join(os.path.dirname(plugin_root()), "rooms", "scripts")
+    return d if os.access(os.path.join(d, "room"), os.X_OK) else None
+
+
+def room_cli():
+    """The room beside fleet, else the one on PATH. In a Claude session the installed rooms plugin puts
+    its own scripts first on PATH, which can be older than this repo's."""
+    d = rooms_scripts()
+    return os.path.join(d, "room") if d else "room"
+
+
+def installed_rooms_scripts():
+    """The scripts folders of installed rooms plugins, as Claude records them."""
+    cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    try:
+        with open(os.path.join(cfg, "plugins", "installed_plugins.json")) as fh:
+            plugins = json.load(fh).get("plugins", {})
+    except (OSError, ValueError, AttributeError):
+        return []
+    out = []
+    for key, entries in plugins.items() if isinstance(plugins, dict) else []:
+        if key.split("@")[0] == "rooms":
+            for e in entries if isinstance(entries, list) else []:
+                if isinstance(e, dict) and e.get("installPath"):
+                    out.append(os.path.join(e["installPath"], "scripts"))
+    return out
+
+
+def member_path(run):
+    """The PATH members and the lead get: this repo's rooms scripts first, then the run's PATH, then the
+    installed rooms plugin's scripts. That plugin adds its scripts to the front of PATH only when they
+    are missing, so already listing them last keeps this repo's `room` in front."""
+    base = (run.get("path") or os.environ.get("PATH", "")).split(":")
+    first = [rooms_scripts()] if rooms_scripts() else []
+    last = installed_rooms_scripts()
+    parts = first + [p for p in base if p and p not in first and p not in last] + last
+    return ":".join(dict.fromkeys(parts))
+
+
 def room(run, *args, check=True):
     env = {**os.environ, "ROOMS_ROOT": rooms_root(run)}
-    return tool(["room", *args], env=env, check=check)
+    return tool([room_cli(), *args], env=env, check=check)
 
 
 def herdr(*args):
@@ -242,7 +283,7 @@ def compose_member(run, member_id, persona_name, task, worktree=None, room_name=
                 allow += [f"Bash({run[k]})", f"Bash({run[k]} *)"]
     # Members run under hc, whose PATH is not the operator's (no nvm node, say): give them the run's.
     env = {"ROOM_ID": member_id, "ROOMS_ROOT": rooms_root(run), "APP_FLEET_RUN": run["run"], "APP_FLEET_HOME": home(),
-           "PATH": run.get("path") or os.environ.get("PATH", "")}
+           "PATH": member_path(run)}
     settings_path = os.path.join(members, f"{member_id}.settings.json")
     with open(settings_path, "w") as fh:
         json.dump({"env": env, "permissions": {"allow": allow, "additionalDirectories": dirs,
@@ -614,8 +655,12 @@ def resume_member(run, task, mid):
         return
     folder = t["worktree"]
     if not os.path.isdir(folder):
-        if t.get("branch"):  # build and fix threads: the kept branch, checked out at the same path
+        git(run["repo"], "worktree", "prune", check=False)  # a folder deleted outside git
+        if t.get("branch") and branch_exists(run["repo"], t["branch"]):  # the kept branch, at the same path
             git(run["repo"], "worktree", "add", folder, t["branch"])
+        elif t.get("branch"):  # cleanup deleted the merged branch: its work is in the integration branch
+            ensure_integration(run)
+            git(run["repo"], "worktree", "add", "--detach", folder, run["integration"])
         else:  # verify and curate threads work in the integration worktree
             folder = ensure_integration(run)
     pname = templates()[t["template"]][idx]
