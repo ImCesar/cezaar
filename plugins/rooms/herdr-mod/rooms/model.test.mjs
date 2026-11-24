@@ -271,3 +271,12 @@ test('roomSummary marks a non-live member with resume as ended', () => {
   const s = roomSummary([], members, {}, 'cesar', undefined, now)
   assert.deepEqual(s.presence.map(p => [p.label, p.ended]), [['a ended · mention to resume', true], ['b gone', false]])
 })
+
+test('roomSummary marks a live member with an end command as endable, and no one else', () => {
+  const now = Date.parse('2026-11-23T05:00:30.000Z')
+  const fresh = { state: 'working', ts: '2026-11-23T05:00:20.000000Z' }
+  const members = [{ id: 'a', end: 'fleet thread end r t a' }, { id: 'b', end: 'x' }, { id: 'c' }, { id: 'd', end: '  ' }]
+  const presences = { a: fresh, b: { state: 'gone', ts: '2026-11-23T05:00:20.000000Z' }, c: fresh, d: fresh }
+  const got = roomSummary([], members, presences, 'cesar', undefined, now).presence.map(p => [p.id, p.endable])
+  assert.deepEqual(got, [['a', true], ['b', false], ['c', false], ['d', false]])
+})

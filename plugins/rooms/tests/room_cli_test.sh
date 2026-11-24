@@ -325,6 +325,29 @@ resumable_room() {
 }
 marker_lines() { wc -l < "$T/marker" 2>/dev/null | tr -d ' '; }
 
+# `room end` runs a member's recorded end command: the panel's end button ends a resumed agent.
+t_end_runs_the_members_end_command() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  "$ROOM" member r a --end "echo \"\$ROOMS_ROOT ended\" > '$T/ended.txt'" >/dev/null 2>&1; mrc=$?
+  field=$(jq_py "[m.get('end','') for m in d if m['id']=='a'][0]" < "$ROOMS_ROOT/r/members.json")
+  "$ROOM" end r a >/dev/null 2>&1; rc=$?
+  got=$(cat "$T/ended.txt" 2>/dev/null)
+  want="$(cd "$ROOMS_ROOT" && pwd -P) ended"
+  [ "$mrc" = 0 ] && [ -n "$field" ] && [ "$rc" = 0 ] && [ "$got" = "$want" ] && ok end_runs_the_members_end_command \
+    || fail end_runs_the_members_end_command "mrc=$mrc field=$field rc=$rc got=$got"
+}
+
+t_end_refuses_member_without_end_and_unknown() {
+  fresh
+  "$ROOM" create r --member a:builder >/dev/null 2>&1
+  "$ROOM" end r a >/dev/null 2>&1; none=$?
+  "$ROOM" end r zz >/dev/null 2>&1; unknown=$?
+  "$ROOM" member r a --end "exit 5" >/dev/null 2>&1; "$ROOM" end r a >/dev/null 2>&1; failed=$?
+  [ "$none" = 3 ] && [ "$unknown" = 3 ] && [ "$failed" = 4 ] && ok end_refuses_member_without_end_and_unknown \
+    || fail end_refuses_member_without_end_and_unknown "none=$none unknown=$unknown failed=$failed"
+}
+
 t_member_sets_and_clears() {
   fresh
   "$ROOM" create r --member a:x >/dev/null 2>&1

@@ -51,9 +51,11 @@ A member can carry a Claude session id and a resume command:
 ```sh
 room member demo b --session 1b2c-... --resume "claude --resume 1b2c-..."
 room member demo b --resume ""              # an empty string clears a field
+room member demo b --end "hc kill t7"     # how to end b's live session
+room end demo b                             # run it (the panel's end button)
 ```
 
-`room member <room> <id> [--session <uuid>] [--resume "<cmd>"]` sets the fields on an existing member (exit 3 if the room or member doesn't exist, exit 2 on a bad id).
+`room member <room> <id> [--session <uuid>] [--resume "<cmd>"] [--end "<cmd>"]` sets the fields on an existing member (exit 3 if the room or member doesn't exist, exit 2 on a bad id). `room end <room> <id>` runs the member's `end` command with `sh -c` and `ROOMS_ROOT` set, and waits for it: exit 3 if the member has no `end`, exit 4 if the command fails. The panel shows an `end` button (two clicks) on the chip of a live member that has one.
 
 When a post mentions a member who has a `resume` command and isn't live, `room post` starts that command, so the member comes back in its own session and answers in the room. "Not live" means no presence file, presence state `gone`, or a presence `ts` over 120 seconds old. The command runs as `sh -c "<cmd>"`, detached (new session, stdin from `/dev/null`), with `ROOMS_ROOT` set to the room's root and `HC_TERMINAL_ID` and `HC_SCOPE` removed; its output is appended to `<room>/resume.log`. Before starting it, `room post` sets the member's presence to `resuming`; a `resuming` presence under 120 seconds old counts as live, so a second mention right after doesn't start a second copy. The sender is never resumed, `@all` resumes no one, and an archived room takes no posts, so nothing in it is resumed. A command that fails to start doesn't fail the post; the failure is noted in `resume.log`.
 

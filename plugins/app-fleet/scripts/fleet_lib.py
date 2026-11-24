@@ -565,7 +565,8 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     # post above) would start `thread resume` for nothing.
     for mid in ids:
         resume = shlex.join([fleet_path(), "thread", "resume", run["run"], task, mid])
-        room(run, "member", room_name, mid, "--session", sessions[mid], "--resume", resume)
+        end = shlex.join([fleet_path(), "thread", "end", run["run"], task, mid])
+        room(run, "member", room_name, mid, "--session", sessions[mid], "--resume", resume, "--end", end)
 
 
 def undo_open(run, task, made):
@@ -601,6 +602,30 @@ def remove_if_done(run, t):
 
 def is_merged(run, branch):
     return git(run["repo"], "merge-base", "--is-ancestor", branch, run["integration"], check=False).returncode == 0
+
+
+def end_member(run, task, t, mid):
+    """End one member's live terminal and mark it gone, so its room shows it ended (not crashed)."""
+    members = t.get("members", [])
+    terms = t.get("terminals", [])
+    idx = members.index(mid)
+    term = terms[idx] if idx < len(terms) else None
+    if term and term_live(term):
+        tool(["hc", "kill", term])
+    for rn in (t.get("room", task), run["stage"]):
+        room(run, "presence", rn, mid, "gone", check=False)
+    return term
+
+
+def cmd_thread_end(a):
+    run = load_run(a.run)
+    t = run["threads"].get(a.task)
+    if not t:
+        raise Refused(f"fleet: no thread {a.task!r} in run {run['run']}", 3)
+    if a.member not in t.get("members", []):
+        raise Refused(f"fleet: no member {a.member!r} in thread {a.task!r}", 3)
+    term = end_member(run, a.task, t, a.member)
+    print(f"ended {a.member}" + (f" (terminal {term})" if term else ""))
 
 
 def close_thread(run, task):
@@ -687,6 +712,10 @@ def cmd_cleanup(a):
     run = load_run(a.run)
     for task in open_threads(run):
         close_thread(run, task)
+    for task, t in run["threads"].items():
+        if t.get("state") == "closed":  # a member resumed after its thread closed is still running
+            for mid in t.get("members", []):
+                end_member(run, task, t, mid)
     for task, t in run["threads"].items():
         remove_if_done(run, t)  # also catches threads closed unmerged and merged later through a follow-up
         if t.get("branch") and branch_exists(run["repo"], t["branch"]) and is_merged(run, t["branch"]):
@@ -1132,6 +1161,12 @@ def parser():
     to.add_argument("--from", dest="from_", metavar="task")
     to.add_argument("--wave", type=int)
     to.set_defaults(fn=cmd_thread_open, folder=None, locks=True)
+    te = ths.add_parser("end", help="end one member's live terminal (a member resumed by a mention)")
+    te.add_argument("run")
+    te.add_argument("task")
+    te.add_argument("member")
+    te.set_defaults(fn=cmd_thread_end, locks=True)
+
     tc = ths.add_parser("close", help="end its terminals, remove a merged worktree (the room stays open)")
     tc.add_argument("run")
     tc.add_argument("task")

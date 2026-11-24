@@ -33,7 +33,7 @@ export function roomSummary(msgs, members, presences, operator, lastRead, now = 
     .map(m => {
       const p = presences[m.id]
       const alive = presenceLive(p, now)
-      return { id: m.id, state: alive ? p.state : 'gone', label: memberLabel(m, p, now), ended: !alive && resumable(m) }
+      return { id: m.id, state: alive ? p.state : 'gone', label: memberLabel(m, p, now), ended: !alive && resumable(m), endable: alive && endable(m) }
     })
   return {
     needsYou: fresh.filter(m => mentionsMe(m, operator)).length,
@@ -54,6 +54,7 @@ export function presenceLive(presence, nowMs) {
 }
 
 const resumable = member => typeof member?.resume === 'string' && member.resume.trim() !== ''
+const endable = member => typeof member?.end === 'string' && member.end.trim() !== ''
 
 /** A presence chip's text: `<id> <state>`, or `<id> ended · mention to resume` for a non-live member with `resume`. */
 export function memberLabel(member, presence, nowMs) {

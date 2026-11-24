@@ -2,7 +2,7 @@
 
 Storage (under a rooms root, $ROOMS_ROOT, default ~/.rooms/default):
   <room>/log.jsonl       one message per line, append-only, written under <room>/.lock
-  <room>/members.json    [{id, role, joinedAt, watchAll?, session?, resume?}]
+  <room>/members.json    [{id, role, joinedAt, watchAll?, session?, resume?, end?}]
   <room>/presence/<id>.json
   <room>/archived        marker
   <room>/resume.log      output of resume commands `room post` started
@@ -228,7 +228,7 @@ def cmd_member(a, root):
         entry = next((m for m in members if isinstance(m, dict) and m.get("id") == a.id), None)
         if entry is None:
             raise Refused(f"room: no member {a.id!r} in {a.room}", 3)
-        for field in ("session", "resume"):
+        for field in ("session", "resume", "end"):
             value = getattr(a, field)
             if value is None:
                 continue
@@ -248,6 +248,26 @@ def presence_live(p):
     except (TypeError, ValueError):
         return False
     return (datetime.datetime.utcnow() - ts).total_seconds() < LIVE_S
+
+
+def cmd_end(a, root):
+    """Run a member's recorded end command, to end its live session (the panel's end button)."""
+    import subprocess
+    check_member_id(a.id)
+    d = room_dir(root, a.room)
+    members = read_json(os.path.join(d, "members.json"), [])
+    entry = next((m for m in members if isinstance(m, dict) and m.get("id") == a.id), None)
+    if entry is None:
+        raise Refused(f"room: no member {a.id!r} in {a.room}", 3)
+    cmd = entry.get("end")
+    if not cmd:
+        raise Refused(f"room: {a.id} has no end command (room member {a.room} {a.id} --end ...)", 3)
+    env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
+    env["ROOMS_ROOT"] = root
+    r = subprocess.run(["sh", "-c", cmd], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Refused(f"room: ending {a.id} failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()}", 4)
+    print(f"ended {a.id}")
 
 
 def resume_log(d, line):
@@ -482,7 +502,13 @@ def parser():
     mb.add_argument("id")
     mb.add_argument("--session", metavar="uuid", help="empty string clears it")
     mb.add_argument("--resume", metavar="cmd", help="run with sh -c when a post mentions this member and it isn't live; empty clears it")
+    mb.add_argument("--end", metavar="cmd", help="run with sh -c by `room end` to end the member's live session; empty clears it")
     mb.set_defaults(fn=cmd_member)
+
+    en = sub.add_parser("end", help="run a member's end command (ends its live session)")
+    en.add_argument("room")
+    en.add_argument("id")
+    en.set_defaults(fn=cmd_end)
 
     po = sub.add_parser("post", help="post a message")
     po.add_argument("room")

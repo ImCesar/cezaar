@@ -894,6 +894,46 @@ t_members_path_puts_repo_room_first() {
   [ "$got" = "$want" ] && ok members_path_puts_repo_room_first || fail members_path_puts_repo_room_first "got=$got want=$want"
 }
 
+# An easy way to end a resumed agent: each member records an end command, and `fleet thread end`
+# ends that member's live terminal and marks it gone.
+t_members_json_gets_end_command() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  got=$(jq_py "[m.get('end', '') for m in d if m['id'] == 't1-reviewer'][0]" < "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json")
+  case $got in *"/fleet thread end r1 t1 t1-reviewer") ok members_json_gets_end_command ;; *) fail members_json_gets_end_command "got=$got" ;; esac
+}
+
+t_thread_end_ends_a_resumed_member() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1
+  : > "$STUB_LOG"
+  ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room end t1 t1-builder >/dev/null 2>&1; rc=$?
+  state=$(ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room presence-get t1 t1-builder 2>/dev/null | jq_py "d.get('state')")
+  [ "$rc" = 0 ] && grep -q "^hc kill tm3$" "$STUB_LOG" && ! grep -q "^hc kill tm2$" "$STUB_LOG" && [ "$state" = gone ] \
+    && ok thread_end_ends_a_resumed_member || fail thread_end_ends_a_resumed_member "rc=$rc state=$state log=$(tr '\n' ';' < "$STUB_LOG")"
+}
+
+t_thread_end_unknown_member_exits_3() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread end r1 t1 nobody >/dev/null 2>&1; a=$?
+  "$FLEET" thread end r1 nope t1-builder >/dev/null 2>&1; b=$?
+  [ "$a" = 3 ] && [ "$b" = 3 ] && ok thread_end_unknown_member_exits_3 || fail thread_end_unknown_member_exits_3 "a=$a b=$b"
+}
+
+t_cleanup_ends_resumed_members_of_closed_threads() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-reviewer >/dev/null 2>&1
+  : > "$STUB_LOG"
+  "$FLEET" cleanup r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc kill tm3$" "$STUB_LOG" && ok cleanup_ends_resumed_members_of_closed_threads \
+    || fail cleanup_ends_resumed_members_of_closed_threads "rc=$rc log=$(tr '\n' ';' < "$STUB_LOG")"
+}
+
 t_thread_resume_refuses_archived_room_and_old_thread() {
   fresh; seed_run r1 t9
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1

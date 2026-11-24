@@ -257,34 +257,47 @@ export default class Rooms extends View {
     cx.notify();
   }
 
-  // Archive in two clicks: the first arms the button (red `archive?`), a second within 4 s runs
-  // `room archive`; otherwise the timer disarms it. No browser dialog.
-  archive(r, cx) {
+  // Archive and end take two clicks: the first arms the button (red `archive?` / `end?`), a second
+  // within 4 s runs the room CLI; otherwise the timer disarms it. No browser dialog.
+  confirmed(key, cx) {
     if (!this.config.cli) {
       this.note = "Run `room herdr-install` first: the panel does not know where the room CLI is.";
       cx.notify();
-      return;
+      return false;
     }
-    if (this.armed?.key !== r.key) {
+    if (this.armed?.key !== key) {
       const token = {};
-      this.armed = { key: r.key, token };
+      this.armed = { key, token };
       cx.timer.after(4000, (cx) => { if (this.armed?.token === token) { this.armed = null; cx.notify(); } });
       cx.notify();
-      return;
+      return false;
     }
     this.armed = null;
     this.note = null;
+    return true;
+  }
+
+  runCli(r, args, what, cx) {
     cx.spawn(async (cx) => {
       try {
-        const res = await exec("/usr/bin/env", [`ROOMS_ROOT=${r.root}`, this.config.cli, "archive", r.name]);
+        const res = await exec("/usr/bin/env", [`ROOMS_ROOT=${r.root}`, this.config.cli, ...args]);
         if (res.code !== 0) throw new Error((res.stderr || res.stdout).trim());
       } catch (e) {
-        this.note = `Archive failed: ${e.message ?? e}`;
+        this.note = `${what} failed: ${e.message ?? e}`;
       } finally {
         this.requestReload(cx);
       }
     });
     cx.notify();
+  }
+
+  archive(r, cx) {
+    if (this.confirmed(r.key, cx)) this.runCli(r, ["archive", r.name], "Archive", cx);
+  }
+
+  // End a live member that recorded an end command (app-fleet: one resumed by a mention).
+  endMember(r, id, cx) {
+    if (this.confirmed(`end:${r.key}:${id}`, cx)) this.runCli(r, ["end", r.name, id], `Ending ${id}`, cx);
   }
 
   // @-mention list. Reads the draft on every change; completions write it back with the cursor after the id.
@@ -457,7 +470,13 @@ export default class Rooms extends View {
         .children(presence.map((p) => h_flex().gap(4).items_center()
           .child(div().size(7).rounded(4).bg(p.ended ? t.dim : p.state === "working" ? t.working : p.state === "idle" ? t.idle ?? t.dim
             : p.state === "resuming" ? t.accent ?? t.dim : t.ansi1))
-          .child(div().text_size(11).text_color(p.ended ? t.dim : t.muted).child(p.label))))
+          .child(div().text_size(11).text_color(p.ended ? t.dim : t.muted).child(p.label))
+          .when(Boolean(p.endable) && !current.archived, (e) => {
+            const armed = this.armed?.key === `end:${current.key}:${p.id}`;
+            return e.child(div().id(`end-${p.id}`).px(5).rounded(4).border_1().border_color(armed ? t.ansi1 : t.border)
+              .text_size(10).text_color(armed ? t.ansi1 : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+              .on_click((_e, cx) => this.endMember(current, p.id, cx)).child(armed ? "end?" : "end"));
+          })))
         .when(live.length > 0 || !current.archived, (e) => e.child(div().flex_1()))
         .when(live.length > 0, (e) => e.child(div().id("rooms-window").px(8).py(2).rounded(6).border_1().border_color(t.border)
           .text_size(11).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
