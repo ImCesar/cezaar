@@ -435,7 +435,8 @@ def cmd_thread_open(a):
     print(f"opened #{task} ({a.template}): {', '.join(run['threads'][task]['members'])}")
 
 
-BRIEF_FIELDS = ("Goal", "Scope", "Interfaces and contracts", "Builds on", "Targeted test", "Done when", "Report")
+BRIEF_FIELDS = ("Goal", "Scope", "Interfaces and contracts", "Builds on", "Targeted test", "Done when", "Report",
+                "Notes", "What broke")
 ROOT_POST_MAX = 4000
 
 
@@ -449,7 +450,7 @@ def root_post(task, brief_text, member_ids, brief_path):
     else:
         headline = headings[0] if headings else task
     fields, cur = {}, None
-    label = re.compile(r"^(%s):\s*(.*)$" % "|".join(re.escape(f) for f in BRIEF_FIELDS))
+    label = re.compile(r"^(%s)(?:\s*\([^)]*\))?:\s*(.*)$" % "|".join(re.escape(f) for f in BRIEF_FIELDS))
     for l in lines:
         m = label.match(l)
         if m:

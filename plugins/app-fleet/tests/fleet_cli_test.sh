@@ -485,7 +485,7 @@ root_of() { head -1 "$APP_FLEET_HOME/runs/r1/rooms/$1/log.jsonl"; }
 t_root_post_full_brief() {
   fresh; seed_run r1
   b="$T/t1.brief.md"
-  printf '# t1: make the widget readable\nGoal: widgets read well.\nScope: in - widget.py. out - the rest.\nInterfaces and contracts: secret contract text\nDone when:\n- [ ] widgets read well\n- [ ] tests pass\nReport: somewhere\n' > "$b"
+  printf '# t1: make the widget readable\nGoal: widgets read well.\nScope: in - widget.py. out - the rest.\nInterfaces and contracts (quoted verbatim, task 3):\n- secret contract text\nNotes: secret notes\nDone when:\n- [ ] widgets read well\n- [ ] tests pass\nReport: somewhere\n' > "$b"
   "$FLEET" thread open r1 t1 --template build --brief "$b" >/dev/null 2>&1
   dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
   got=$(root_of t1 | jq_py "(sorted(d['mentions']), d['links'], d['text'])")
