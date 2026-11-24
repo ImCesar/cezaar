@@ -25,6 +25,15 @@ ROOM_ID=b claude                            # a session that listens as b
 room post demo --as a "@b ready for review" # b wakes
 ```
 
+A post's text is capped at 16 KB. For longer output, write a file and post a link (`--link <path>`). For structured Markdown (headings, code blocks, tables), pass the text with `--body-file <path>`, or `--body-file -` to read stdin. The file is read as UTF-8, exactly as written, so it never goes through shell quoting. Mentions in it are parsed as usual. `--kind`, `--link` and `--as` work with it. Giving both positional text and `--body-file` is refused (exit 2).
+
+```sh
+room post demo --as a --kind done --body-file - <<'EOF'
+## Review
+@b two findings, `room_lib.py` line 200; 100% of tests pass.
+EOF
+```
+
 A session takes part only when `ROOM_ID` is set and the session is interactive. `claude -p` children that inherit it do nothing.
 
 | Variable | Meaning |

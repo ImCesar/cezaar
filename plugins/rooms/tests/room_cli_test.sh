@@ -37,7 +37,7 @@ t_post_parses_mentions() {
 t_post_refuses_big() {
   fresh
   "$ROOM" create r >/dev/null 2>&1
-  big=$(python3 -I -c "print('x'*4097, end='')")
+  big=$(python3 -I -c "print('x'*17*1024, end='')")
   "$ROOM" post r --as a "$big" >/dev/null 2>&1; rc=$?
   size=$(wc -c < "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | tr -d ' ')
   [ "$rc" = 2 ] && [ "${size:-0}" = 0 ] && ok post_refuses_big || fail post_refuses_big "rc=$rc size=$size"
@@ -220,6 +220,69 @@ t_rooms_id_reserved() {
   "$ROOM" join r2 rooms >/dev/null 2>&1; jrc=$?
   "$ROOM" post r2 --as rooms --kind system "@lead note" >/dev/null 2>&1; prc=$?
   [ "$crc" = 2 ] && [ "$jrc" = 2 ] && [ "$prc" = 0 ] && ok rooms_id_reserved || fail rooms_id_reserved "create=$crc join=$jrc post=$prc"
+}
+
+t_post_accepts_10k() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  big=$(python3 -I -c "print('x'*10*1024, end='')")
+  "$ROOM" post r --as a "$big" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "len(d['text'])")
+  [ "$rc" = 0 ] && [ "$got" = 10240 ] && ok post_accepts_10k || fail post_accepts_10k "rc=$rc len=$got"
+}
+
+t_post_body_file_stdin_exact() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a --kind done --link /tmp/x.md --body-file - >/dev/null 2>&1 <<'BODY'
+## Title
+`code` 100% $HOME
+```sh
+echo "$x"
+```
+BODY
+  rc=$?
+  want=''\''## Title\n`code` 100% $HOME\n```sh\necho "$x"\n```\n'\'''
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "repr(d['text'])")
+  meta=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "(d['kind'], d['links'])")
+  [ "$rc" = 0 ] && [ "$got" = "$want" ] && [ "$meta" = "('done', ['/tmp/x.md'])" ] && ok post_body_file_stdin_exact || fail post_body_file_stdin_exact "rc=$rc got=$got meta=$meta"
+}
+
+t_post_body_file_mentions() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  printf '# Ready\n\n@b please look, cc @all\n' > "$T/body.md"
+  "$ROOM" post r --as a --body-file "$T/body.md" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "d['mentions']")
+  [ "$rc" = 0 ] && [ "$got" = "['b', 'all']" ] && ok post_body_file_mentions || fail post_body_file_mentions "rc=$rc got=$got"
+}
+
+t_post_text_and_body_file_refused() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  printf 'hi\n' > "$T/body.md"
+  "$ROOM" post r --as a --body-file "$T/body.md" "also text" >/dev/null 2>&1; rc=$?
+  size=$(wc -c < "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | tr -d ' ')
+  [ "$rc" = 2 ] && [ "${size:-0}" = 0 ] && ok post_text_and_body_file_refused || fail post_text_and_body_file_refused "rc=$rc size=$size"
+}
+
+t_post_body_file_path_exact() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  printf 'a\r\nb\rc  d\n' > "$T/crlf.txt"
+  "$ROOM" post r --as a --body-file "$T/crlf.txt" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "repr(d['text'])")
+  [ "$rc" = 0 ] && [ "$got" = "'a\\r\\nb\\rc  d\\n'" ] && ok post_body_file_path_exact || fail post_body_file_path_exact "rc=$rc got=$got"
+}
+
+t_post_dash_text_after_option() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a "- item one" >/dev/null 2>&1 || { fail post_dash_text_after_option "bullet refused"; return; }
+  "$ROOM" post r --as a count -1 >/dev/null 2>&1 || { fail post_dash_text_after_option "negative refused"; return; }
+  "$ROOM" post r --as a hi --bogus >/dev/null 2>&1; brc=$?
+  got=$("$ROOM" read r --json 2>/dev/null | jq_py "[m['text'] for m in d]")
+  [ "$brc" = 2 ] && [ "$got" = "['- item one', 'count -1']" ] && ok post_dash_text_after_option || fail post_dash_text_after_option "brc=$brc got=$got"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
