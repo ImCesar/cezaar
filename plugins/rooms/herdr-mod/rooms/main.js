@@ -7,7 +7,7 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar, TextView } from "gpui-base";
 import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, setShared, shared, terminals, theme, watchFolder, writeTextFile } from "herdr";
-import { applyMention, createSaver, groupByRoot, linkMentions, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roleOf, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
+import { applyMention, createSaver, demoteHeadings, groupByRoot, linkMentions, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roleOf, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
@@ -392,7 +392,7 @@ export default class Rooms extends View {
         .when(Boolean(label), (e) => e.child(div().px(5).rounded(4).border_1().border_color(color).text_size(10).text_color(color).child(label))))
       // TextView wraps wide code blocks and table cells (it has no sideways scroll); min_w(0) keeps them from widening the panel.
       .child(div().w_full().min_w(0).overflow_x_hidden().text_size(12).text_color(t.foreground)
-        .child(TextView.markdown(`msg-${m.id}`, linkMentions(String(m.text ?? ""), ids)).selectable(true).w_full().min_w(0)
+        .child(TextView.markdown(`msg-${m.id}`, demoteHeadings(linkMentions(String(m.text ?? ""), ids))).selectable(true).w_full().min_w(0)
           .on_link_click((url, cx) => { if (!url.startsWith("rooms-member:")) cx.open_url(url); })))
       .when(Array.isArray(m.links) && m.links.length > 0, (e) => e.child(h_flex().gap(4).flex_wrap()
         .children(m.links.map((path) => div().px(6).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted)

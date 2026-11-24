@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyMention, createSaver, linkMentions, roleOf, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, createSaver, demoteHeadings, linkMentions, roleOf, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -199,4 +199,12 @@ test('roleOf finds the role or returns unknown', () => {
   assert.equal(roleOf(members, 'n'), 'unknown')
   assert.equal(roleOf(members, 'zz'), 'unknown')
   assert.equal(roleOf(null, 'b'), 'unknown')
+})
+
+test('demoteHeadings turns # and ## into ### and leaves the rest', () => {
+  assert.equal(demoteHeadings('# A\n## B\n### C\n#### D\n  # E\n#tag\n#'), '### A\n### B\n### C\n#### D\n  ### E\n#tag\n###')
+})
+
+test('demoteHeadings leaves fenced code alone', () => {
+  assert.equal(demoteHeadings('```sh\n# comment\n```\n# T'), '```sh\n# comment\n```\n### T')
 })

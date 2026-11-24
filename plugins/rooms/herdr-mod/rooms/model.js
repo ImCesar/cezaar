@@ -209,6 +209,12 @@ export function linkMentions(text, ids) {
     while (name && !known.has(name) && /-$/.test(name)) name = name.slice(0, -1)
     return known.has(name) ? `${pre}[@${name}](rooms-member:${name})${id.slice(name.length)}` : all
   })
+  // Odd pieces between backtick runs are code spans.
+  return outsideFences(text, line => line.split(/(`+[^`]*`+)/).map((p, i) => (i % 2 ? p : link(p))).join(''))
+}
+
+/** Apply `fn` to each line of `text` that is not inside a fenced code block (fence lines included). */
+function outsideFences(text, fn) {
   const out = []
   let fence = null
   for (const line of String(text ?? '').split('\n')) {
@@ -220,11 +226,15 @@ export function linkMentions(text, ids) {
       fence = open[1]
       out.push(line)
     } else {
-      // Odd pieces between backtick runs are code spans.
-      out.push(line.split(/(`+[^`]*`+)/).map((p, i) => (i % 2 ? p : link(p))).join(''))
+      out.push(fn(line))
     }
   }
   return out.join('\n')
+}
+
+/** Demote `#` and `##` headings to `###` outside fenced code, so no heading outgrows the panel's text. */
+export function demoteHeadings(text) {
+  return outsideFences(text, line => line.replace(/^( {0,3})#{1,2}(?=\s|$)/, '$1###'))
 }
 
 /** The role `members.json` gives `id`, or "unknown". */
