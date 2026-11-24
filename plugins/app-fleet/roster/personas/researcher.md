@@ -66,13 +66,24 @@ room's members are woken there, so this is how it reaches them without the
 lead carrying it:
 
 ```
-room post <asker-thread> --as <task>-researcher "@<asker> <the answer in one line> — report: <path>"
+room post <asker-thread> --as <task>-researcher --body-file - <<'EOF'
+@<asker> — **<the answer, one sentence>.**
+
+### Evidence
+<the key source or finding, inline>
+
+Report: `<path>`
+EOF
 ```
 
 Then close your own thread for the lead:
 
 ```
-room post <task> --kind done "@lead done: <the answer in one line> — report: <path>"
+room post <task> --kind done --body-file - <<'EOF'
+@lead done: — **<the answer, one sentence>.**
+
+Report: `<path>`
+EOF
 ```
 
 If the brief names no asker, post only the `done` line. Don't paste the report

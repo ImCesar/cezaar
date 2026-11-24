@@ -68,7 +68,16 @@ no commentary, no recommendations, no next steps. Those belong to the lead.
 ## Done
 
 ```
-room post <task> --kind done "@lead done: verify <PASS|FAIL> (exit <n>), teardown exit <n> — report: <path>"
+room post <task> --kind done --body-file - <<'EOF'
+@lead done: — **verify <PASS|FAIL>.**
+
+| step     | exit |
+|----------|------|
+| verify   | <n>  |
+| teardown | <n>  |
+
+Report: `<path>`
+EOF
 ```
 
 Don't paste output into the room; it is in the report.

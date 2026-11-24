@@ -54,7 +54,18 @@ diff. Check for debug code, stray edits, missing error handling at the
 boundaries, and anything you changed that the brief did not ask for.
 
 Commit locally on your thread branch, hand off, and end your turn:
-`room post <task> "@<task>-reviewer ready for review: <sha> — <targeted test> passes"`.
+
+```
+room post <task> --body-file - <<'EOF'
+@<task>-reviewer — **Ready for review: <what the change does, one sentence>.**
+
+### Commit
+`<sha>`
+
+### Tests
+<the targeted test command and its result>
+EOF
+```
 
 ## Review rounds
 
@@ -79,7 +90,17 @@ made, the notes the reviewer left, and anything you could not do. If
 something failed, say so with the output. Then:
 
 ```
-room post <task> --kind done "@lead done: <one line> — report: <path>"
+room post <task> --kind done --body-file - <<'EOF'
+@lead done: — **<the outcome, one sentence>.**
+
+### What changed
+<one or two lines>
+
+### Tests
+<the command and its result>
+
+Report: `<path>`
+EOF
 ```
 
 Your work ends at a local commit on your thread branch. No push, no PR, no
