@@ -305,5 +305,109 @@ t_post_dash_text_after_option() {
   [ "$brc" = 2 ] && [ "$got" = "['- item one', 'count -1']" ] && ok post_dash_text_after_option || fail post_dash_text_after_option "brc=$brc got=$got"
 }
 
+# ---------- room member and automatic resume ----------
+
+# Wait up to ~3 s for a file to exist.
+wait_for() { n=0; while [ ! -e "$1" ] && [ $n -lt 30 ]; do sleep 0.1; n=$((n + 1)); done; }
+# Write a presence record with a ts `$3` seconds in the past.
+old_presence() {
+  mkdir -p "$ROOMS_ROOT/r/presence"
+  python3 -I -c "
+import datetime,json,sys
+ts=(datetime.datetime.utcnow()-datetime.timedelta(seconds=int(sys.argv[3]))).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+json.dump({'id':sys.argv[1],'state':sys.argv[2],'ts':ts},open(sys.argv[4],'w'))" "$1" "$2" "$3" "$ROOMS_ROOT/r/presence/$1.json"
+}
+# A member b whose resume command appends ROOMS_ROOT to $T/marker.
+resumable_room() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  "$ROOM" member r b --resume "echo \"\$ROOMS_ROOT\" >> '$T/marker'" >/dev/null 2>&1
+}
+marker_lines() { wc -l < "$T/marker" 2>/dev/null | tr -d ' '; }
+
+t_member_sets_and_clears() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  "$ROOM" member r a --session 1234-uuid --resume "claude --resume 1234-uuid" >/dev/null 2>&1; rc=$?
+  set1=$(jq_py "(d[0].get('session'), d[0].get('resume'), d[0]['role'])" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member r a --session "" >/dev/null 2>&1
+  set2=$(jq_py "(d[0].get('session'), d[0].get('resume'))" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member r a --resume "" >/dev/null 2>&1
+  set3=$(jq_py "(d[0].get('session'), d[0].get('resume'))" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member nope a --session x >/dev/null 2>&1; nr=$?
+  "$ROOM" member r ghost --session x >/dev/null 2>&1; nm=$?
+  "$ROOM" member r ../bad --session x >/dev/null 2>&1; bad=$?
+  left=$(ls "$ROOMS_ROOT/r" | grep -c tmp)
+  [ "$rc" = 0 ] && [ "$set1" = "('1234-uuid', 'claude --resume 1234-uuid', 'x')" ] \
+    && [ "$set2" = "(None, 'claude --resume 1234-uuid')" ] && [ "$set3" = "(None, None)" ] \
+    && [ "$nr" = 3 ] && [ "$nm" = 3 ] && [ "$bad" = 2 ] && [ "$left" = 0 ] \
+    && ok member_sets_and_clears || fail member_sets_and_clears "rc=$rc 1=$set1 2=$set2 3=$set3 room=$nr member=$nm bad=$bad tmp=$left"
+}
+
+t_post_resumes_absent_member_once() {
+  resumable_room
+  "$ROOM" post r --as a "@b ready" >/dev/null 2>&1; rc=$?
+  wait_for "$T/marker"
+  first=$(marker_lines); got=$(cat "$T/marker" 2>/dev/null)
+  state=$("$ROOM" presence-get r b 2>/dev/null | jq_py "d.get('state')")
+  "$ROOM" post r --as a "@b again" >/dev/null 2>&1
+  sleep 0.5
+  second=$(marker_lines)
+  abs=$(cd "$ROOMS_ROOT" && pwd -P)
+  [ "$rc" = 0 ] && [ "$first" = 1 ] && [ "$got" = "$abs" ] && [ "$state" = resuming ] && [ "$second" = 1 ] \
+    && ok post_resumes_absent_member_once || fail post_resumes_absent_member_once "rc=$rc first=$first got=$got state=$state second=$second"
+}
+
+t_post_skips_live_and_resumeless() {
+  resumable_room
+  "$ROOM" presence r b working >/dev/null 2>&1
+  old_presence a idle 600
+  "$ROOM" post r --as b "@b @a hello" >/dev/null 2>&1
+  "$ROOM" post r --as a "@b hello" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 0 ] && [ ! -e "$T/marker" ] && [ ! -e "$ROOMS_ROOT/r/resume.log" ] \
+    && ok post_skips_live_and_resumeless || fail post_skips_live_and_resumeless "rc=$rc marker=$(marker_lines)"
+}
+
+t_post_resumes_stale_member() {
+  resumable_room
+  old_presence b working 600
+  "$ROOM" post r --as a "@b back?" >/dev/null 2>&1
+  wait_for "$T/marker"
+  [ "$(marker_lines)" = 1 ] && ok post_resumes_stale_member || fail post_resumes_stale_member "marker=$(marker_lines)"
+}
+
+t_post_never_resumes_sender() {
+  resumable_room
+  "$ROOM" post r --as b "note to self @b" >/dev/null 2>&1
+  sleep 0.5
+  [ ! -e "$T/marker" ] && ok post_never_resumes_sender || fail post_never_resumes_sender "marker=$(marker_lines)"
+}
+
+t_post_all_resumes_no_one() {
+  resumable_room
+  "$ROOM" post r --as a "@all standup" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 0 ] && [ ! -e "$T/marker" ] && ok post_all_resumes_no_one || fail post_all_resumes_no_one "rc=$rc marker=$(marker_lines)"
+}
+
+t_archived_post_resumes_no_one() {
+  resumable_room
+  "$ROOM" archive r >/dev/null 2>&1
+  "$ROOM" post r --as a "@b late" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 3 ] && [ ! -e "$T/marker" ] && ok archived_post_resumes_no_one || fail archived_post_resumes_no_one "rc=$rc marker=$(marker_lines)"
+}
+
+t_resume_env_and_log() {
+  fresh
+  "$ROOM" create r --member a:x --member b:y >/dev/null 2>&1
+  "$ROOM" member r b --resume "echo out-\${HC_TERMINAL_ID:-none}-\${HC_SCOPE:-none}; touch '$T/marker'" >/dev/null 2>&1
+  HC_TERMINAL_ID=t1 HC_SCOPE=s1 "$ROOM" post r --as a "@b" >/dev/null 2>&1; rc=$?
+  wait_for "$T/marker"; sleep 0.2
+  out=$(grep -c '^out-none-none$' "$ROOMS_ROOT/r/resume.log" 2>/dev/null)
+  [ "$rc" = 0 ] && [ "$out" = 1 ] && ok resume_env_and_log || fail resume_env_and_log "rc=$rc log=$(cat "$ROOMS_ROOT/r/resume.log" 2>/dev/null)"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]
