@@ -249,9 +249,10 @@ def compose_member(run, member_id, persona_name, task, worktree=None, room_name=
                                                "defaultMode": "acceptEdits"}}, fh, indent=1)
     first = (f"You are {member_id}. Read your brief at {brief} and the room {room_name} "
              f"(room read {room_name}), then begin.")
+    session = str(uuid.uuid4())
     argv = ["env", *[f"{k}={v}" for k, v in env.items()], "claude", "--model", p["model"], "--effort", p["effort"],
-            "--settings", settings_path, "--append-system-prompt-file", prompt_path, first]
-    return {"prompt_path": prompt_path, "settings_path": settings_path, "argv": argv}
+            "--settings", settings_path, "--append-system-prompt-file", prompt_path, "--session-id", session, first]
+    return {"prompt_path": prompt_path, "settings_path": settings_path, "argv": argv, "session": session}
 
 
 def cmd_compose(a):
@@ -360,6 +361,32 @@ def keep_visible(term):
     tool(["herdr-app", "do", "terminal.keep", "--terminal", term])
 
 
+def start_member(run, task, folder, argv, mid, room_name, parent, taken):
+    """`hc run` one member as a Herdr sub-agent of `parent` (or with a tab of its own); its address."""
+    name = member_name(run, mid, taken)
+    hc = ["hc", "run", "--json", "--bg", "--no-notify", "--outlive-parent",
+          *(["--parent", parent] if parent else ["--no-parent"]),
+          *(["--name", name] if name else []), "--cwd", folder,
+          "--label", f"fleet.run={run['run']}", "--label", f"fleet.thread={task}",
+          "--label", f"rooms.root={rooms_root(run)}", "--label", f"rooms.room={room_name}",
+          "--label", f"rooms.id={mid}", "--", *argv]
+    r = tool(hc)
+    try:
+        addr = json.loads(r.stdout or "{}").get("address") if r.returncode == 0 else None
+    except ValueError:
+        addr = None
+    if not addr:
+        raise Refused(f"fleet: could not start {mid}: {(r.stderr or r.stdout).strip()}", 4)
+    taken.add(name)
+    if not parent:
+        keep_visible(addr)
+    return addr
+
+
+def fleet_path():
+    return os.path.abspath(os.environ.get("APP_FLEET_CLI_PATH") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "fleet"))
+
+
 def spawn_members(run, task, folder, composed, ids, room_name, made):
     """Start each member as a Herdr sub-agent: the first under the lead, the rest under the first
     (a reviewer nests under its builder). Records each terminal in `made` as it goes."""
@@ -367,26 +394,9 @@ def spawn_members(run, task, folder, composed, ids, room_name, made):
     lead = lead_parent(run)
     for i, (c, mid) in enumerate(zip(composed, ids)):
         parent = lead if i == 0 else made["terminals"][0]
-        name = member_name(run, mid, taken)
-        argv = ["hc", "run", "--json", "--bg", "--no-notify", "--outlive-parent",
-                *(["--parent", parent] if parent else ["--no-parent"]),
-                *(["--name", name] if name else []), "--cwd", folder,
-                "--label", f"fleet.run={run['run']}", "--label", f"fleet.thread={task}",
-                "--label", f"rooms.root={rooms_root(run)}", "--label", f"rooms.room={room_name}",
-                "--label", f"rooms.id={mid}", "--", *c["argv"]]
-        r = tool(argv)
-        try:
-            addr = json.loads(r.stdout or "{}").get("address") if r.returncode == 0 else None
-        except ValueError:
-            addr = None
-        if not addr:
-            raise Refused(f"fleet: could not start {mid}: {(r.stderr or r.stdout).strip()}", 4)
-        made["terminals"].append(addr)
-        taken.add(name)
-        if not parent:
-            keep_visible(addr)
+        made["terminals"].append(start_member(run, task, folder, c["argv"], mid, room_name, parent, taken))
         if i == 0:
-            clear_trust(addr)
+            clear_trust(made["terminals"][0])
     return list(made["terminals"])
 
 
@@ -500,6 +510,7 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
     made["room"] = os.path.join(rooms_root(run), room_name)
     composed = [compose_member(run, i, p, task, worktree=wt, room_name=room_name) for i, p in zip(ids, personas)]
     terms = spawn_members(run, task, wt, composed, ids, room_name, made)
+    sessions = {i: c["session"] for i, c in zip(ids, composed)}
     # Join the channel only once the members exist: an undo then has nothing to take back there.
     for i, p in zip(ids, personas):
         room(run, "join", run["stage"], i, "--role", p)
@@ -507,8 +518,13 @@ def open_thread(run, task, template, brief_src, from_task, wave, made, folder=No
         brief_text = f.read()
     room(run, "post", room_name, "--as", "lead", "--link", dest, root_post(task, brief_text, ids, dest))
     run["threads"][task] = {"template": template, "room": room_name, "branch": branch, "worktree": wt,
-                            "terminals": terms, "members": ids, "state": "open", "wave": wave}
+                            "terminals": terms, "sessions": sessions, "members": ids, "state": "open", "wave": wave}
     save_run(run)
+    # Only now: a mention of a member with a resume command that hasn't checked in yet (the root
+    # post above) would start `thread resume` for nothing.
+    for mid in ids:
+        resume = shlex.join([fleet_path(), "thread", "resume", run["run"], task, mid])
+        room(run, "member", room_name, mid, "--session", sessions[mid], "--resume", resume)
 
 
 def undo_open(run, task, made):
@@ -557,7 +573,7 @@ def close_thread(run, task):
     for mid in t.get("members", []):
         for rn in (t.get("room", task), run["stage"]):
             room(run, "presence", rn, mid, "gone", check=False)
-    room(run, "archive", t.get("room", task), check=False)
+    # The room stays open: a post that mentions an ended member resumes it (`fleet thread resume`).
     if t.get("tab"):  # threads opened before members were sub-agents had a tab of their own
         tool(["herdr-app", "do", "tab.close", "--id", t["tab"], "--confirmed", "true"])
     note = remove_if_done(run, t)
@@ -570,6 +586,56 @@ def cmd_thread_close(a):
     run = load_run(a.run)
     note = close_thread(run, a.task)
     print(f"closed #{a.task}{note}")
+
+
+RESUMED_MSG = ("You are {id}, resumed in room {room} after your thread closed. Answer what is addressed to you "
+               "there (room read {room}). Don't restart or redo your task.")
+
+
+def resume_member(run, task, mid):
+    """Start a closed thread's member again in its own Claude session, in the folder it started in."""
+    t = run["threads"].get(task)
+    if not t:
+        raise Refused(f"fleet: no thread {task!r} in run {run['run']}", 3)
+    members = t.get("members", [])
+    if mid not in members:
+        raise Refused(f"fleet: no member {mid!r} in thread {task!r}", 3)
+    session = (t.get("sessions") or {}).get(mid)
+    if not session:
+        raise Refused(f"fleet: thread {task!r} has no recorded session for {mid} (opened before sessions were kept)", 3)
+    room_name = t.get("room", task)
+    if os.path.exists(os.path.join(rooms_root(run), room_name, "archived")):
+        raise Refused(f"fleet: room {room_name!r} is archived; nothing in it can be resumed", 3)
+    terms = list(t.get("terminals", []))
+    idx = members.index(mid)
+    old = terms[idx] if idx < len(terms) else None
+    if term_live(old):
+        print(f"{mid} is still live in terminal {old}")
+        return
+    folder = t["worktree"]
+    if not os.path.isdir(folder):
+        if t.get("branch"):  # build and fix threads: the kept branch, checked out at the same path
+            git(run["repo"], "worktree", "add", folder, t["branch"])
+        else:  # verify and curate threads work in the integration worktree
+            folder = ensure_integration(run)
+    pname = templates()[t["template"]][idx]
+    argv = compose_member(run, mid, pname, task, worktree=folder, room_name=room_name)["argv"][:-1]
+    i = argv.index("--session-id")
+    argv[i:i + 2] = ["--resume", session]
+    argv.append(RESUMED_MSG.format(id=mid, room=room_name))
+    parent = lead_parent(run)
+    addr = start_member(run, task, folder, argv, mid, room_name, parent, live_terminal_names())
+    clear_trust(addr)
+    terms += [None] * (len(members) - len(terms))
+    terms[idx] = addr
+    t["terminals"] = terms
+    save_run(run)
+    print(f"resumed {mid} in terminal {addr} ({folder})")
+
+
+def cmd_thread_resume(a):
+    run = load_run(a.run)
+    resume_member(run, a.task, a.member)
 
 
 def cmd_cleanup(a):
@@ -780,7 +846,7 @@ def lead_command(run, first_message, resume=False):
     """The lead's claude argv: resume its recorded session when asked and one exists, else a new one."""
     c = compose_member(run, "lead", "lead", "lead", worktree=run["repo"], room_name=run["stage"],
                        extra_allow=("Bash(fleet *)", "Bash(git *)"))
-    argv = c["argv"][:-1]
+    argv = c["argv"][:-3]  # drop the member's own --session-id <uuid> and first message
     if resume and run.get("leadSession"):
         argv += ["--resume", run["leadSession"]]
     else:
@@ -1021,10 +1087,15 @@ def parser():
     to.add_argument("--from", dest="from_", metavar="task")
     to.add_argument("--wave", type=int)
     to.set_defaults(fn=cmd_thread_open, folder=None, locks=True)
-    tc = ths.add_parser("close", help="archive the room, end its terminals, remove a merged worktree")
+    tc = ths.add_parser("close", help="end its terminals, remove a merged worktree (the room stays open)")
     tc.add_argument("run")
     tc.add_argument("task")
     tc.set_defaults(fn=cmd_thread_close, locks=True)
+    tr_ = ths.add_parser("resume", help="start a closed thread's member again in its own session")
+    tr_.add_argument("run")
+    tr_.add_argument("task")
+    tr_.add_argument("member")
+    tr_.set_defaults(fn=cmd_thread_resume, locks=True)
 
     cl = sub.add_parser("cleanup", help="close every thread; --all also removes the integration worktree and space")
     cl.add_argument("run")
