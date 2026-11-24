@@ -13,6 +13,7 @@ const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
 const MOD = "rooms";
 const MENTION_ROWS = 6; // the @-mention list shows at most this many rows
+const MENTION_KEYS = { tab: "rooms_mention_next", "shift-tab": "rooms_mention_prev", up: "rooms_mention_up", down: "rooms_mention_down", enter: "rooms_mention_accept", escape: "rooms_mention_close" };
 const READ_KEY = "rooms.read"; // read marks a room window shares with the panel: {"<root>#<room>": lastId}
 // A room's run: rooms live in <home>/runs/<run>/rooms for app-fleet; otherwise the root's folder name.
 const runLabel = (root) => { const parts = String(root).split("/").filter(Boolean); return parts.at(-1) === "rooms" ? parts.at(-2) : parts.at(-1); };
@@ -72,12 +73,16 @@ export default class Rooms extends View {
     // The open @-mention list: { start, end, candidates, index, cycled } over the draft's UTF-16 offsets.
     this.mention = null;
     this.completed = null; // the text a completion just wrote, so its own change event is not a new edit
-    this.tabTyped = false; // the textarea typed a Tab the change handler already turned into a cycle
     this.draft.on("change", (_e, cx) => this.draftChanged(cx));
-    this.draft.on("submit", (_e, cx) => {
-      if (this.mention) this.acceptMention(cx);
-      else this.post(cx);
-    });
+    this.draft.on("submit", (_e, cx) => this.post(cx));
+    // The Textarea binds these keys itself, and bindings run before any on_key_down. These match at the
+    // Textarea's own depth and are bound later, so they win, but only under the RoomsMention context
+    // the wrapper sets while the list is open. With the list closed the keys are the Textarea's.
+    try {
+      cx.bind_keys(Object.entries(MENTION_KEYS).map(([keystroke, action]) => ({ keystroke, action, context: "RoomsMention > Input" })));
+    } catch (err) {
+      this.note = `@-mention keys unavailable: ${err?.message ?? err}`;
+    }
     if (this.view === "title" || this.view === "member") return;
     if (this.only) {
       this.selected = `${this.only.root}#${this.only.room}`;
@@ -244,12 +249,6 @@ export default class Rooms extends View {
     if (this.completed !== null && text === this.completed) { this.completed = null; return; }
     this.completed = null;
     const sel = this.draft.selected_range();
-    // A Tab the textarea typed instead of letting the key handler see it: drop it and cycle.
-    if (this.mention && sel.start === sel.end && text[sel.end - 1] === "\t") {
-      this.tabTyped = true;
-      this.cycleMention(1, cx, text.slice(0, sel.end - 1) + text.slice(sel.end));
-      return;
-    }
     this.refreshMention(text, sel);
     cx.notify();
   }
@@ -268,9 +267,9 @@ export default class Rooms extends View {
   }
 
   // Replace the @word with the highlighted id. Enter and a click add a space and close; Tab keeps it open.
-  insertMention(trailingSpace, base = this.draft.value()) {
+  insertMention(trailingSpace) {
     const m = this.mention;
-    const { text, cursor } = applyMention(base, m.start, m.end, m.candidates[m.index], trailingSpace);
+    const { text, cursor } = applyMention(this.draft.value(), m.start, m.end, m.candidates[m.index], trailingSpace);
     this.writeDraft(text, cursor);
     if (trailingSpace) this.mention = null;
     else m.end = cursor;
@@ -282,34 +281,29 @@ export default class Rooms extends View {
   }
 
   // Tab and Shift-Tab: the first Tab inserts the highlighted id; each further one moves to the next, wrapping.
-  cycleMention(step, cx, base) {
+  cycleMention(step, cx) {
     const m = this.mention;
     if (m.cycled) m.index = (m.index + step + m.candidates.length) % m.candidates.length;
     m.cycled = true;
-    this.insertMention(false, base);
+    this.insertMention(false);
     cx.notify();
   }
 
-  mentionKey(e, cx) {
-    const k = e.keystroke;
-    const typed = this.tabTyped;
-    this.tabTyped = false; // only the Tab keystroke right after the change handler's cycle can be its echo
-    if (!this.mention) return;
-    if (k === "tab" || k === "shift-tab") {
-      if (!typed) this.cycleMention(k === "tab" ? 1 : -1, cx);
-    } else if (k === "up" || k === "down") {
-      const m = this.mention;
-      m.index = (m.index + (k === "down" ? 1 : -1) + m.candidates.length) % m.candidates.length;
+  // A MENTION_KEYS action; they only fire while the list is open.
+  mentionAction(action, cx) {
+    const m = this.mention;
+    if (!m) return;
+    if (action === "rooms_mention_next" || action === "rooms_mention_prev") {
+      this.cycleMention(action === "rooms_mention_next" ? 1 : -1, cx);
+    } else if (action === "rooms_mention_up" || action === "rooms_mention_down") {
+      m.index = (m.index + (action === "rooms_mention_down" ? 1 : -1) + m.candidates.length) % m.candidates.length;
       cx.notify();
-    } else if (k === "enter") {
+    } else if (action === "rooms_mention_accept") {
       this.acceptMention(cx);
-    } else if (k === "escape") {
+    } else if (action === "rooms_mention_close") {
       this.mention = null;
       cx.notify();
-    } else {
-      return;
     }
-    cx.stop_propagation();
   }
 
   mentionList(t) {
@@ -421,7 +415,8 @@ export default class Rooms extends View {
       .when(!current.archived, (e) => e.child(h_flex().flex_none().p(10).gap(8).items_end().border_t(1).border_color(t.border)
         .child(div().flex_1().min_w(0).rounded(8).border_1().border_color(t.border).p(6).cursor_text()
           .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-          .on_key_down((e, cx) => this.mentionKey(e, cx))
+          .when(Boolean(this.mention), (e) => Object.values(MENTION_KEYS)
+            .reduce((w, action) => w.on_action(action, (_e, cx) => this.mentionAction(action, cx)), e.key_context("RoomsMention")))
           .child(Textarea.new(this.draft).w_full().text_size(12).text_color(t.foreground)))
         .child(div().id("rooms-send").h(30).px(12).flex().items_center().rounded(8).bg(t.solid).text_color(t.solid_foreground)
           .text_size(12).cursor_pointer().on_click((_e, cx) => this.post(cx)).child(this.busy ? "Sending…" : "Send"))));
