@@ -390,7 +390,7 @@ export default class Rooms extends View {
         .child(div().text_size(10).text_color(t.muted).child(role))
         .child(div().text_size(10).text_color(t.dim).child(String(m.ts ?? "").slice(11, 16)))
         .when(Boolean(label), (e) => e.child(div().px(5).rounded(4).border_1().border_color(color).text_size(10).text_color(color).child(label))))
-      // TextView scrolls a wide code block or table inside itself; min_w(0) keeps it from widening the panel.
+      // TextView wraps wide code blocks and table cells (it has no sideways scroll); min_w(0) keeps them from widening the panel.
       .child(div().w_full().min_w(0).overflow_x_hidden().text_size(12).text_color(t.foreground)
         .child(TextView.markdown(`msg-${m.id}`, linkMentions(String(m.text ?? ""), ids)).selectable(true).w_full().min_w(0)
           .on_link_click((url, cx) => { if (!url.startsWith("rooms-member:")) cx.open_url(url); })))

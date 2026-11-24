@@ -187,7 +187,7 @@ test('linkMentions handles hyphenated ids and trailing punctuation', () => {
 })
 
 test('linkMentions leaves code spans and fences alone', () => {
-  assert.equal(linkMentions('run `@x` then @x', ids), 'run `@x` then [@x](rooms-member:x)')
+  assert.equal(linkMentions('run `see @x now` then @x', ids), 'run `see @x now` then [@x](rooms-member:x)')
   const fenced = '```\n@x here\n```\n@x'
   assert.equal(linkMentions(fenced, ids), '```\n@x here\n```\n[@x](rooms-member:x)')
   assert.equal(linkMentions('~~~sh\n@lead\n~~~', ids), '~~~sh\n@lead\n~~~')
