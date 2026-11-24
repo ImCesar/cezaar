@@ -70,7 +70,9 @@ room read <room> [--mentions-only]
    don't step in while they work.
 6. **On `done`:** confirm the reviewer's APPROVE is in the thread
    (`room read <task>`), then `fleet merge <run> <task>`, then
-   `fleet thread close <run> <task>`.
+   `fleet thread close <run> <task>`. Closing a thread no longer archives
+   its room: the operator can still mention its members, which resumes them.
+   Never archive a room yourself; that's the operator's call.
 7. **On a conflict** (merge exits 3): open a fix thread,
    `fleet thread open <run> <task>-merge --template fix --from <task> --brief <file>`,
    whose brief says to `git merge fleet/<run>/integration`, resolve the listed files against
