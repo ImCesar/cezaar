@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createSaver, groupByRoot, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, memberLabel, presenceLive, createSaver, demoteHeadings, linkMentions, roleOf, rootRoles, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -37,7 +37,7 @@ test('presence is gone after 120 s without a heartbeat', () => {
     b: { id: 'b', state: 'idle', ts: new Date(now - 121_000).toISOString() },
   }
   const s = roomSummary([], members, presences, 'cesar', undefined, now)
-  assert.deepEqual(s.presence, [{ id: 'a', state: 'working' }, { id: 'b', state: 'gone' }, { id: 'c', state: 'gone' }])
+  assert.deepEqual(s.presence.map(p => [p.id, p.state, p.ended]), [['a', 'working', false], ['b', 'gone', false], ['c', 'gone', false]])
 })
 
 test('newOperatorMentions returns only new mentions of the operator by others', () => {
@@ -104,4 +104,179 @@ test('createSaver runs one write at a time and lands the latest state', async ()
   await new Promise(r => setTimeout(r, 60))
   assert.equal(disk, 'c')
   assert.ok(writes <= 2, `writes=${writes}`)
+})
+
+const term = (address, room, id, extra = {}) => ({ address, state: 'live', status: 'idle', labels: { 'rooms.root': '/r', 'rooms.room': room, 'rooms.id': id }, ...extra })
+
+test('roomTerminals keeps live terminals of this root and room, in members order', () => {
+  const members = [{ id: 'auth-builder' }, { id: 'auth-reviewer' }, { id: 'cesar' }]
+  const ts = [
+    term('t3', 'auth', 'auth-reviewer', { status: { state: 'working', app: 'claude-code' } }),
+    term('t2', 'auth', 'auth-builder'),
+    term('t4', 'billing', 'billing-builder'),
+    { ...term('t5', 'auth', 'auth-builder'), labels: { 'rooms.root': '/other', 'rooms.room': 'auth', 'rooms.id': 'auth-builder' } },
+    term('t6', 'auth', 'auth-builder', { state: 'finished' }),
+    { address: 't7', state: 'live' },
+  ]
+  assert.deepEqual(roomTerminals(ts, '/r', 'auth', members), [
+    { address: 't2', id: 'auth-builder', status: 'idle' },
+    { address: 't3', id: 'auth-reviewer', status: 'working' },
+  ])
+})
+
+test('roomTerminals puts ids not in members last, and returns [] when nothing matches', () => {
+  const ts = [term('t9', 'auth', 'stranger'), term('t2', 'auth', 'auth-builder', { status: null })]
+  assert.deepEqual(roomTerminals(ts, '/r', 'auth', [{ id: 'auth-builder' }]).map(x => [x.id, x.status]), [['auth-builder', 'unknown'], ['stranger', 'idle']])
+  assert.deepEqual(roomTerminals(ts, '/r', 'nope', []), [])
+  assert.deepEqual(roomTerminals(undefined, '/r', 'auth', []), [])
+})
+
+test('mergeRead keeps the newer mark per room and reports whether anything moved', () => {
+  const mine = { a: '20261123T01', b: '20261123T05' }
+  const out = mergeRead(mine, { a: '20261123T03', b: '20261123T02', c: '20261123T09', bad: 7 })
+  assert.deepEqual(out.lastRead, { a: '20261123T03', b: '20261123T05', c: '20261123T09' })
+  assert.equal(out.changed, true)
+  assert.equal(mergeRead(out.lastRead, { a: '20261123T00' }).changed, false)
+  assert.deepEqual(mergeRead(undefined, null), { lastRead: {}, changed: false })
+})
+
+test('mentionQuery finds the @-word at the cursor', () => {
+  assert.deepEqual(mentionQuery('hi @su', 6), { start: 3, end: 6, query: 'su' })
+  assert.equal(mentionQuery('a@b', 3), null)
+  assert.deepEqual(mentionQuery('@', 1), { start: 0, end: 1, query: '' })
+  assert.equal(mentionQuery('@ab cd', 6), null)
+  assert.deepEqual(mentionQuery('x @abc', 4), { start: 2, end: 4, query: 'a' })
+  assert.deepEqual(mentionQuery('a\n@b', 4), { start: 2, end: 4, query: 'b' })
+})
+
+test('mentionCandidates orders members then first posters, drops the operator and duplicates', () => {
+  const members = [{ id: 'store-builder' }, { id: 'store-reviewer' }, { id: 'cesar' }]
+  const msgs = [{ from: 'lead' }, { from: 'store-builder' }, { from: 'cesar' }, { from: 'judge' }, { from: 'lead' }]
+  assert.deepEqual(mentionCandidates(members, msgs, 'cesar', ''), ['store-builder', 'store-reviewer', 'lead', 'judge'])
+})
+
+test('mentionCandidates filters ignoring case, starts-with before contains, keeping order', () => {
+  const members = [{ id: 'store-reviewer' }, { id: 'Reviewer' }, { id: 'x-rev' }, { id: 'lead' }]
+  assert.deepEqual(mentionCandidates(members, [{ from: 'revisor' }], 'cesar', 'REV'), ['Reviewer', 'revisor', 'store-reviewer', 'x-rev'])
+})
+
+test('mentionCandidates tolerates missing and bad entries', () => {
+  assert.deepEqual(mentionCandidates(undefined, null, 'cesar', ''), [])
+  assert.deepEqual(mentionCandidates([null, {}, { id: 7 }, { id: 'a' }], [null, {}, { from: {} }, { from: 'b' }], 'cesar', ''), ['a', 'b'])
+  assert.deepEqual(mentionCandidates([{ id: 'cesar' }], [], undefined, ''), ['cesar'])
+})
+
+test('applyMention replaces the query and places the cursor after it', () => {
+  assert.deepEqual(applyMention('hi @su there', 3, 6, 'store', true), { text: 'hi @store  there', cursor: 10 })
+  assert.deepEqual(applyMention('hi @su', 3, 6, 'store', false), { text: 'hi @store', cursor: 9 })
+})
+
+const ids = ['x', 'a-b', 'lead']
+test('linkMentions leaves plain text alone', () => {
+  assert.equal(linkMentions('no mentions here, mail a@x.com', ids), 'no mentions here, mail a@x.com')
+})
+
+test('linkMentions links known ids and leaves unknown ones', () => {
+  assert.equal(linkMentions('@lead see @nobody', ids), '[@lead](rooms-member:lead) see @nobody')
+})
+
+test('linkMentions handles hyphenated ids and trailing punctuation', () => {
+  assert.equal(linkMentions('hi @a-b.', ids), 'hi [@a-b](rooms-member:a-b).')
+  assert.equal(linkMentions('@x, and @x- ok', ids), '[@x](rooms-member:x), and [@x](rooms-member:x)- ok')
+  assert.equal(linkMentions('(@x)', ids), '([@x](rooms-member:x))')
+})
+
+test('linkMentions leaves code spans and fences alone', () => {
+  assert.equal(linkMentions('run `see @x now` then @x', ids), 'run `see @x now` then [@x](rooms-member:x)')
+  const fenced = '```\n@x here\n```\n@x'
+  assert.equal(linkMentions(fenced, ids), '```\n@x here\n```\n[@x](rooms-member:x)')
+  assert.equal(linkMentions('~~~sh\n@lead\n~~~', ids), '~~~sh\n@lead\n~~~')
+})
+
+test('roleOf finds the role or returns unknown', () => {
+  const members = [{ id: 'lead', role: 'lead' }, { id: 'b', role: 'builder' }, { id: 'n' }]
+  assert.equal(roleOf(members, 'b'), 'builder')
+  assert.equal(roleOf(members, 'n'), 'unknown')
+  assert.equal(roleOf(members, 'zz'), 'unknown')
+  assert.equal(roleOf(null, 'b'), 'unknown')
+})
+
+test('demoteHeadings turns # and ## into ### and leaves the rest', () => {
+  assert.equal(demoteHeadings('# A\n## B\n### C\n#### D\n  # E\n#tag\n#'), '### A\n### B\n### C\n#### D\n  ### E\n#tag\n###')
+})
+
+test('demoteHeadings leaves fenced code alone', () => {
+  assert.equal(demoteHeadings('```sh\n# comment\n```\n# T'), '```sh\n# comment\n```\n### T')
+})
+
+test('rootRoles maps ids to roles across rooms; the first room that lists an id wins', () => {
+  const execution = [{ id: 'cesar', role: 'operator' }, { id: 'lead', role: 'lead' }, { id: 't-builder', role: 'builder' }]
+  const thread = [{ id: 't-builder', role: 'reviewer' }, { id: 'x' }, null, { id: 7, role: 'builder' }]
+  assert.deepEqual(rootRoles([execution, thread, 'junk', null]), { cesar: 'operator', lead: 'lead', 't-builder': 'builder' })
+  assert.deepEqual(rootRoles(null), {})
+})
+
+test('roleOf falls back to the root-wide role for an id the room does not list (the lead in a thread)', () => {
+  const thread = [{ id: 'b', role: 'builder' }]
+  assert.equal(roleOf(thread, 'lead', { lead: 'lead', b: 'reviewer' }), 'lead')
+  assert.equal(roleOf(thread, 'b', { b: 'reviewer' }), 'builder')
+  assert.equal(roleOf(thread, 'nobody', { lead: 'lead' }), 'unknown')
+  assert.equal(roleOf(thread, 'lead', null), 'unknown')
+})
+
+test('demoteHeadings turns underlined (=== and ---) headings into ###', () => {
+  assert.equal(demoteHeadings('Title\n=====\nbody'), '### Title\nbody')
+  assert.equal(demoteHeadings('Sub\n---\nbody'), '### Sub\nbody')
+})
+
+test('demoteHeadings keeps --- after a blank line (a rule) and leaves tables and fences alone', () => {
+  assert.equal(demoteHeadings('para\n\n---\nmore'), 'para\n\n---\nmore')
+  assert.equal(demoteHeadings('| a | b |\n|---|---|'), '| a | b |\n|---|---|')
+  assert.equal(demoteHeadings('```\nx\n---\n```'), '```\nx\n---\n```')
+  assert.equal(demoteHeadings('---\nfirst line rule'), '---\nfirst line rule')
+})
+
+test('presenceLive: missing, gone, stale, fresh working, fresh and stale resuming', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const at = (state, ago) => ({ id: 'a', state, ts: new Date(now - ago * 1000).toISOString().replace('Z', '000Z') })
+  assert.equal(presenceLive(undefined, now), false)
+  assert.equal(presenceLive(null, now), false)
+  assert.equal(presenceLive(at('gone', 5), now), false)
+  assert.equal(presenceLive(at('working', 121), now), false)
+  assert.equal(presenceLive(at('working', 5), now), true)
+  assert.equal(presenceLive(at('resuming', 5), now), true)
+  assert.equal(presenceLive(at('resuming', 121), now), false)
+  assert.equal(presenceLive({ id: 'a', state: 'working', ts: 'garbage' }, now), false)
+  assert.equal(presenceLive({ id: 'a', state: 'idle', ts: '2026-11-23T05:09:30.123456Z' }, now), true)
+})
+
+test('memberLabel: ended only with resume; resuming shows as resuming', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const fresh = state => ({ id: 'a', state, ts: '2026-11-23T05:09:50.000000Z' })
+  const stale = { id: 'a', state: 'working', ts: '2026-11-23T05:00:00.000000Z' }
+  const plain = { id: 'a', role: 'builder' }
+  const res = { id: 'a', role: 'builder', session: 's1', resume: 'claude --resume s1' }
+  assert.equal(memberLabel(plain, fresh('working'), now), 'a working')
+  assert.equal(memberLabel(res, fresh('resuming'), now), 'a resuming')
+  assert.equal(memberLabel(res, stale, now), 'a ended · mention to resume')
+  assert.equal(memberLabel(res, undefined, now), 'a ended · mention to resume')
+  assert.equal(memberLabel(res, fresh('gone'), now), 'a ended · mention to resume')
+  assert.equal(memberLabel(plain, stale, now), 'a gone')
+  assert.equal(memberLabel(plain, undefined, now), 'a gone')
+})
+
+test('roomSummary marks a non-live member with resume as ended', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const members = [{ id: 'a', resume: 'x' }, { id: 'b' }]
+  const s = roomSummary([], members, {}, 'cesar', undefined, now)
+  assert.deepEqual(s.presence.map(p => [p.label, p.ended]), [['a ended · mention to resume', true], ['b gone', false]])
+})
+
+test('roomSummary marks a live member with an end command as endable, and no one else', () => {
+  const now = Date.parse('2026-11-23T05:00:30.000Z')
+  const fresh = { state: 'working', ts: '2026-11-23T05:00:20.000000Z' }
+  const members = [{ id: 'a', end: 'fleet thread end r t a' }, { id: 'b', end: 'x' }, { id: 'c' }, { id: 'd', end: '  ' }]
+  const presences = { a: fresh, b: { state: 'gone', ts: '2026-11-23T05:00:20.000000Z' }, c: fresh, d: fresh }
+  const got = roomSummary([], members, presences, 'cesar', undefined, now).presence.map(p => [p.id, p.endable])
+  assert.deepEqual(got, [['a', true], ['b', false], ['c', false], ['d', false]])
 })

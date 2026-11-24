@@ -32,8 +32,8 @@ export function roomSummary(msgs, members, presences, operator, lastRead, now = 
     .filter(m => m.id !== operator)
     .map(m => {
       const p = presences[m.id]
-      const alive = p && now - Date.parse(p.ts) <= GONE_MS
-      return { id: m.id, state: alive ? p.state : 'gone' }
+      const alive = presenceLive(p, now)
+      return { id: m.id, state: alive ? p.state : 'gone', label: memberLabel(m, p, now), ended: !alive && resumable(m), endable: alive && endable(m) }
     })
   return {
     needsYou: fresh.filter(m => mentionsMe(m, operator)).length,
@@ -41,6 +41,26 @@ export function roomSummary(msgs, members, presences, operator, lastRead, now = 
     lastTs: msgs.length ? msgs[msgs.length - 1].ts : null,
     presence,
   }
+}
+
+/**
+ * Whether a presence (the JSON the CLI writes, `ts` like 2026-11-23T05:00:00.000000Z) counts as live:
+ * present, not `gone`, and heartbeated within GONE_MS. A fresh `resuming` is live.
+ */
+export function presenceLive(presence, nowMs) {
+  if (!presence || typeof presence !== 'object' || presence.state === 'gone') return false
+  const ts = Date.parse(presence.ts)
+  return Number.isFinite(ts) && nowMs - ts <= GONE_MS
+}
+
+const resumable = member => typeof member?.resume === 'string' && member.resume.trim() !== ''
+const endable = member => typeof member?.end === 'string' && member.end.trim() !== ''
+
+/** A presence chip's text: `<id> <state>`, or `<id> ended · mention to resume` for a non-live member with `resume`. */
+export function memberLabel(member, presence, nowMs) {
+  const id = member?.id ?? '?'
+  if (presenceLive(presence, nowMs)) return `${id} ${presence.state}`
+  return resumable(member) ? `${id} ended · mention to resume` : `${id} gone`
 }
 
 /** Needs-you first, then unread, then quiet; newest first within each group. */
@@ -130,4 +150,150 @@ export function createSaver(write, read, initial) {
     pending = text
     if (!running) drain()
   }
+}
+
+/**
+ * The live terminals that belong to a room: those labelled rooms.root / rooms.room / rooms.id
+ * (app-fleet labels its members this way). Ordered as the room's members.json lists them,
+ * unknown ids last. `status` is Herdr's word for the terminal (working, idle, blocked, ...).
+ */
+export function roomTerminals(terminals, root, room, members) {
+  const order = new Map((Array.isArray(members) ? members : []).map((m, i) => [m.id, i]))
+  const rank = id => (order.has(id) ? order.get(id) : Infinity)
+  return (Array.isArray(terminals) ? terminals : [])
+    .filter(t => t && (t.state === undefined || t.state === 'live') && t.labels &&
+      t.labels['rooms.root'] === root && t.labels['rooms.room'] === room)
+    .map(t => ({
+      address: t.address,
+      id: t.labels['rooms.id'] ?? t.address,
+      status: typeof t.status === 'string' ? t.status : t.status?.state ?? 'unknown',
+    }))
+    .sort((a, b) => rank(a.id) - rank(b.id) || String(a.address).localeCompare(String(b.address)))
+}
+
+/**
+ * Fold read marks from elsewhere (a room window, through Herdr's shared state) into the panel's:
+ * per room the newer message id wins. Returns the merged marks and whether any moved.
+ */
+export function mergeRead(lastRead, other) {
+  const out = { ...(lastRead ?? {}) }
+  let changed = false
+  for (const [key, id] of Object.entries(other ?? {})) {
+    if (typeof id !== 'string') continue
+    if (out[key] === undefined || id > out[key]) { out[key] = id; changed = true }
+  }
+  return { lastRead: out, changed }
+}
+
+/**
+ * The @-mention being typed at `cursor`, or null. Active when `@` sits at the start of the text or
+ * after whitespace and only id characters lie between it and the cursor. Offsets are UTF-16 indexes.
+ */
+export function mentionQuery(text, cursor) {
+  const before = String(text ?? '').slice(0, cursor)
+  const m = /(?:^|\s)@([A-Za-z0-9_-]*)$/.exec(before)
+  if (!m) return null
+  return { start: cursor - m[1].length - 1, end: cursor, query: m[1] }
+}
+
+/**
+ * Ids to suggest for `@query`: members in order, then other posters in first-post order, never the
+ * operator, no duplicates. Ids starting with the query (any case) come before ids only containing it.
+ */
+export function mentionCandidates(members, msgs, operator, query) {
+  const ids = []
+  const add = id => { if (typeof id === 'string' && id && id !== operator && !ids.includes(id)) ids.push(id) }
+  for (const m of Array.isArray(members) ? members : []) add(m?.id)
+  for (const m of Array.isArray(msgs) ? msgs : []) add(m?.from)
+  const q = String(query ?? '').toLowerCase()
+  const starts = ids.filter(id => id.toLowerCase().startsWith(q))
+  const contains = ids.filter(id => !id.toLowerCase().startsWith(q) && id.toLowerCase().includes(q))
+  return [...starts, ...contains]
+}
+
+/** Replace `text[start, end)` with `@id` (plus a space when `trailingSpace`); cursor lands after it. */
+export function applyMention(text, start, end, id, trailingSpace) {
+  const insert = `@${id}${trailingSpace ? ' ' : ''}`
+  const s = String(text ?? '')
+  return { text: s.slice(0, start) + insert + s.slice(end), cursor: start + insert.length }
+}
+
+/**
+ * Turn each `@id` whose id is in `ids` into the Markdown link `[@id](rooms-member:id)`. Code spans and
+ * fenced code blocks are left as they are, and so is an `@` inside a word (an email address).
+ */
+export function linkMentions(text, ids) {
+  const known = new Set(Array.isArray(ids) ? ids : [])
+  const link = s => s.replace(/(^|[^\w@/[`-])@([\w-]+)/g, (all, pre, id) => {
+    let name = id
+    while (name && !known.has(name) && /-$/.test(name)) name = name.slice(0, -1)
+    return known.has(name) ? `${pre}[@${name}](rooms-member:${name})${id.slice(name.length)}` : all
+  })
+  // Odd pieces between backtick runs are code spans.
+  return outsideFences(text, line => line.split(/(`+[^`]*`+)/).map((p, i) => (i % 2 ? p : link(p))).join(''))
+}
+
+/** Apply `fn` to each line of `text` that is not inside a fenced code block (fence lines included). */
+function outsideFences(text, fn) {
+  const out = []
+  let fence = null
+  for (const line of String(text ?? '').split('\n')) {
+    const open = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      if (open && open[1][0] === fence[0] && open[1].length >= fence.length && !line.trim().slice(open[1].length).trim()) fence = null
+      out.push(line)
+    } else if (open) {
+      fence = open[1]
+      out.push(line)
+    } else {
+      out.push(fn(line))
+    }
+  }
+  return out.join('\n')
+}
+
+/** Demote `#` and `##` headings to `###` outside fenced code, so no heading outgrows the panel's text. */
+export function demoteHeadings(text) {
+  const atx = outsideFences(text, line => line.replace(/^( {0,3})#{1,2}(?=\s|$)/, '$1###'))
+  // Underlined headings (Title, then === or ---) render large too. A --- after a blank line is a rule.
+  const out = []
+  let fence = null
+  for (const line of atx.split('\n')) {
+    const open = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      if (open && open[1][0] === fence[0] && open[1].length >= fence.length) fence = null
+      out.push(line)
+      continue
+    }
+    if (open) { fence = open[1]; out.push(line); continue }
+    const prev = out.length ? out[out.length - 1] : ''
+    if (/^ {0,3}(=+|-+)\s*$/.test(line) && prev.trim() && !/^\s*(#|\||[-*+] |>|`{3,}|~{3,})/.test(prev)) {
+      out[out.length - 1] = `### ${prev.trim()}`
+      continue
+    }
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+/** The role `members.json` gives `id`, or "unknown". */
+export function roleOf(members, id, fallback = {}) {
+  const m = (Array.isArray(members) ? members : []).find(x => x?.id === id)
+  if (typeof m?.role === 'string' && m.role) return m.role
+  const r = fallback && typeof fallback === 'object' ? fallback[id] : undefined
+  return typeof r === 'string' && r ? r : 'unknown'
+}
+
+/**
+ * Each member id's role across every room of one root, the first room that lists it winning.
+ * roleOf falls back to it for an id a room doesn't list, such as app-fleet's lead posting in thread rooms.
+ */
+export function rootRoles(memberLists) {
+  const roles = {}
+  for (const list of Array.isArray(memberLists) ? memberLists : []) {
+    for (const m of Array.isArray(list) ? list : []) {
+      if (typeof m?.id === 'string' && typeof m?.role === 'string' && m.role && !(m.id in roles)) roles[m.id] = m.role
+    }
+  }
+  return roles
 }

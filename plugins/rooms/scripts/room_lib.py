@@ -2,9 +2,10 @@
 
 Storage (under a rooms root, $ROOMS_ROOT, default ~/.rooms/default):
   <room>/log.jsonl       one message per line, append-only, written under <room>/.lock
-  <room>/members.json    [{id, role, joinedAt, watchAll?}]
+  <room>/members.json    [{id, role, joinedAt, watchAll?, session?, resume?, end?}]
   <room>/presence/<id>.json
   <room>/archived        marker
+  <room>/resume.log      output of resume commands `room post` started
 """
 
 import argparse
@@ -15,14 +16,16 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import sys
 
-MAX_TEXT = 4096
+MAX_TEXT = 16384
 KINDS = ("msg", "done", "system", "pause")
 MENTION = re.compile(r"@([a-z0-9][a-z0-9_-]*)")
 ROOM_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 SYSTEM_ID = "rooms"  # the sender of the mod's own reports; no member may take it
 REGISTER_EVERY_S = 600
+LIVE_S = 120  # a presence older than this is not live; the mod heartbeats more often
 
 
 class Refused(Exception):
@@ -62,9 +65,29 @@ def new_id(ts):
     return f"{compact(ts)}-{secrets.token_hex(3)}"
 
 
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+CODE_SPAN = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)", re.S)
+
+
+def without_code(text):
+    """The text with fenced blocks and code spans removed: an id quoted in code wakes nobody."""
+    out, fence = [], None
+    for line in text.split("\n"):
+        m = FENCE.match(line)
+        if fence:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+                fence = None
+            continue
+        if m:
+            fence = m.group(1)
+            continue
+        out.append(line)
+    return CODE_SPAN.sub(" ", "\n".join(out))
+
+
 def mentions_in(text):
     seen = []
-    for m in MENTION.findall(text):
+    for m in MENTION.findall(without_code(text)):
         if m not in seen:
             seen.append(m)
     return seen
@@ -197,14 +220,120 @@ def cmd_join(a, root):
         write_atomic(os.path.join(d, "members.json"), members)
 
 
+def cmd_member(a, root):
+    check_member_id(a.id)
+    d = room_dir(root, a.room)
+    with locked(os.path.join(d, ".lock")):
+        members = read_json(os.path.join(d, "members.json"), [])
+        entry = next((m for m in members if isinstance(m, dict) and m.get("id") == a.id), None)
+        if entry is None:
+            raise Refused(f"room: no member {a.id!r} in {a.room}", 3)
+        for field in ("session", "resume", "end"):
+            value = getattr(a, field)
+            if value is None:
+                continue
+            if value:
+                entry[field] = value
+            else:
+                entry.pop(field, None)
+        write_atomic(os.path.join(d, "members.json"), members)
+
+
+def presence_live(p):
+    """Whether a presence record shows a live (or just-resumed) member."""
+    if not isinstance(p, dict) or p.get("state") not in ("working", "idle", "resuming"):
+        return False
+    try:
+        ts = datetime.datetime.strptime(p.get("ts", ""), "%Y-%m-%dT%H:%M:%S.%fZ")
+    except (TypeError, ValueError):
+        return False
+    return (datetime.datetime.utcnow() - ts).total_seconds() < LIVE_S
+
+
+def cmd_end(a, root):
+    """Run a member's recorded end command, to end its live session (the panel's end button)."""
+    import subprocess
+    check_member_id(a.id)
+    d = room_dir(root, a.room)
+    members = read_json(os.path.join(d, "members.json"), [])
+    entry = next((m for m in members if isinstance(m, dict) and m.get("id") == a.id), None)
+    if entry is None:
+        raise Refused(f"room: no member {a.id!r} in {a.room}", 3)
+    cmd = entry.get("end")
+    if not cmd:
+        raise Refused(f"room: {a.id} has no end command (room member {a.room} {a.id} --end ...)", 3)
+    env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
+    env["ROOMS_ROOT"] = root
+    r = subprocess.run(["sh", "-c", cmd], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Refused(f"room: ending {a.id} failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()}", 4)
+    print(f"ended {a.id}")
+
+
+def resume_log(d, line):
+    with open(os.path.join(d, "resume.log"), "a") as fh:
+        fh.write(f"{now_iso()} {line}\n")
+
+
+def resume_mentioned(d, root, mentions, sender):
+    """Start the resume command of each mentioned member who has one and isn't live."""
+    ids = [m for m in mentions if m != "all" and m != sender]
+    if not ids:
+        return
+    to_start = []
+    with locked(os.path.join(d, ".lock")):
+        members = {m.get("id"): m for m in read_json(os.path.join(d, "members.json"), []) if isinstance(m, dict)}
+        for mid in ids:
+            cmd = (members.get(mid) or {}).get("resume")
+            if not isinstance(cmd, str) or not cmd:
+                continue
+            path = os.path.join(d, "presence", f"{mid}.json")
+            cur = read_json(path, {})
+            if presence_live(cur):
+                continue
+            if not isinstance(cur, dict):
+                cur = {}
+            cur.update({"id": mid, "state": "resuming", "ts": now_iso()})
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            write_atomic(path, cur)
+            to_start.append((mid, cmd))
+    env = {k: v for k, v in os.environ.items() if k not in ("HC_TERMINAL_ID", "HC_SCOPE")}
+    env["ROOMS_ROOT"] = root
+    for mid, cmd in to_start:
+        try:
+            resume_log(d, f"resuming {mid}: {cmd}")
+            with open(os.path.join(d, "resume.log"), "ab") as out:
+                subprocess.Popen(["sh", "-c", cmd], stdin=subprocess.DEVNULL, stdout=out,
+                                 stderr=subprocess.STDOUT, env=env, start_new_session=True)
+        except OSError as e:
+            try:
+                resume_log(d, f"could not start resume for {mid}: {e}")
+            except OSError:
+                pass
+
+
 def cmd_post(a, root):
     d = room_dir(root, a.room)
     sender = a.as_ or me()
     if not sender:
         raise Refused("room: who is posting? pass --as <id> or set ROOM_ID")
-    text = " ".join(a.text)
+    if a.text and a.body_file is not None:
+        raise Refused("room: give the text or --body-file, not both")
+    if a.body_file is not None:
+        try:
+            if a.body_file == "-":
+                text = sys.stdin.buffer.read().decode("utf-8")
+            else:
+                with open(a.body_file, "rb") as f:
+                    text = f.read().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            raise Refused(f"room: cannot read --body-file {a.body_file}: {e}")
+    elif a.text:
+        text = " ".join(a.text)
+    else:
+        raise Refused("room post: the following arguments are required: text (or --body-file)")
     if len(text.encode()) > MAX_TEXT:
-        raise Refused(f"room: message is over {MAX_TEXT} bytes; write long output to a file and post a link (--link <path>)")
+        raise Refused("room: message is over 16 KB; write long output to a file and post a link (--link <path>)")
     if os.path.exists(os.path.join(d, "archived")):
         raise Refused(f"room: {a.room} is archived", 3)
     ts = now_iso()
@@ -224,6 +353,8 @@ def cmd_post(a, root):
                         fh.write(b"\n")
             fh.write(line.encode("utf-8"))
     print(msg["id"])
+    sys.stdout.flush()
+    resume_mentioned(d, root, msg["mentions"], sender)
 
 
 def cmd_read(a, root):
@@ -268,7 +399,7 @@ def cmd_ls(a, root):
         print(f"{r['room']}{flag}: {r['members']} members, {r['messages']} messages")
 
 
-PRESENCE_STATES = ("working", "idle", "gone")
+PRESENCE_STATES = ("working", "idle", "gone", "resuming")
 DEFAULT_CONFIG = {"operator": "cesar", "quietMinutes": 10}
 
 
@@ -321,22 +452,94 @@ def cmd_install(a, root):
     print(target)
 
 
-def cmd_herdr_install(a, root):
+def plugin_version():
+    pj = os.path.join(os.path.dirname(os.path.dirname(cli_path())), ".claude-plugin", "plugin.json")
+    return str(read_json(pj, {}).get("version") or "")
+
+
+def in_plugin_cache(path):
+    """A path inside Claude's plugin cache, which updates replace: safe for setup to repoint."""
+    return "/plugins/cache/" in (path or "")
+
+
+def herdr_home():
+    return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+
+
+PANEL_LEFT_OUT = ("package.json", "RECIPE.md", "preview.png")  # Herdr's sharing guide: leave recipe and preview out
+VERSION_STAMP = ".rooms-version"
+
+
+def copy_panel(dest):
+    """Copy the panel into a Herdr mods folder and stamp it with this plugin's version."""
     import shutil
-    import subprocess
-    cmd_install(a, root)
     src = os.path.join(os.path.dirname(os.path.dirname(cli_path())), "herdr-mod", "rooms")
-    dest = a.dest or os.path.expanduser("~/.config/herdr-app/mods/rooms")
     os.makedirs(dest, exist_ok=True)
     for name in sorted(os.listdir(src)):
-        if name.endswith(".test.mjs") or name == "package.json":
+        if name.endswith(".test.mjs") or name in PANEL_LEFT_OUT:
             continue
         shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+    with open(os.path.join(dest, VERSION_STAMP), "w") as fh:
+        fh.write(plugin_version() + "\n")
+
+
+def set_config_cli(path):
     cfg_path = os.path.join(config_dir(), "config.json")
     with locked(os.path.join(config_dir(), ".lock")):
         cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
-        cfg["cli"] = cli_path()
+        cfg["cli"] = path
         write_atomic(cfg_path, cfg)
+
+
+def cmd_setup(a, root):
+    """Run at the start of the operator's Claude sessions: link `room` and install or refresh the Herdr
+    panel for a plugin-cache install. A link or panel that points into a checkout (a dev install) is
+    never touched; neither is anything that isn't a symlink."""
+    target = cli_path()
+    notes = []
+    bindir = os.environ.get("ROOMS_BIN_DIR") or os.path.expanduser("~/.local/bin")
+    os.makedirs(bindir, exist_ok=True)
+    link = os.path.join(bindir, "room")
+    if not os.path.lexists(link):
+        os.symlink(target, link)
+        notes.append(f"linked {link}")
+    elif os.path.islink(link) and os.readlink(link) != target and in_plugin_cache(os.readlink(link)):
+        os.remove(link)
+        os.symlink(target, link)
+        notes.append(f"relinked {link} to this version")
+    cfg_path = os.path.join(config_dir(), "config.json")
+    if not os.path.exists(cfg_path):
+        write_atomic(cfg_path, DEFAULT_CONFIG)
+    home = herdr_home()
+    if os.path.isdir(home):
+        dest = os.path.join(home, "mods", "rooms")
+        cli = read_json(cfg_path, {}).get("cli")
+        try:
+            stamp = open(os.path.join(dest, VERSION_STAMP)).read().strip()
+        except OSError:
+            stamp = None
+        dev = bool(cli) and not in_plugin_cache(cli)
+        if not dev and (not os.path.isdir(dest) or stamp != plugin_version() or cli != target):
+            copy_panel(dest)
+            set_config_cli(target)
+            notes.append(f"installed the Rooms panel {plugin_version()} in {dest}")
+    if not a.quiet:
+        print("\n".join(notes) or "room: already set up")
+
+
+def cmd_herdr_install(a, root):
+    import shutil
+    import subprocess
+    if not a.panel_only:  # --panel-only: try a worktree's panel without repointing `room` at it
+        cmd_install(a, root)
+    dest = a.dest or os.path.join(herdr_home(), "mods", "rooms")
+    copy_panel(dest)
+    if not a.panel_only:
+        cfg_path = os.path.join(config_dir(), "config.json")
+        with locked(os.path.join(config_dir(), ".lock")):
+            cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
+            cfg["cli"] = cli_path()
+            write_atomic(cfg_path, cfg)
     print(dest)
     if os.environ.get("ROOMS_SKIP_HERDR_CHECK") or not shutil.which("herdr-app"):
         return
@@ -364,12 +567,26 @@ def parser():
     j.add_argument("--watch-all", action="store_true", help="woken by mentions in every room under the root")
     j.set_defaults(fn=cmd_join)
 
+    mb = sub.add_parser("member", help="set a member's Claude session id and resume command")
+    mb.add_argument("room")
+    mb.add_argument("id")
+    mb.add_argument("--session", metavar="uuid", help="empty string clears it")
+    mb.add_argument("--resume", metavar="cmd", help="run with sh -c when a post mentions this member and it isn't live; empty clears it")
+    mb.add_argument("--end", metavar="cmd", help="run with sh -c by `room end` to end the member's live session; empty clears it")
+    mb.set_defaults(fn=cmd_member)
+
+    en = sub.add_parser("end", help="run a member's end command (ends its live session)")
+    en.add_argument("room")
+    en.add_argument("id")
+    en.set_defaults(fn=cmd_end)
+
     po = sub.add_parser("post", help="post a message")
     po.add_argument("room")
     po.add_argument("--as", dest="as_", metavar="id")
     po.add_argument("--kind", choices=KINDS, default="msg")
     po.add_argument("--link", action="append", metavar="path")
-    po.add_argument("text", nargs="+")
+    po.add_argument("--body-file", metavar="path|-", help="read the text from a file, or stdin with -, as UTF-8")
+    po.add_argument("text", nargs="*")
     po.set_defaults(fn=cmd_post)
 
     r = sub.add_parser("read", help="read messages")
@@ -403,16 +620,39 @@ def parser():
     ins = sub.add_parser("install", help="put room on PATH and write default config")
     ins.set_defaults(fn=cmd_install)
 
+    su = sub.add_parser("setup", help="link room and install or refresh the Herdr panel (for a plugin install; leaves a dev install alone)")
+    su.add_argument("--quiet", action="store_true")
+    su.set_defaults(fn=cmd_setup)
+
     hi = sub.add_parser("herdr-install", help="install, then copy the Rooms panel into the Herdr app")
     hi.add_argument("--dest", metavar="dir", help="default ~/.config/herdr-app/mods/rooms")
+    hi.add_argument("--panel-only", action="store_true",
+                    help="copy only the panel: leave the room link and config.json's cli as they are")
     hi.set_defaults(fn=cmd_herdr_install)
     return p
 
 
+def looks_like_option(word):
+    """Whether argparse would have read `word` as an option, not as text."""
+    if not word.startswith("-") or word == "-" or " " in word:
+        return False
+    return not re.match(r"^-\d+$|^-\d*\.\d+$", word)
+
+
 def main(argv):
-    a = parser().parse_args(argv)
+    p = parser()
+    a, extra = p.parse_known_args(argv)
+    # `text` is nargs="*" so --body-file can stand in for it, and argparse then
+    # leaves words given after an option (`post r --as a hi`) unparsed.
+    if extra and a.cmd == "post":
+        words = extra[1:] if extra[0] == "--" else extra
+        if extra[0] != "--" and any(looks_like_option(w) for w in words):
+            p.error("unrecognized arguments: " + " ".join(extra))
+        a.text += words
+    elif extra:
+        p.error("unrecognized arguments: " + " ".join(extra))
     try:
-        if a.cmd in ("install", "herdr-install"):
+        if a.cmd in ("install", "herdr-install", "setup"):
             a.fn(a, None)
             return 0
         root = rooms_root(create=a.cmd == "create")

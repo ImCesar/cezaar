@@ -37,7 +37,7 @@ t_post_parses_mentions() {
 t_post_refuses_big() {
   fresh
   "$ROOM" create r >/dev/null 2>&1
-  big=$(python3 -I -c "print('x'*4097, end='')")
+  big=$(python3 -I -c "print('x'*17*1024, end='')")
   "$ROOM" post r --as a "$big" >/dev/null 2>&1; rc=$?
   size=$(wc -c < "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | tr -d ' ')
   [ "$rc" = 2 ] && [ "${size:-0}" = 0 ] && ok post_refuses_big || fail post_refuses_big "rc=$rc size=$size"
@@ -143,6 +143,82 @@ t_herdr_install_to_temp_dest() {
     && ok herdr_install_to_temp_dest || fail herdr_install_to_temp_dest "cli=$cli op=$op files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
 }
 
+t_herdr_install_panel_only_leaves_link_and_config() {
+  fresh
+  dest="$T/mods/rooms"
+  mkdir -p "$ROOMS_CONFIG_DIR" "$ROOMS_BIN_DIR"
+  printf '{"operator": "cesar", "cli": "/keep/room"}' > "$ROOMS_CONFIG_DIR/config.json"
+  ln -s /keep/room "$ROOMS_BIN_DIR/room"
+  ROOMS_SKIP_HERDR_CHECK=1 "$ROOM" herdr-install --panel-only --dest "$dest" >/dev/null 2>&1 || { fail herdr_install_panel_only_leaves_link_and_config "install failed"; return; }
+  cli=$(jq_py "d.get('cli', '')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  link=$(readlink "$ROOMS_BIN_DIR/room")
+  [ -f "$dest/main.js" ] && [ -f "$dest/model.js" ] && [ "$cli" = /keep/room ] && [ "$link" = /keep/room ] \
+    && ok herdr_install_panel_only_leaves_link_and_config || fail herdr_install_panel_only_leaves_link_and_config "cli=$cli link=$link files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
+}
+
+# `room setup` runs at the start of the operator's Claude sessions. It sets up and refreshes an
+# install from Claude's plugin cache, and never touches a dev install (links into a checkout).
+# cache_copy <version>: this plugin copied into a fake plugin cache, with that version.
+cache_copy() {
+  C="$T/claude/plugins/cache/cezaar/rooms/$1"
+  mkdir -p "$C" && cp -R "$HERE/../scripts" "$HERE/../herdr-mod" "$HERE/../.claude-plugin" "$C/" 2>/dev/null
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['version']=sys.argv[2]; json.dump(d, open(p,'w'))" "$C/.claude-plugin/plugin.json" "$1"
+  CROOM="$(cd "$C/scripts" && pwd -P)/room"
+}
+
+t_setup_on_a_fresh_machine_links_and_installs_panel() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); stamp=$(cat "$HERDR_APP_HOME/mods/rooms/.rooms-version" 2>/dev/null)
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  [ "$rc" = 0 ] && [ "$link" = "$CROOM" ] && [ "$stamp" = 0.3.0 ] && [ "$cli" = "$CROOM" ] && [ -f "$HERDR_APP_HOME/mods/rooms/main.js" ] \
+    && [ ! -e "$HERDR_APP_HOME/mods/rooms/RECIPE.md" ] && ok setup_on_a_fresh_machine_links_and_installs_panel \
+    || fail setup_on_a_fresh_machine_links_and_installs_panel "rc=$rc link=$link stamp=$stamp cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_refreshes_an_older_cache_install() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME/mods/rooms" "$ROOMS_BIN_DIR" "$ROOMS_CONFIG_DIR"
+  old="$T/claude/plugins/cache/cezaar/rooms/0.2.0/scripts/room"
+  ln -s "$old" "$ROOMS_BIN_DIR/room"; echo 0.2.0 > "$HERDR_APP_HOME/mods/rooms/.rooms-version"; echo old > "$HERDR_APP_HOME/mods/rooms/main.js"
+  printf '{"operator":"cesar","cli":"%s"}' "$old" > "$ROOMS_CONFIG_DIR/config.json"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); stamp=$(cat "$HERDR_APP_HOME/mods/rooms/.rooms-version")
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json"); main=$(head -c 3 "$HERDR_APP_HOME/mods/rooms/main.js")
+  [ "$rc" = 0 ] && [ "$link" = "$CROOM" ] && [ "$stamp" = 0.3.0 ] && [ "$cli" = "$CROOM" ] && [ "$main" != old ] \
+    && ok setup_refreshes_an_older_cache_install || fail setup_refreshes_an_older_cache_install "rc=$rc link=$link stamp=$stamp cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_leaves_a_dev_install_alone() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME/mods/rooms" "$ROOMS_BIN_DIR" "$ROOMS_CONFIG_DIR"
+  ln -s /repos/cezaar/plugins/rooms/scripts/room "$ROOMS_BIN_DIR/room"; echo dev > "$HERDR_APP_HOME/mods/rooms/main.js"
+  printf '{"operator":"cesar","cli":"/repos/cezaar/plugins/rooms/scripts/room"}' > "$ROOMS_CONFIG_DIR/config.json"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); main=$(cat "$HERDR_APP_HOME/mods/rooms/main.js")
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json")
+  [ "$rc" = 0 ] && [ "$link" = /repos/cezaar/plugins/rooms/scripts/room ] && [ "$main" = dev ] && [ "$cli" = /repos/cezaar/plugins/rooms/scripts/room ] \
+    && ok setup_leaves_a_dev_install_alone || fail setup_leaves_a_dev_install_alone "rc=$rc link=$link main=$main cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_without_herdr_skips_the_panel() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/no-herdr"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$HERDR_APP_HOME" ] && [ "$(readlink "$ROOMS_BIN_DIR/room")" = "$CROOM" ] \
+    && ok setup_without_herdr_skips_the_panel || fail setup_without_herdr_skips_the_panel "rc=$rc"
+  unset HERDR_APP_HOME
+}
+
+t_herdr_install_stamps_the_version_and_leaves_the_recipe_out() {
+  fresh
+  dest="$T/mods/rooms"
+  ROOMS_SKIP_HERDR_CHECK=1 "$ROOM" herdr-install --dest "$dest" >/dev/null 2>&1; rc=$?
+  want=$(jq_py "d['version']" < "$HERE/../.claude-plugin/plugin.json")
+  [ "$rc" = 0 ] && [ "$(cat "$dest/.rooms-version" 2>/dev/null)" = "$want" ] && [ ! -e "$dest/RECIPE.md" ] && [ ! -e "$dest/preview.png" ] \
+    && ok herdr_install_stamps_the_version_and_leaves_the_recipe_out || fail herdr_install_stamps_the_version_and_leaves_the_recipe_out "rc=$rc files=$(ls -a "$dest" | tr '\n' ' ')"
+}
+
 t_truncated_utf8_line_does_not_crash_or_eat_next() {
   fresh
   "$ROOM" create r >/dev/null 2>&1
@@ -207,6 +283,216 @@ t_rooms_id_reserved() {
   "$ROOM" join r2 rooms >/dev/null 2>&1; jrc=$?
   "$ROOM" post r2 --as rooms --kind system "@lead note" >/dev/null 2>&1; prc=$?
   [ "$crc" = 2 ] && [ "$jrc" = 2 ] && [ "$prc" = 0 ] && ok rooms_id_reserved || fail rooms_id_reserved "create=$crc join=$jrc post=$prc"
+}
+
+t_post_accepts_10k() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  big=$(python3 -I -c "print('x'*10*1024, end='')")
+  "$ROOM" post r --as a "$big" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "len(d['text'])")
+  [ "$rc" = 0 ] && [ "$got" = 10240 ] && ok post_accepts_10k || fail post_accepts_10k "rc=$rc len=$got"
+}
+
+t_post_body_file_stdin_exact() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a --kind done --link /tmp/x.md --body-file - >/dev/null 2>&1 <<'BODY'
+## Title
+`code` 100% $HOME
+```sh
+echo "$x"
+```
+BODY
+  rc=$?
+  want=''\''## Title\n`code` 100% $HOME\n```sh\necho "$x"\n```\n'\'''
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "repr(d['text'])")
+  meta=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "(d['kind'], d['links'])")
+  [ "$rc" = 0 ] && [ "$got" = "$want" ] && [ "$meta" = "('done', ['/tmp/x.md'])" ] && ok post_body_file_stdin_exact || fail post_body_file_stdin_exact "rc=$rc got=$got meta=$meta"
+}
+
+t_post_body_file_mentions() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  printf '# Ready\n\n@b please look, cc @all\n' > "$T/body.md"
+  "$ROOM" post r --as a --body-file "$T/body.md" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "d['mentions']")
+  [ "$rc" = 0 ] && [ "$got" = "['b', 'all']" ] && ok post_body_file_mentions || fail post_body_file_mentions "rc=$rc got=$got"
+}
+
+# A quoted command or log line names ids without meaning to wake them.
+t_post_mentions_skip_code() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  cat > "$T/body.md" <<'EOF'
+@b — **ready.** Run `room post r "@lead done"` when you approve.
+
+```
+room post x "@c done"
+```
+~~~
+@d in a tilde fence
+~~~
+cc @e after the fences, and `@f` inline.
+EOF
+  "$ROOM" post r --as a --body-file "$T/body.md" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "d['mentions']")
+  [ "$rc" = 0 ] && [ "$got" = "['b', 'e']" ] && ok post_mentions_skip_code || fail post_mentions_skip_code "rc=$rc got=$got"
+}
+
+t_post_text_and_body_file_refused() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  printf 'hi\n' > "$T/body.md"
+  "$ROOM" post r --as a --body-file "$T/body.md" "also text" >/dev/null 2>&1; rc=$?
+  size=$(wc -c < "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | tr -d ' ')
+  [ "$rc" = 2 ] && [ "${size:-0}" = 0 ] && ok post_text_and_body_file_refused || fail post_text_and_body_file_refused "rc=$rc size=$size"
+}
+
+t_post_body_file_path_exact() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  printf 'a\r\nb\rc  d\n' > "$T/crlf.txt"
+  "$ROOM" post r --as a --body-file "$T/crlf.txt" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "repr(d['text'])")
+  [ "$rc" = 0 ] && [ "$got" = "'a\\r\\nb\\rc  d\\n'" ] && ok post_body_file_path_exact || fail post_body_file_path_exact "rc=$rc got=$got"
+}
+
+t_post_dash_text_after_option() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a "- item one" >/dev/null 2>&1 || { fail post_dash_text_after_option "bullet refused"; return; }
+  "$ROOM" post r --as a count -1 >/dev/null 2>&1 || { fail post_dash_text_after_option "negative refused"; return; }
+  "$ROOM" post r --as a hi --bogus >/dev/null 2>&1; brc=$?
+  got=$("$ROOM" read r --json 2>/dev/null | jq_py "[m['text'] for m in d]")
+  [ "$brc" = 2 ] && [ "$got" = "['- item one', 'count -1']" ] && ok post_dash_text_after_option || fail post_dash_text_after_option "brc=$brc got=$got"
+}
+
+# ---------- room member and automatic resume ----------
+
+# Wait up to ~3 s for a file to exist.
+wait_for() { n=0; while [ ! -e "$1" ] && [ $n -lt 30 ]; do sleep 0.1; n=$((n + 1)); done; }
+# Write a presence record with a ts `$3` seconds in the past.
+old_presence() {
+  mkdir -p "$ROOMS_ROOT/r/presence"
+  python3 -I -c "
+import datetime,json,sys
+ts=(datetime.datetime.utcnow()-datetime.timedelta(seconds=int(sys.argv[3]))).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+json.dump({'id':sys.argv[1],'state':sys.argv[2],'ts':ts},open(sys.argv[4],'w'))" "$1" "$2" "$3" "$ROOMS_ROOT/r/presence/$1.json"
+}
+# A member b whose resume command appends ROOMS_ROOT to $T/marker.
+resumable_room() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  "$ROOM" member r b --resume "echo \"\$ROOMS_ROOT\" >> '$T/marker'" >/dev/null 2>&1
+}
+marker_lines() { wc -l < "$T/marker" 2>/dev/null | tr -d ' '; }
+
+# `room end` runs a member's recorded end command: the panel's end button ends a resumed agent.
+t_end_runs_the_members_end_command() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  "$ROOM" member r a --end "echo \"\$ROOMS_ROOT ended\" > '$T/ended.txt'" >/dev/null 2>&1; mrc=$?
+  field=$(jq_py "[m.get('end','') for m in d if m['id']=='a'][0]" < "$ROOMS_ROOT/r/members.json")
+  "$ROOM" end r a >/dev/null 2>&1; rc=$?
+  got=$(cat "$T/ended.txt" 2>/dev/null)
+  want="$(cd "$ROOMS_ROOT" && pwd -P) ended"
+  [ "$mrc" = 0 ] && [ -n "$field" ] && [ "$rc" = 0 ] && [ "$got" = "$want" ] && ok end_runs_the_members_end_command \
+    || fail end_runs_the_members_end_command "mrc=$mrc field=$field rc=$rc got=$got"
+}
+
+t_end_refuses_member_without_end_and_unknown() {
+  fresh
+  "$ROOM" create r --member a:builder >/dev/null 2>&1
+  "$ROOM" end r a >/dev/null 2>&1; none=$?
+  "$ROOM" end r zz >/dev/null 2>&1; unknown=$?
+  "$ROOM" member r a --end "exit 5" >/dev/null 2>&1; "$ROOM" end r a >/dev/null 2>&1; failed=$?
+  [ "$none" = 3 ] && [ "$unknown" = 3 ] && [ "$failed" = 4 ] && ok end_refuses_member_without_end_and_unknown \
+    || fail end_refuses_member_without_end_and_unknown "none=$none unknown=$unknown failed=$failed"
+}
+
+t_member_sets_and_clears() {
+  fresh
+  "$ROOM" create r --member a:x >/dev/null 2>&1
+  "$ROOM" member r a --session 1234-uuid --resume "claude --resume 1234-uuid" >/dev/null 2>&1; rc=$?
+  set1=$(jq_py "(d[0].get('session'), d[0].get('resume'), d[0]['role'])" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member r a --session "" >/dev/null 2>&1
+  set2=$(jq_py "(d[0].get('session'), d[0].get('resume'))" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member r a --resume "" >/dev/null 2>&1
+  set3=$(jq_py "(d[0].get('session'), d[0].get('resume'))" < "$ROOMS_ROOT/r/members.json" 2>/dev/null)
+  "$ROOM" member nope a --session x >/dev/null 2>&1; nr=$?
+  "$ROOM" member r ghost --session x >/dev/null 2>&1; nm=$?
+  "$ROOM" member r ../bad --session x >/dev/null 2>&1; bad=$?
+  left=$(ls "$ROOMS_ROOT/r" | grep -c tmp)
+  [ "$rc" = 0 ] && [ "$set1" = "('1234-uuid', 'claude --resume 1234-uuid', 'x')" ] \
+    && [ "$set2" = "(None, 'claude --resume 1234-uuid')" ] && [ "$set3" = "(None, None)" ] \
+    && [ "$nr" = 3 ] && [ "$nm" = 3 ] && [ "$bad" = 2 ] && [ "$left" = 0 ] \
+    && ok member_sets_and_clears || fail member_sets_and_clears "rc=$rc 1=$set1 2=$set2 3=$set3 room=$nr member=$nm bad=$bad tmp=$left"
+}
+
+t_post_resumes_absent_member_once() {
+  resumable_room
+  "$ROOM" post r --as a "@b ready" >/dev/null 2>&1; rc=$?
+  wait_for "$T/marker"
+  first=$(marker_lines); got=$(cat "$T/marker" 2>/dev/null)
+  state=$("$ROOM" presence-get r b 2>/dev/null | jq_py "d.get('state')")
+  "$ROOM" post r --as a "@b again" >/dev/null 2>&1
+  sleep 0.5
+  second=$(marker_lines)
+  abs=$(cd "$ROOMS_ROOT" && pwd -P)
+  [ "$rc" = 0 ] && [ "$first" = 1 ] && [ "$got" = "$abs" ] && [ "$state" = resuming ] && [ "$second" = 1 ] \
+    && ok post_resumes_absent_member_once || fail post_resumes_absent_member_once "rc=$rc first=$first got=$got state=$state second=$second"
+}
+
+t_post_skips_live_and_resumeless() {
+  resumable_room
+  "$ROOM" presence r b working >/dev/null 2>&1
+  old_presence a idle 600
+  "$ROOM" post r --as b "@b @a hello" >/dev/null 2>&1
+  "$ROOM" post r --as a "@b hello" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 0 ] && [ ! -e "$T/marker" ] && [ ! -e "$ROOMS_ROOT/r/resume.log" ] \
+    && ok post_skips_live_and_resumeless || fail post_skips_live_and_resumeless "rc=$rc marker=$(marker_lines)"
+}
+
+t_post_resumes_stale_member() {
+  resumable_room
+  old_presence b working 600
+  "$ROOM" post r --as a "@b back?" >/dev/null 2>&1
+  wait_for "$T/marker"
+  [ "$(marker_lines)" = 1 ] && ok post_resumes_stale_member || fail post_resumes_stale_member "marker=$(marker_lines)"
+}
+
+t_post_never_resumes_sender() {
+  resumable_room
+  "$ROOM" post r --as b "note to self @b" >/dev/null 2>&1
+  sleep 0.5
+  [ ! -e "$T/marker" ] && ok post_never_resumes_sender || fail post_never_resumes_sender "marker=$(marker_lines)"
+}
+
+t_post_all_resumes_no_one() {
+  resumable_room
+  "$ROOM" post r --as a "@all standup" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 0 ] && [ ! -e "$T/marker" ] && ok post_all_resumes_no_one || fail post_all_resumes_no_one "rc=$rc marker=$(marker_lines)"
+}
+
+t_archived_post_resumes_no_one() {
+  resumable_room
+  "$ROOM" archive r >/dev/null 2>&1
+  "$ROOM" post r --as a "@b late" >/dev/null 2>&1; rc=$?
+  sleep 0.5
+  [ "$rc" = 3 ] && [ ! -e "$T/marker" ] && ok archived_post_resumes_no_one || fail archived_post_resumes_no_one "rc=$rc marker=$(marker_lines)"
+}
+
+t_resume_env_and_log() {
+  fresh
+  "$ROOM" create r --member a:x --member b:y >/dev/null 2>&1
+  "$ROOM" member r b --resume "echo out-\${HC_TERMINAL_ID:-none}-\${HC_SCOPE:-none}; touch '$T/marker'" >/dev/null 2>&1
+  HC_TERMINAL_ID=t1 HC_SCOPE=s1 "$ROOM" post r --as a "@b" >/dev/null 2>&1; rc=$?
+  wait_for "$T/marker"; sleep 0.2
+  out=$(grep -c '^out-none-none$' "$ROOMS_ROOT/r/resume.log" 2>/dev/null)
+  [ "$rc" = 0 ] && [ "$out" = 1 ] && ok resume_env_and_log || fail resume_env_and_log "rc=$rc log=$(cat "$ROOMS_ROOT/r/resume.log" 2>/dev/null)"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

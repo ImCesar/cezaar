@@ -8,9 +8,9 @@ FAILS=0
 
 fresh() {
   T=$(mktemp -d)
-  export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg"
+  export APP_FLEET_HOME="$T/home" STUB_LOG="$T/stub.log" STUB_DIR="$T/stub" ROOMS_CONFIG_DIR="$T/roomscfg" CLAUDE_CONFIG_DIR="$T/claude"
   export PATH="$HERE/stubs:$ROOMS_SCRIPTS:$ORIG_PATH"
-  unset STUB_HERDR_STATUS STUB_FAIL STUB_HC_KILL_STATUS APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT
+  unset STUB_HERDR_STATUS STUB_FAIL STUB_FAIL_ROOMS_TAB STUB_HC_KILL_STATUS STUB_HC_RUN_FAIL_AT APP_FLEET_ROSTER ROOM_ID ROOMS_ROOT HC_TERMINAL_ID HC_SCOPE
   mkdir -p "$STUB_DIR" "$ROOMS_CONFIG_DIR"
   printf '{"operator":"cesar","quietMinutes":10}\n' > "$ROOMS_CONFIG_DIR/config.json"
   REPO="$T/repo"; mkdir -p "$REPO"
@@ -22,11 +22,12 @@ fail() { echo "not ok $1: $2"; FAILS=$((FAILS + 1)); }
 jq_py() { python3 -I -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
 ORIG_PATH=$PATH
 
-# A run.json written directly, for tests of commands that read runs.
+# A run.json written directly, for tests of commands that read runs. $2: the lead's terminal (optional).
 seed_run() {
   mkdir -p "$APP_FLEET_HOME/runs/$1/rooms"
-  printf '{"run":"%s","repo":"%s","stage":"execution","base":"main","integration":"fleet/%s","space":"sp1","leadTab":null,"maxThreads":4,"verify":null,"teardown":null,"architecture":null,"threads":{}}\n' \
-    "$1" "$REPO" "$1/integration" > "$APP_FLEET_HOME/runs/$1/run.json"
+  lt=null; [ -n "$2" ] && lt="\"$2\""
+  printf '{"run":"%s","repo":"%s","stage":"execution","base":"main","integration":"fleet/%s","space":"sp1","leadTab":null,"leadTerminal":%s,"maxThreads":4,"verify":null,"teardown":null,"architecture":null,"threads":{}}\n' \
+    "$1" "$REPO" "$1/integration" "$lt" > "$APP_FLEET_HOME/runs/$1/run.json"
 }
 
 t_status_of_missing_run_exits_3() {
@@ -70,21 +71,21 @@ t_personas_have_no_old_verbs() {
 
 t_compose_builder() {
   fresh; seed_run r1
-  out=$("$FLEET" _compose r1 builder-t1 builder t1 2>&1) || { fail compose_builder "rc=$? $out"; return; }
+  out=$("$FLEET" _compose r1 t1-builder builder t1 2>&1) || { fail compose_builder "rc=$? $out"; return; }
   prompt=$(printf '%s' "$out" | jq_py "d['prompt_path']"); settings=$(printf '%s' "$out" | jq_py "d['settings_path']")
   last=$(printf '%s' "$out" | jq_py "d['argv'][-1]"); model=$(printf '%s' "$out" | jq_py "d['argv'][d['argv'].index('--model')+1]")
   rid=$(jq_py "d['env']['ROOM_ID']" < "$settings")
   want_model=$(sed -n 's/^model: *//p' "$PLUGIN/roster/personas/builder.md" | head -1)
   grep -q "Review bar" "$prompt"; bar=$?
-  case $last in "You are builder-t1."*) first=1 ;; *) first=0 ;; esac
-  [ "$rid" = builder-t1 ] && [ "$model" = "$want_model" ] && [ "$first" = 1 ] && [ "$bar" != 0 ] \
-    && grep -q "builder-t1" "$prompt" && grep -q -i "mention" "$prompt" \
+  case $last in "You are t1-builder."*) first=1 ;; *) first=0 ;; esac
+  [ "$rid" = t1-builder ] && [ "$model" = "$want_model" ] && [ "$first" = 1 ] && [ "$bar" != 0 ] \
+    && grep -q "t1-builder" "$prompt" && grep -q -i "mention" "$prompt" \
     && ok compose_builder || fail compose_builder "rid=$rid model=$model/$want_model first=$first bar=$bar"
 }
 
 t_compose_reviewer_has_review_bar() {
   fresh; seed_run r1
-  prompt=$("$FLEET" _compose r1 reviewer-t1 reviewer t1 2>/dev/null | jq_py "d['prompt_path']")
+  prompt=$("$FLEET" _compose r1 t1-reviewer reviewer t1 2>/dev/null | jq_py "d['prompt_path']")
   first_line=$(head -1 "$PLUGIN/roster/policy/review-bar.md")
   grep -q -F "$first_line" "$prompt" && ok compose_reviewer_has_review_bar || fail compose_reviewer_has_review_bar "no review bar in $prompt"
 }
@@ -93,7 +94,7 @@ t_compose_includes_memory_capped() {
   fresh; seed_run r1
   mkdir -p "$APP_FLEET_HOME/memory/builder"
   python3 -I -c "print('M' * 10240, end='')" > "$APP_FLEET_HOME/memory/builder/MEMORY.md"
-  prompt=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['prompt_path']")
+  prompt=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['prompt_path']")
   n=$(grep -o 'MMMMMMMM*' "$prompt" | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
   [ "$n" -gt 0 ] && [ "$n" -le 4096 ] && ok compose_includes_memory_capped || fail compose_includes_memory_capped "M count=$n"
 }
@@ -108,8 +109,83 @@ t_compose_runner_grants_verify() {
 
 brief() { printf '# Task %s\nDo the thing.\n' "$1" > "$T/$1.brief.md"; echo "$T/$1.brief.md"; }
 
-t_thread_open_creates_everything() {
+# Members run under hc, whose PATH is not the operator's: nvm's node, say, is missing there.
+t_members_get_the_runs_path() {
   fresh; seed_run r1
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['path']='/nvm/bin:/usr/bin:/bin'; json.dump(d, open(p,'w'))" "$APP_FLEET_HOME/runs/r1/run.json"
+  out=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null)
+  settings=$(printf '%s' "$out" | jq_py "d['settings_path']")
+  env_path=$(jq_py "d['env'].get('PATH')" < "$settings")
+  in_argv=$(printf '%s' "$out" | jq_py "'PATH=$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:/bin' in d['argv']")
+  [ "$env_path" = "$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:/bin" ] && [ "$in_argv" = True ] && ok members_get_the_runs_path || fail members_get_the_runs_path "env=$env_path argv=$in_argv"
+}
+
+t_lead_records_the_operators_path() {
+  fresh
+  PATH="$PATH:/nvm/bin" "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('path', '')" < "$APP_FLEET_HOME/runs/p1/run.json" 2>/dev/null)
+  case $got in *:/nvm/bin) [ "$rc" = 0 ] && ok lead_records_the_operators_path || fail lead_records_the_operators_path "rc=$rc" ;; *) fail lead_records_the_operators_path "path=$got" ;; esac
+}
+
+t_resume_records_path_for_old_run() {
+  fresh; seed_run r1 t9
+  PATH="$PATH:/nvm/bin" "$FLEET" lead r1 >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('path', '')" < "$APP_FLEET_HOME/runs/r1/run.json" 2>/dev/null)
+  case $got in *:/nvm/bin) [ "$rc" = 0 ] && ok resume_records_path_for_old_run || fail resume_records_path_for_old_run "rc=$rc" ;; *) fail resume_records_path_for_old_run "rc=$rc path=$got" ;; esac
+}
+
+# The lead wrote its own curate brief and sent the curator to persona files: fleet writes it now.
+t_curate_writes_brief_and_opens_thread() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" curate r1 --note "verify shell had no node" >/dev/null 2>&1; rc=$?
+  b="$APP_FLEET_HOME/runs/r1/briefs/curate.md"
+  m="$APP_FLEET_HOME/memory"
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name curate-curator " "$STUB_LOG" \
+    && grep -q "rooms/t1/log.jsonl" "$b" && grep -q "$m/builder/MEMORY.md" "$b" && grep -q "$m/reviewer/MEMORY.md" "$b" \
+    && grep -q "$m/lead/MEMORY.md" "$b" && grep -q "verify shell had no node" "$b" && grep -q "never edit the persona files" "$b" \
+    && ok curate_writes_brief_and_opens_thread || fail curate_writes_brief_and_opens_thread "rc=$rc brief=$(head -c 400 "$b" 2>/dev/null)"
+}
+
+t_curate_twice_gets_new_name() {
+  fresh; seed_run r1 t9
+  "$FLEET" curate r1 >/dev/null 2>&1; "$FLEET" curate r1 >/dev/null 2>&1; rc=$?
+  got=$(jq_py "sorted(t for t in d['threads'] if t.startswith('curate'))" < "$APP_FLEET_HOME/runs/r1/run.json")
+  [ "$rc" = 0 ] && [ "$got" = "['curate', 'curate-2']" ] && ok curate_twice_gets_new_name || fail curate_twice_gets_new_name "rc=$rc got=$got"
+}
+
+# `fleet try`: put the run's merged work where the operator can use it live, before it merges.
+t_try_runs_in_the_integration_worktree() {
+  fresh; seed_run r1
+  "$FLEET" config r1 try "pwd -P > \"$T/try.out\"" >/dev/null 2>&1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  want="$(cd "$REPO" && pwd -P)/.worktrees/r1/_integration"
+  [ "$rc" = 0 ] && [ "$(cat "$T/try.out" 2>/dev/null)" = "$want" ] && ok try_runs_in_the_integration_worktree || fail try_runs_in_the_integration_worktree "rc=$rc got=$(cat "$T/try.out" 2>/dev/null)"
+}
+
+t_try_without_command_exits_3() {
+  fresh; seed_run r1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 3 ] && ok try_without_command_exits_3 || fail try_without_command_exits_3 "rc=$rc"
+}
+
+t_try_failure_exits_4() {
+  fresh; seed_run r1
+  "$FLEET" config r1 try "exit 7" >/dev/null 2>&1
+  "$FLEET" try r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 4 ] && ok try_failure_exits_4 || fail try_failure_exits_4 "rc=$rc"
+}
+
+t_lead_takes_try() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" --try "make try" >/dev/null 2>&1; rc=$?
+  got=$(jq_py "d.get('try')" < "$APP_FLEET_HOME/runs/p1/run.json" 2>/dev/null)
+  shown=$("$FLEET" status p1 2>/dev/null | grep -c "try: make try")
+  [ "$rc" = 0 ] && [ "$got" = "make try" ] && [ "$shown" = 1 ] && ok lead_takes_try || fail lead_takes_try "rc=$rc got=$got shown=$shown"
+}
+
+t_thread_open_creates_everything() {
+  fresh; seed_run r1 t9
   out=$("$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" 2>&1) || { fail thread_open_creates_everything "rc=$? $out"; return; }
   wt="$REPO/.worktrees/r1/t1"
   br=$(git -C "$wt" branch --show-current 2>/dev/null)
@@ -117,13 +193,17 @@ t_thread_open_creates_everything() {
   mem_t1=$(jq_py "sorted(m['id'] for m in d)" < "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json")
   mem_ch=$(jq_py "sorted(m['id'] for m in d)" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json")
   first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "sorted(d['mentions'])")
-  tabs=$(grep -c "do tab.new --name t1" "$STUB_LOG"); splits=$(grep -c "do pane.split" "$STUB_LOG")
+  tabs=$(grep -c "do tab.new\|do pane.split" "$STUB_LOG"); runs=$(grep -c "^hc run" "$STUB_LOG")
+  b=$(grep "^hc run.*--name t1-builder " "$STUB_LOG"); r=$(grep "^hc run.*--name t1-reviewer " "$STUB_LOG")
+  flags=0; for f in "--parent t9" --outlive-parent --no-notify "--label rooms.room=t1" "--label rooms.id=t1-builder" "--label fleet.thread=t1" "--label fleet.run=r1"; do
+    case $b in *"$f"*) ;; *) flags=$((flags + 1)) ;; esac; done
+  case $r in *"--parent tm1 "*) rp=1 ;; *) rp=0 ;; esac
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
-  [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['builder-t1', 'cesar', 'reviewer-t1']" ] \
-    && case $mem_ch in *builder-t1*reviewer-t1*) true ;; *) false ;; esac \
-    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['builder-t1']" ] \
-    && [ "$tabs" = 1 ] && [ "$splits" = 1 ] && [ "$state" = open ] \
-    && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs splits=$splits state=$state"
+  [ "$br" = fleet/r1/t1 ] && [ "$mem_t1" = "['cesar', 't1-builder', 't1-reviewer']" ] \
+    && case $mem_ch in *t1-builder*t1-reviewer*) true ;; *) false ;; esac \
+    && [ -f "$APP_FLEET_HOME/runs/r1/briefs/t1.md" ] && [ "$first" = "['t1-builder', 't1-reviewer']" ] \
+    && [ "$tabs" = 0 ] && [ "$runs" = 2 ] && [ "$flags" = 0 ] && [ "$rp" = 1 ] && [ "$state" = open ] \
+    && ok thread_open_creates_everything || fail thread_open_creates_everything "br=$br t1=$mem_t1 ch=$mem_ch first=$first tabs=$tabs runs=$runs flags=$flags rp=$rp state=$state"
 }
 
 t_thread_open_refuses_duplicate_and_bad_names() {
@@ -160,7 +240,7 @@ t_thread_open_without_app_makes_nothing() {
 }
 
 t_thread_open_undoes_on_spawn_failure() {
-  fresh; seed_run r1; export STUB_FAIL=tab.new
+  fresh; seed_run r1; export STUB_HC_RUN_FAIL_AT=1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
   br=$(git -C "$REPO" branch --list fleet/r1/t1)
   thr=$(jq_py "list(d['threads'])" < "$APP_FLEET_HOME/runs/r1/run.json")
@@ -168,16 +248,16 @@ t_thread_open_undoes_on_spawn_failure() {
     && ok thread_open_undoes_on_spawn_failure || fail thread_open_undoes_on_spawn_failure "rc=$rc br=$br thr=$thr"
 }
 
-t_thread_close_archives_kills_and_removes() {
+t_thread_close_kills_and_removes_but_keeps_room() {
   fresh; seed_run r1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   terms=$(jq_py "' '.join(d['threads']['t1']['terminals'])" < "$APP_FLEET_HOME/runs/r1/run.json")
   "$FLEET" thread close r1 t1 >/dev/null 2>&1; rc=$?
   kills=0; for t in $terms; do grep -q "hc kill $t" "$STUB_LOG" && kills=$((kills + 1)); done
   state=$(jq_py "d['threads']['t1']['state']" < "$APP_FLEET_HOME/runs/r1/run.json")
-  [ "$rc" = 0 ] && [ -e "$APP_FLEET_HOME/runs/r1/rooms/t1/archived" ] && [ "$kills" = 2 ] \
-    && grep -q "do tab.close" "$STUB_LOG" && [ ! -e "$REPO/.worktrees/r1/t1" ] && [ "$state" = closed ] \
-    && ok thread_close_archives_kills_and_removes || fail thread_close_archives_kills_and_removes "rc=$rc kills=$kills state=$state"
+  [ "$rc" = 0 ] && [ -d "$APP_FLEET_HOME/runs/r1/rooms/t1" ] && [ ! -e "$APP_FLEET_HOME/runs/r1/rooms/t1/archived" ] && [ "$kills" = 2 ] \
+    && [ ! -e "$REPO/.worktrees/r1/t1" ] && [ "$state" = closed ] \
+    && ok thread_close_kills_and_removes_but_keeps_room || fail thread_close_kills_and_removes_but_keeps_room "rc=$rc kills=$kills state=$state"
 }
 
 t_thread_close_tolerates_dead_terminals() {
@@ -185,7 +265,7 @@ t_thread_close_tolerates_dead_terminals() {
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   export STUB_HC_KILL_STATUS=1 STUB_FAIL=tab.close
   "$FLEET" thread close r1 t1 >/dev/null 2>&1; rc=$?
-  [ "$rc" = 0 ] && [ -e "$APP_FLEET_HOME/runs/r1/rooms/t1/archived" ] && ok thread_close_tolerates_dead_terminals || fail thread_close_tolerates_dead_terminals "rc=$rc"
+  [ "$rc" = 0 ] && [ ! -e "$APP_FLEET_HOME/runs/r1/rooms/t1/archived" ] && ok thread_close_tolerates_dead_terminals || fail thread_close_tolerates_dead_terminals "rc=$rc"
 }
 
 t_thread_close_keeps_unmerged_worktree() {
@@ -245,9 +325,9 @@ t_verify_opens_runner_thread_on_integration() {
   "$FLEET" config r1 verify "make verify" >/dev/null 2>&1; "$FLEET" config r1 teardown "make down" >/dev/null 2>&1
   "$FLEET" verify r1 1 >/dev/null 2>&1; rc=$?
   b="$APP_FLEET_HOME/runs/r1/briefs/verify-w1.md"
-  [ "$rc" = 0 ] && grep -q "do tab.new --name verify-w1" "$STUB_LOG" && grep -q -- "--folder $REPO/.worktrees/r1/_integration" "$STUB_LOG" \
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name verify-w1-runner " "$STUB_LOG" && grep -q -- "--cwd $REPO/.worktrees/r1/_integration" "$STUB_LOG" \
     && grep -q "make verify" "$b" && grep -q "make down" "$b" \
-    && [ "$(jq_py "d['threads']['verify-w1']['members']" < "$APP_FLEET_HOME/runs/r1/run.json")" = "['runner-verify-w1']" ] \
+    && [ "$(jq_py "d['threads']['verify-w1']['members']" < "$APP_FLEET_HOME/runs/r1/run.json")" = "['verify-w1-runner']" ] \
     && ok verify_opens_runner_thread_on_integration || fail verify_opens_runner_thread_on_integration "rc=$rc"
 }
 
@@ -270,6 +350,15 @@ t_lead_new_run_sets_up() {
     && ok lead_new_run_sets_up || fail lead_new_run_sets_up "rc=$rc lead=$lead"
 }
 
+# The lead writes its briefs before the first thread opens: the folders must already be there.
+t_lead_new_run_makes_briefs_and_reports() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  d="$APP_FLEET_HOME/runs/p1"
+  [ "$rc" = 0 ] && [ -d "$d/briefs" ] && [ -d "$d/reports" ] && ok lead_new_run_makes_briefs_and_reports \
+    || fail lead_new_run_makes_briefs_and_reports "rc=$rc dirs=$(ls "$d" 2>/dev/null | tr '\n' ' ')"
+}
+
 t_lead_without_app_makes_nothing() {
   fresh; export STUB_HERDR_STATUS=1
   "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
@@ -282,6 +371,7 @@ t_lead_resume_keeps_state() {
   "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   before=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
   herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$APP_FLEET_HOME/runs/p1/run.json")" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json" > "$STUB_DIR/hc.dead"   # closing a tab ends its terminal
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   after=$(jq_py "sorted(d['threads'])" < "$APP_FLEET_HOME/runs/p1/run.json")
   [ "$rc" = 0 ] && [ "$before" = "['t1']" ] && [ "$after" = "$before" ] && grep -q "resuming" "$STUB_LOG" \
@@ -318,7 +408,7 @@ t_judge_thread_uses_disputed_worktree_and_plain_id() {
 
 t_compose_grants_run_dir() {
   fresh; seed_run r1
-  settings=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  settings=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
   rd=$(cd "$APP_FLEET_HOME/runs/r1" && pwd -P)
   got=$(jq_py "(d['permissions'].get('additionalDirectories'), [a for a in d['permissions']['allow'] if a.startswith('Edit(')])" < "$settings")
   case $got in *"$rd"*"Edit(/$rd/**)"*) ok compose_grants_run_dir ;; *) fail compose_grants_run_dir "got $got" ;; esac
@@ -336,8 +426,8 @@ t_thread_close_marks_members_gone_everywhere() {
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
   "$FLEET" thread close r1 t1 >/dev/null 2>&1
   r="$APP_FLEET_HOME/runs/r1/rooms"
-  ch=$(jq_py "d.get('state')" < "$r/execution/presence/builder-t1.json" 2>/dev/null)
-  th=$(jq_py "d.get('state')" < "$r/t1/presence/reviewer-t1.json" 2>/dev/null)
+  ch=$(jq_py "d.get('state')" < "$r/execution/presence/t1-builder.json" 2>/dev/null)
+  th=$(jq_py "d.get('state')" < "$r/t1/presence/t1-reviewer.json" 2>/dev/null)
   [ "$ch" = gone ] && [ "$th" = gone ] && ok thread_close_marks_members_gone_everywhere || fail thread_close_marks_members_gone_everywhere "channel=$ch thread=$th"
 }
 
@@ -375,10 +465,10 @@ t_merge_refuses_dirty_thread() {
 }
 
 t_undo_kills_spawned_members() {
-  fresh; seed_run r1; export STUB_FAIL=pane.split
+  fresh; seed_run r1; export STUB_HC_RUN_FAIL_AT=2
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
   ch=$(jq_py "[m['id'] for m in d]" < "$APP_FLEET_HOME/runs/r1/rooms/execution/members.json" 2>/dev/null)
-  [ "$rc" = 4 ] && grep -q "^hc kill t" "$STUB_LOG" && grep -q "do tab.close" "$STUB_LOG" && case $ch in *builder-t1*) false ;; *) true ;; esac \
+  [ "$rc" = 4 ] && grep -q "^hc kill tm1" "$STUB_LOG" && case $ch in *t1-builder*) false ;; *) true ;; esac \
     && ok undo_kills_spawned_members || fail undo_kills_spawned_members "rc=$rc ch=$ch"
 }
 
@@ -398,16 +488,50 @@ t_reserved_names_refused() {
   [ "$a$b$c$d" = 2222 ] && ok reserved_names_refused || fail reserved_names_refused "codes=$a$b$c$d"
 }
 
-t_brief_post_mentions_only_builder() {
+# The thread's first post, as JSON fields: text, mentions, links.
+root_of() { head -1 "$APP_FLEET_HOME/runs/r1/rooms/$1/log.jsonl"; }
+
+t_root_post_full_brief() {
+  fresh; seed_run r1
+  b="$T/t1.brief.md"
+  printf '# t1: make the widget readable\nGoal: widgets read well.\nScope: in - widget.py. out - the rest.\nInterfaces and contracts (quoted verbatim, task 3):\n- secret contract text\nNotes: secret notes\nDone when:\n- [ ] widgets read well\n- [ ] tests pass\nReport: somewhere\n' > "$b"
+  "$FLEET" thread open r1 t1 --template build --brief "$b" >/dev/null 2>&1
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "(sorted(d['mentions']), d['links'], d['text'])")
+  want=$(printf '%s' "(['t1-builder', 't1-reviewer'], ['$dest'], '@t1-builder @t1-reviewer — **make the widget readable**\\n\\n**Goal:** widgets read well.\\n**Scope:** in - widget.py. out - the rest.\\n**Done when:**\\n- [ ] widgets read well\\n- [ ] tests pass\\n\\nFull brief: \`$dest\`')")
+  [ "$got" = "$want" ] && ok root_post_full_brief || fail root_post_full_brief "got $got"
+}
+
+t_root_post_title_only_brief() {
   fresh; seed_run r1
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
-  first=$(head -1 "$APP_FLEET_HOME/runs/r1/rooms/t1/log.jsonl" | jq_py "d['mentions']")
-  [ "$first" = "['builder-t1']" ] && ok brief_post_mentions_only_builder || fail brief_post_mentions_only_builder "got $first"
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "d['text']")
+  want=$(printf '@t1-builder @t1-reviewer — **Task t1**\n\nFull brief: `%s`' "$dest")
+  [ "$got" = "$want" ] && ok root_post_title_only_brief || fail root_post_title_only_brief "got $got"
+}
+
+t_root_post_oversized_falls_back() {
+  fresh; seed_run r1
+  b="$T/t1.brief.md"
+  { printf '# t1: big one\nGoal: '; python3 -I -c "print('x' * 5000)"; printf 'Done when:\n- [ ] done\n'; } > "$b"
+  "$FLEET" thread open r1 t1 --template build --brief "$b" >/dev/null 2>&1; rc=$?
+  dest=$(root_of t1 | jq_py "d['links'][0]"); case $dest in */runs/r1/briefs/t1.md) ;; *) dest="bad link $dest" ;; esac
+  got=$(root_of t1 | jq_py "(sorted(d['mentions']), d['text'])")
+  want="(['t1-builder', 't1-reviewer'], '@t1-builder @t1-reviewer — **big one**\\n\\nFull brief: \`$dest\`')"
+  [ "$rc" = 0 ] && [ "$got" = "$want" ] && ok root_post_oversized_falls_back || fail root_post_oversized_falls_back "rc=$rc got $got"
+}
+
+t_verify_thread_root_from_title() {
+  fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
+  "$FLEET" verify r1 1 >/dev/null 2>&1
+  got=$(root_of verify-w1 | jq_py "(d['mentions'], d['text'].split(chr(10))[0])")
+  [ "$got" = "(['verify-w1-runner'], '@verify-w1-runner — **Verify wave 1**')" ] && ok verify_thread_root_from_title || fail verify_thread_root_from_title "got $got"
 }
 
 t_research_answers_go_to_the_askers_thread() {
   fresh
-  grep -q -- '--as researcher-' "$PLUGIN/roster/personas/researcher.md" && grep -q -i "asker" "$PLUGIN/roster/personas/lead.md" \
+  grep -q -- '--as <task>-researcher' "$PLUGIN/roster/personas/researcher.md" && grep -q -i "asker" "$PLUGIN/roster/personas/lead.md" \
     && ok research_answers_go_to_the_askers_thread || fail research_answers_go_to_the_askers_thread "researcher must post into the asker's thread room"
 }
 
@@ -425,6 +549,7 @@ t_resume_after_space_closed_makes_new_space() {
   "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
   sp=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
   herdr-app do space.close --id "$sp" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json" > "$STUB_DIR/hc.dead"   # closing a space ends its terminals
   "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
   sp2=$(jq_py "d['space']" < "$APP_FLEET_HOME/runs/p1/run.json")
   [ "$rc" = 0 ] && [ "$sp2" != "$sp" ] && ok resume_after_space_closed_makes_new_space || fail resume_after_space_closed_makes_new_space "rc=$rc $sp->$sp2"
@@ -460,7 +585,7 @@ t_lead_refuses_detached_repo_without_base() {
 
 t_compose_settings_work_unattended() {
   fresh; seed_run r1; "$FLEET" config r1 verify "make verify" >/dev/null 2>&1
-  b=$("$FLEET" _compose r1 builder-t1 builder t1 2>/dev/null | jq_py "d['settings_path']")
+  b=$("$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
   c=$("$FLEET" _compose r1 curator-curate curator curate 2>/dev/null | jq_py "d['settings_path']")
   r=$("$FLEET" _compose r1 runner-v runner v 2>/dev/null | jq_py "d['settings_path']")
   mode=$(jq_py "d['permissions'].get('defaultMode')" < "$b")
@@ -485,6 +610,410 @@ t_merge_ignores_untracked_cache_in_integration() {
   mkdir -p "$REPO/.worktrees/r1/_integration/__pycache__"; echo x > "$REPO/.worktrees/r1/_integration/__pycache__/c.pyc"
   "$FLEET" merge r1 m >/dev/null 2>&1; rc=$?
   [ "$rc" = 0 ] && ok merge_ignores_untracked_cache_in_integration || fail merge_ignores_untracked_cache_in_integration "rc=$rc"
+}
+
+t_long_task_name_refused() {
+  fresh; seed_run r1
+  "$FLEET" thread open r1 abcdefghijklmnopqrstuv --template build --brief "$(brief x)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 2 ] && [ ! -e "$REPO/.worktrees/r1/abcdefghijklmnopqrstuv" ] && ok long_task_name_refused || fail long_task_name_refused "rc=$rc"
+}
+
+t_member_parent_is_lead_terminal() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *"--parent t9 "*) p=1 ;; *) p=0 ;; esac
+  [ "$rc" = 0 ] && [ "$p" = 1 ] && ! grep -q "terminal.keep" "$STUB_LOG" && ok member_parent_is_lead_terminal || fail member_parent_is_lead_terminal "rc=$rc first=$first"
+}
+
+t_members_without_live_lead_get_tabs() {
+  fresh; seed_run r1 t9; echo t9 > "$STUB_DIR/hc.dead"
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *--no-parent*) p=1 ;; *) p=0 ;; esac
+  [ "$rc" = 0 ] && [ "$p" = 1 ] && grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" \
+    && ok members_without_live_lead_get_tabs || fail members_without_live_lead_get_tabs "rc=$rc first=$first"
+}
+
+t_member_name_collision_gets_run_suffix() {
+  fresh; seed_run r1 t9; echo "tx5 t1-builder" > "$STUB_DIR/hc.ls.extra"
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name t1-builder-r1 " "$STUB_LOG" && grep -q "^hc run.*--name t1-reviewer " "$STUB_LOG" \
+    && ok member_name_collision_gets_run_suffix || fail member_name_collision_gets_run_suffix "rc=$rc"
+}
+
+t_lead_is_shell_hosted_with_session() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  line=$(grep "do space.new --name p1" "$STUB_LOG")
+  sess=$(jq_py "d.get('leadSession') or ''" < "$rj"); term=$(jq_py "d.get('leadTerminal') or ''" < "$rj")
+  case $line in *'"-lc"'*"--session-id"*"$sess"*"exec"*) shape=1 ;; *) shape=0 ;; esac
+  [ "$rc" = 0 ] && [ -n "$sess" ] && [ -n "$term" ] && [ "$shape" = 1 ] \
+    && ok lead_is_shell_hosted_with_session || fail lead_is_shell_hosted_with_session "rc=$rc sess=$sess term=$term line=$line"
+}
+
+t_resume_types_into_live_shell() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  term=$(jq_py "d['leadTerminal']" < "$rj"); sess=$(jq_py "d['leadSession']" < "$rj")
+  echo "$term" > "$STUB_DIR/hc.noapp"
+  n1=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n2=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n1" = "$n2" ] && grep -q "^hc send $term .*--resume $sess" "$STUB_LOG" \
+    && ok resume_types_into_live_shell || fail resume_types_into_live_shell "rc=$rc $n1->$n2"
+}
+
+t_resume_after_tab_closed_keeps_members() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; sess=$(jq_py "d['leadSession']" < "$rj")
+  herdr-app do tab.close --id "$(jq_py "d['leadTab']" < "$rj")" --confirmed true >/dev/null 2>&1
+  jq_py "d['leadTerminal']" < "$rj" > "$STUB_DIR/hc.dead"   # closing a tab ends its terminal
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep "do tab.new --name lead" "$STUB_LOG" | grep -q -- "--resume $sess" \
+    && grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" && ! grep -q "do terminal.keep --terminal tm2" "$STUB_LOG" \
+    && ok resume_after_tab_closed_keeps_members || fail resume_after_tab_closed_keeps_members "rc=$rc"
+}
+
+t_resume_old_run_without_lead_terminal() {
+  fresh; seed_run r1
+  python3 -I - "$APP_FLEET_HOME/runs/r1/run.json" "$REPO" <<'PY'
+import json, sys
+p, repo = sys.argv[1], sys.argv[2]
+d = json.load(open(p)); del d["leadTerminal"]
+d["threads"]["t1"] = {"template": "build", "room": "t1", "branch": None, "worktree": repo + "/.worktrees/r1/t1",
+                      "tab": "tbold", "terminals": ["tz1"], "members": ["builder-t1"], "state": "open", "wave": None}
+json.dump(d, open(p, "w"))
+PY
+  "$FLEET" lead r1 >/dev/null 2>&1; a=$?
+  sess=$(jq_py "d.get('leadSession') or ''" < "$APP_FLEET_HOME/runs/r1/run.json")
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; b=$?
+  [ "$a$b" = 00 ] && [ -n "$sess" ] && ok resume_old_run_without_lead_terminal || fail resume_old_run_without_lead_terminal "codes=$a$b sess=$sess"
+}
+
+t_stale_status_with_shell_in_front_restarts_lead() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; term=$(jq_py "d['leadTerminal']" < "$rj")
+  echo "$term" > "$STUB_DIR/hc.shell"   # Herdr still reports app=claude-code, but a shell is in front
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc send $term .*--resume" "$STUB_LOG" \
+    && ok stale_status_with_shell_in_front_restarts_lead || fail stale_status_with_shell_in_front_restarts_lead "rc=$rc"
+}
+
+t_caller_terminal_is_parent_only_for_the_lead() {
+  fresh; seed_run r1 t9; echo t9 > "$STUB_DIR/hc.dead"
+  HC_TERMINAL_ID=t5 "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; a=$?
+  first=$(grep "^hc run" "$STUB_LOG" | head -1)
+  case $first in *--no-parent*) p1=1 ;; *) p1=0 ;; esac
+  HC_TERMINAL_ID=t5 ROOM_ID=lead "$FLEET" thread open r1 t2 --template build --brief "$(brief t2)" >/dev/null 2>&1; b=$?
+  second=$(grep "^hc run.*--name t2-builder " "$STUB_LOG")
+  case $second in *"--parent t5 "*) p2=1 ;; *) p2=0 ;; esac
+  [ "$a$b" = 00 ] && [ "$p1$p2" = 11 ] && ok caller_terminal_is_parent_only_for_the_lead || fail caller_terminal_is_parent_only_for_the_lead "codes=$a$b p=$p1$p2"
+}
+
+t_resume_rescues_members_whose_parent_died() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  "$FLEET" thread open p1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; term=$(jq_py "d['leadTerminal']" < "$rj")
+  echo tm1 > "$STUB_DIR/hc.dead"; echo "$term" > "$STUB_DIR/hc.noapp"   # the builder died; the lead's Claude too
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "do terminal.keep --terminal tm2" "$STUB_LOG" && ! grep -q "do terminal.keep --terminal tm1" "$STUB_LOG" \
+    && ok resume_rescues_members_whose_parent_died || fail resume_rescues_members_whose_parent_died "rc=$rc"
+}
+
+t_judge_thread_fits_a_long_disputed_task() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 billing-webhooks --template build --brief "$(brief b)" >/dev/null 2>&1; a=$?
+  "$FLEET" thread open r1 judge-billing-webhooks --template judge --brief "$(brief j)" >/dev/null 2>&1; b=$?
+  [ "$a$b" = 00 ] && grep -q "^hc run.*--name judge-billing-webhooks " "$STUB_LOG" \
+    && ok judge_thread_fits_a_long_disputed_task || fail judge_thread_fits_a_long_disputed_task "codes=$a$b"
+}
+
+t_lead_opens_rooms_tab_for_the_run() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  line=$(grep "do tab.new --name rooms" "$STUB_LOG")
+  case $line in *"--mod rooms"*"--props"*"$APP_FLEET_HOME/runs/p1/rooms"*"--focus false"*) shape=1 ;; *) shape=0 ;; esac
+  rt=$(jq_py "d.get('roomsTab') or ''" < "$APP_FLEET_HOME/runs/p1/run.json")
+  [ "$rc" = 0 ] && [ "$shape" = 1 ] && [ -n "$rt" ] && ok lead_opens_rooms_tab_for_the_run || fail lead_opens_rooms_tab_for_the_run "rc=$rc rt=$rt line=$line"
+}
+
+t_resume_reopens_closed_rooms_tab() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  herdr-app do tab.close --id "$(jq_py "d['roomsTab']" < "$rj")" --confirmed true >/dev/null 2>&1
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n=$(grep -c "do tab.new --name rooms" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n" = 2 ] && ok resume_reopens_closed_rooms_tab || fail resume_reopens_closed_rooms_tab "rc=$rc n=$n"
+}
+
+t_rooms_tab_failure_does_not_stop_the_run() {
+  fresh; export STUB_FAIL_ROOMS_TAB=1
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ -f "$APP_FLEET_HOME/runs/p1/run.json" ] && ok rooms_tab_failure_does_not_stop_the_run || fail rooms_tab_failure_does_not_stop_the_run "rc=$rc"
+}
+
+t_resume_command_starts_in_the_repo() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  term=$(jq_py "d['leadTerminal']" < "$APP_FLEET_HOME/runs/p1/run.json"); echo "$term" > "$STUB_DIR/hc.noapp"
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc send $term cd $(cd "$REPO" && pwd -P) && " "$STUB_LOG" && ok resume_command_starts_in_the_repo || fail resume_command_starts_in_the_repo "rc=$rc"
+}
+
+t_running_lead_never_doubled_even_without_its_tab() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['leadTab']='tbgone'; json.dump(d,open(p,'w'))" "$rj"
+  n1=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  n2=$(grep -c "do tab.new --name lead\|do space.new" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$n1" = "$n2" ] && ok running_lead_never_doubled_even_without_its_tab || fail running_lead_never_doubled_even_without_its_tab "rc=$rc $n1->$n2"
+}
+
+t_stale_lead_tab_closed_before_new_lead() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1
+  rj="$APP_FLEET_HOME/runs/p1/run.json"; tab=$(jq_py "d['leadTab']" < "$rj")
+  jq_py "d['leadTerminal']" < "$rj" > "$STUB_DIR/hc.dead"   # its terminal ended, the tab record lingers
+  "$FLEET" lead p1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "do tab.close --id $tab" "$STUB_LOG" && [ "$(grep -c 'do tab.new --name lead' "$STUB_LOG")" = 1 ] \
+    && ok stale_lead_tab_closed_before_new_lead || fail stale_lead_tab_closed_before_new_lead "rc=$rc"
+}
+
+t_resume_message_names_the_live_member_ids() {
+  fresh; seed_run r1
+  python3 -I - "$APP_FLEET_HOME/runs/r1/run.json" "$REPO" <<'PY'
+import json, sys
+p, repo = sys.argv[1], sys.argv[2]
+d = json.load(open(p))
+d["threads"]["t1"] = {"template": "build", "room": "t1", "branch": None, "worktree": repo, "tab": "tbold",
+                      "terminals": ["tz1"], "members": ["builder-t1", "reviewer-t1"], "state": "open", "wave": None}
+json.dump(d, open(p, "w"))
+PY
+  "$FLEET" lead r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep "do tab.new --name lead" "$STUB_LOG" | grep -q "builder-t1, reviewer-t1" \
+    && ok resume_message_names_the_live_member_ids || fail resume_message_names_the_live_member_ids "rc=$rc"
+}
+
+# ---------- member sessions and `thread resume` ----------
+
+rj_of() { jq_py "$1" < "$APP_FLEET_HOME/runs/r1/run.json"; }
+
+t_members_get_distinct_recorded_sessions() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  b=$(grep "^hc run.*--name t1-builder " "$STUB_LOG" | sed -n 's/.*--session-id \([^ ]*\).*/\1/p')
+  r=$(grep "^hc run.*--name t1-reviewer " "$STUB_LOG" | sed -n 's/.*--session-id \([^ ]*\).*/\1/p')
+  got=$(rj_of "(d['threads']['t1']['sessions']['t1-builder'], d['threads']['t1']['sessions']['t1-reviewer'])")
+  [ "$rc" = 0 ] && [ -n "$b" ] && [ -n "$r" ] && [ "$b" != "$r" ] && [ "$got" = "('$b', '$r')" ] \
+    && ok members_get_distinct_recorded_sessions || fail members_get_distinct_recorded_sessions "rc=$rc b=$b r=$r got=$got"
+}
+
+t_members_json_gets_session_and_resume() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  sess=$(rj_of "d['threads']['t1']['sessions']['t1-reviewer']")
+  got=$(jq_py "[(m.get('session'), m.get('resume')) for m in d if m['id'] == 't1-reviewer'][0]" < "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json")
+  want="('$sess', '$FLEET thread resume r1 t1 t1-reviewer')"
+  [ "$got" = "$want" ] && ok members_json_gets_session_and_resume || fail members_json_gets_session_and_resume "got=$got want=$want"
+}
+
+t_thread_resume_after_close_resumes_in_worktree() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  (cd "$REPO/.worktrees/r1/t1" && echo y > y.txt && git add y.txt && git -c user.email=t@t -c user.name=t commit -qm y)
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  sess=$(rj_of "d['threads']['t1']['sessions']['t1-builder']")
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1; rc=$?
+  line=$(grep "^hc run.*--name t1-builder " "$STUB_LOG" | tail -1)
+  case $line in *"--cwd $REPO/.worktrees/r1/t1 "*"--resume $sess "*"You are t1-builder, resumed in room t1"*) shape=1 ;; *) shape=0 ;; esac
+  case $line in *--session-id*) shape=0 ;; esac
+  terms=$(rj_of "d['threads']['t1']['terminals']")
+  [ "$rc" = 0 ] && [ "$shape" = 1 ] && [ "$terms" = "['tm3', 'tm2']" ] \
+    && ok thread_resume_after_close_resumes_in_worktree || fail thread_resume_after_close_resumes_in_worktree "rc=$rc terms=$terms line=$line"
+}
+
+t_thread_resume_recreates_removed_worktree() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  gone=0; [ ! -e "$REPO/.worktrees/r1/t1" ] && gone=1
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-reviewer >/dev/null 2>&1; rc=$?
+  br=$(git -C "$REPO/.worktrees/r1/t1" branch --show-current 2>/dev/null)
+  [ "$rc" = 0 ] && [ "$gone" = 1 ] && [ "$br" = fleet/r1/t1 ] && grep -q "^hc run.*--name t1-reviewer .*--cwd $REPO/.worktrees/r1/t1 " "$STUB_LOG" \
+    && ok thread_resume_recreates_removed_worktree || fail thread_resume_recreates_removed_worktree "rc=$rc gone=$gone br=$br"
+}
+
+# fleet cleanup deletes merged task branches: the session needs its folder back, so the integration
+# branch (which holds the task's merged work) is checked out there, detached.
+t_thread_resume_after_branch_deleted_uses_integration() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  git -C "$REPO" branch -D fleet/r1/t1 >/dev/null 2>&1
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1; rc=$?
+  has=0; [ -f "$REPO/.worktrees/r1/t1/one.txt" ] && has=1
+  [ "$rc" = 0 ] && [ "$has" = 1 ] && grep -q "^hc run.*--name t1-builder .*--cwd $REPO/.worktrees/r1/t1 " "$STUB_LOG" \
+    && ok thread_resume_after_branch_deleted_uses_integration || fail thread_resume_after_branch_deleted_uses_integration "rc=$rc has=$has"
+}
+
+# Every Claude session's rooms plugin puts its own scripts first on PATH, so a bare `room` there is
+# the installed copy, not this repo's: fleet calls the room beside it.
+t_fleet_calls_the_room_beside_it() {
+  fresh; seed_run r1 t9
+  mkdir -p "$T/oldroom"; printf '#!/bin/sh\necho "$@" >> "%s/oldroom.log"\nexit 9\n' "$T" > "$T/oldroom/room"; chmod +x "$T/oldroom/room"
+  PATH="$T/oldroom:$PATH" "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$T/oldroom.log" ] && [ -f "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json" ] \
+    && ok fleet_calls_the_room_beside_it || fail fleet_calls_the_room_beside_it "rc=$rc old=$(cat "$T/oldroom.log" 2>/dev/null | head -2)"
+}
+
+# Members get this repo's rooms scripts first, and the installed plugin's scripts already on PATH (at
+# the end), so the plugin doesn't put its older copy in front.
+t_members_path_puts_repo_room_first() {
+  fresh; seed_run r1
+  mkdir -p "$T/claude/plugins"
+  printf '{"version":2,"plugins":{"rooms@cezaar":[{"scope":"user","installPath":"%s/cache/rooms/0.1.1"}]}}\n' "$T" > "$T/claude/plugins/installed_plugins.json"
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['path']='/nvm/bin:/usr/bin'; json.dump(d, open(p,'w'))" "$APP_FLEET_HOME/runs/r1/run.json"
+  settings=$(CLAUDE_CONFIG_DIR="$T/claude" "$FLEET" _compose r1 t1-builder builder t1 2>/dev/null | jq_py "d['settings_path']")
+  got=$(jq_py "d['env']['PATH']" < "$settings")
+  want="$ROOMS_SCRIPTS:/nvm/bin:/usr/bin:$T/cache/rooms/0.1.1/scripts"
+  [ "$got" = "$want" ] && ok members_path_puts_repo_room_first || fail members_path_puts_repo_room_first "got=$got want=$want"
+}
+
+# An easy way to end a resumed agent: each member records an end command, and `fleet thread end`
+# ends that member's live terminal and marks it gone.
+t_members_json_gets_end_command() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  got=$(jq_py "[m.get('end', '') for m in d if m['id'] == 't1-reviewer'][0]" < "$APP_FLEET_HOME/runs/r1/rooms/t1/members.json")
+  case $got in *"/fleet thread end r1 t1 t1-reviewer") ok members_json_gets_end_command ;; *) fail members_json_gets_end_command "got=$got" ;; esac
+}
+
+t_thread_end_ends_a_resumed_member() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1
+  : > "$STUB_LOG"
+  ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room end t1 t1-builder >/dev/null 2>&1; rc=$?
+  state=$(ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room presence-get t1 t1-builder 2>/dev/null | jq_py "d.get('state')")
+  [ "$rc" = 0 ] && grep -q "^hc kill tm3$" "$STUB_LOG" && ! grep -q "^hc kill tm2$" "$STUB_LOG" && [ "$state" = gone ] \
+    && ok thread_end_ends_a_resumed_member || fail thread_end_ends_a_resumed_member "rc=$rc state=$state log=$(tr '\n' ';' < "$STUB_LOG")"
+}
+
+t_thread_end_unknown_member_exits_3() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread end r1 t1 nobody >/dev/null 2>&1; a=$?
+  "$FLEET" thread end r1 nope t1-builder >/dev/null 2>&1; b=$?
+  [ "$a" = 3 ] && [ "$b" = 3 ] && ok thread_end_unknown_member_exits_3 || fail thread_end_unknown_member_exits_3 "a=$a b=$b"
+}
+
+t_cleanup_ends_resumed_members_of_closed_threads() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-reviewer >/dev/null 2>&1
+  : > "$STUB_LOG"
+  "$FLEET" cleanup r1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc kill tm3$" "$STUB_LOG" && ok cleanup_ends_resumed_members_of_closed_threads \
+    || fail cleanup_ends_resumed_members_of_closed_threads "rc=$rc log=$(tr '\n' ';' < "$STUB_LOG")"
+}
+
+# A worktree that resume recreated detached (the task branch was gone) is removed by the next cleanup.
+t_cleanup_removes_a_detached_resume_worktree() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  "$FLEET" cleanup r1 >/dev/null 2>&1   # deletes the merged task branch
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1
+  back=0; [ -d "$REPO/.worktrees/r1/t1" ] && back=1
+  echo tm3 >> "$STUB_DIR/hc.dead"
+  "$FLEET" cleanup r1 --all >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ "$back" = 1 ] && [ ! -e "$REPO/.worktrees/r1/t1" ] && ok cleanup_removes_a_detached_resume_worktree \
+    || fail cleanup_removes_a_detached_resume_worktree "rc=$rc back=$back left=$(git -C "$REPO" worktree list | tr '\n' ';')"
+}
+
+# `fleet setup` runs at the start of the operator's Claude sessions: it links fleet for a plugin-cache
+# install, refreshes a link into an older cached version, and never touches a dev link or a file.
+t_setup_links_refreshes_and_leaves_dev_alone() {
+  fresh; B="$T/bin"; mkdir -p "$B"
+  C="$T/claude/plugins/cache/cezaar/app-fleet/0.3.0"; mkdir -p "$C" && cp -R "$PLUGIN/scripts" "$C/"
+  target="$(cd "$C/scripts" && pwd -P)/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; a=$?
+  fresh_link=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; ln -s "$T/claude/plugins/cache/cezaar/app-fleet/0.2.0/scripts/fleet" "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; b=$?
+  refreshed=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; ln -s /repos/cezaar/plugins/app-fleet/scripts/fleet "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; c=$?
+  dev=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; echo mine > "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; d=$?
+  [ "$a$b$c$d" = 0000 ] && [ "$fresh_link" = "$target" ] && [ "$refreshed" = "$target" ] \
+    && [ "$dev" = /repos/cezaar/plugins/app-fleet/scripts/fleet ] && [ "$(cat "$B/fleet")" = mine ] \
+    && ok setup_links_refreshes_and_leaves_dev_alone || fail setup_links_refreshes_and_leaves_dev_alone "rc=$a$b$c$d fresh=$fresh_link refreshed=$refreshed dev=$dev"
+}
+
+t_thread_resume_refuses_archived_room_and_old_thread() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room archive t1 >/dev/null 2>&1
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1; a=$?
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['threads']['t1'].pop('sessions'); json.dump(d,open(p,'w'))" "$APP_FLEET_HOME/runs/r1/run.json"
+  rm -f "$APP_FLEET_HOME/runs/r1/rooms/t1/archived"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1; b=$?
+  "$FLEET" thread resume r1 t1 nobody >/dev/null 2>&1; c=$?
+  "$FLEET" thread resume r1 nope x >/dev/null 2>&1; d=$?
+  runs=$(grep -c "^hc run" "$STUB_LOG")
+  [ "$a$b$c$d" = 3333 ] && [ "$runs" = 2 ] && ok thread_resume_refuses_archived_room_and_old_thread || fail thread_resume_refuses_archived_room_and_old_thread "codes=$a$b$c$d runs=$runs"
+}
+
+t_thread_resume_with_live_member_starts_nothing() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  out=$("$FLEET" thread resume r1 t1 t1-builder 2>&1); rc=$?
+  runs=$(grep -c "^hc run" "$STUB_LOG")
+  [ "$rc" = 0 ] && [ "$runs" = 2 ] && case $out in *tm1*) true ;; *) false ;; esac \
+    && ok thread_resume_with_live_member_starts_nothing || fail thread_resume_with_live_member_starts_nothing "rc=$rc runs=$runs out=$out"
+}
+
+t_close_of_closed_thread_kills_resumed_member() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && grep -q "^hc kill tm3" "$STUB_LOG" && [ "$(rj_of "d['threads']['t1']['state']")" = closed ] \
+    && ok close_of_closed_thread_kills_resumed_member || fail close_of_closed_thread_kills_resumed_member "rc=$rc"
+}
+
+t_mention_after_close_resumes_member_end_to_end() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  "$FLEET" thread close r1 t1 >/dev/null 2>&1; printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  sess=$(rj_of "d['threads']['t1']['sessions']['t1-builder']")
+  ROOMS_ROOT="$APP_FLEET_HOME/runs/r1/rooms" room post t1 --as cesar "@t1-builder why?" >/dev/null 2>&1; rc=$?
+  n=0; while [ $n -lt 100 ] && ! grep -q "^hc run.*--resume $sess" "$STUB_LOG"; do sleep 0.1; n=$((n + 1)); done
+  [ "$rc" = 0 ] && grep -q "^hc run.*--name t1-builder .*--resume $sess" "$STUB_LOG" \
+    && ok mention_after_close_resumes_member_end_to_end || fail mention_after_close_resumes_member_end_to_end "rc=$rc log=$(cat "$APP_FLEET_HOME/runs/r1/rooms/t1/resume.log" 2>/dev/null)"
 }
 
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done

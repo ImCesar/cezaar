@@ -20,8 +20,9 @@ deciding; the members' contexts are for doing. The scarce resource is the
   `reports/<task>.md` members write, `rooms/<task>/log.jsonl` per thread.
 - The integration branch is `fleet/<run>/integration`. Each thread works on
   `fleet/<run>/<task>` in its own worktree, cut from the integration tip.
-- Task names are short slugs (`store`, `api-auth`): the room, the branch and
-  the member ids (`builder-store`, `reviewer-store`).
+- Task names are short slugs (`store`, `api-auth`), at most 21 characters: the
+  room, the branch and the member ids (`store-builder`, `store-reviewer`), which
+  are also the members' rows in the operator's agents list.
 
 ```
 fleet status <run>
@@ -29,9 +30,11 @@ fleet thread open <run> <task> --template <build|fix|research|verify|judge|curat
 fleet thread close <run> <task>
 fleet merge <run> <task>          # exit 3 and the conflicted files on a conflict
 fleet verify <run> <wave>
-fleet config <run> <key> <value>  # maxThreads, verify, teardown
+fleet curate <run> [--note "<candidate lesson>"]...
+fleet try <run>                   # the operator's live look at the merged work
+fleet config <run> <key> <value>  # maxThreads, verify, teardown, try
 fleet cleanup <run> [--all]
-room post <room> [--kind done|msg] [--link <path>] "<text>"
+room post <room> [--kind done|msg] [--link <path>] [--body-file -] "<text>"
 room read <room> [--mentions-only]
 ```
 
@@ -45,7 +48,20 @@ room read <room> [--mentions-only]
    waves. Tasks in a wave run in parallel; waves run in order, so wave 2 is cut
    from wave 1's merged work. If `fleet status <run>` shows no `verify` or
    `teardown`, set them with `fleet config` from the architecture or the
-   repo's own scripts.
+   repo's own scripts. Set `try` too when the operator has to see the work
+   live (an app, a panel) and the architecture or repo says how to install it.
+   Then post the plan to the stage channel as its root post: a bold headline
+   naming what the run builds, then a table of task | wave | one-line goal.
+
+   ```
+   room post execution --body-file - <<'EOF'
+   **<run> builds <what, one sentence>.**
+
+   | task   | wave | goal              |
+   |--------|------|-------------------|
+   | <task> | 1    | <one-line goal>   |
+   EOF
+   ```
 3. **Write one brief per task** to `briefs/<task>.md` (format below).
 4. **Open each task in the wave:** `fleet thread open <run> <task> --template
    build --brief <file> --wave <n>`. It refuses with exit 3 beyond `maxThreads`
@@ -54,7 +70,9 @@ room read <room> [--mentions-only]
    don't step in while they work.
 6. **On `done`:** confirm the reviewer's APPROVE is in the thread
    (`room read <task>`), then `fleet merge <run> <task>`, then
-   `fleet thread close <run> <task>`.
+   `fleet thread close <run> <task>`. Closing a thread no longer archives
+   its room: the operator can still mention its members, which resumes them.
+   Never archive a room yourself; that's the operator's call.
 7. **On a conflict** (merge exits 3): open a fix thread,
    `fleet thread open <run> <task>-merge --template fix --from <task> --brief <file>`,
    whose brief says to `git merge fleet/<run>/integration`, resolve the listed files against
@@ -78,14 +96,21 @@ room read <room> [--mentions-only]
     what broke, the failing tests and a link to the runner's report. Merge
     them, then verify the wave again. The next wave starts only on a passing
     verify.
-11. **At stage end:** `fleet thread open <run> curate --template curate
-    --brief <file>`, listing the stage's thread logs, reports and personas. On
-    its `done`, close it, run `fleet cleanup <run>`, write the stage report,
-    and report to the operator in the channel.
+11. **At stage end:** `fleet curate <run>`, with one `--note` per lesson you
+    saw (tooling you worked around, a review technique that paid off). Fleet
+    writes the brief: the logs, the reports, and each role's memory file under
+    the fleet home. Never write a curate brief yourself. On its `done`, close
+    it. If `try` is set, run `fleet try <run>` so the operator's app already
+    has the merged work. Then run `fleet cleanup <run>`, write the stage
+    report, and report to the operator in the channel, saying what `try`
+    installed and what to try first.
+12. **When the operator reports a live problem:** open a `fix` thread for it
+    with `--from` the thread that built it, merge it, verify that wave again,
+    and run `fleet try <run>` before telling the operator it's ready.
 
 A builder who needs research mentions you: open a `research` thread whose
 brief names the asker and the asker's thread room (for example "asker:
-builder-store in room store"). The researcher posts its answer into that room
+store-builder in room store"). The researcher posts its answer into that room
 itself; you never carry it.
 
 ## The brief
@@ -140,7 +165,18 @@ channel, only for:
 One message, one recommended option, evidence linked:
 
 ```
-room post execution --link <file> "@<operator> HELD: <what, one sentence>. WHY: <trigger>. DECIDE: <the one question>. I RECOMMEND: <option>."
+room post execution --link <file> --body-file - <<'EOF'
+@<operator> — **HELD: <what, one sentence>.**
+
+### Why
+<the trigger>
+
+### Decide
+<the one question>
+
+### I recommend
+<option>
+EOF
 ```
 
 ## The stage report
@@ -152,7 +188,15 @@ result; the reviewers' notes as a follow-up list; "Look at before you merge";
 and every tooling bug you hit or worked around, one line each. Then:
 
 ```
-room post execution --link <report> "@<operator> execution done: <outcome, one line>. Branch fleet/<run>/integration is ready for you. <Nothing needs you | N items held>."
+room post execution --link <report> --body-file - <<'EOF'
+@<operator> — **Execution done: <outcome, one sentence>.**
+
+### Branch
+`fleet/<run>/integration` is ready for you.
+
+### Needs you
+<Nothing | N items held, one line each>
+EOF
 ```
 
 ## Hard rules
