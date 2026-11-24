@@ -71,6 +71,7 @@ export default class Rooms extends View {
     this.selected = null;
     this.showArchived = false;
     this.note = null;
+    this.armed = null; // { key, token }: the room whose archive button was clicked once, awaiting the second click
     this.watching = new Set();
     this.draft = TextareaState.new({ placeholder: "Message this room… (@name to mention)", rows: 3 });
     this.draft.set_auto_grow(2, 8);
@@ -256,6 +257,36 @@ export default class Rooms extends View {
     cx.notify();
   }
 
+  // Archive in two clicks: the first arms the button (red `archive?`), a second within 4 s runs
+  // `room archive`; otherwise the timer disarms it. No browser dialog.
+  archive(r, cx) {
+    if (!this.config.cli) {
+      this.note = "Run `room herdr-install` first: the panel does not know where the room CLI is.";
+      cx.notify();
+      return;
+    }
+    if (this.armed?.key !== r.key) {
+      const token = {};
+      this.armed = { key: r.key, token };
+      cx.timer.after(4000, (cx) => { if (this.armed?.token === token) { this.armed = null; cx.notify(); } });
+      cx.notify();
+      return;
+    }
+    this.armed = null;
+    this.note = null;
+    cx.spawn(async (cx) => {
+      try {
+        const res = await exec("/usr/bin/env", [`ROOMS_ROOT=${r.root}`, this.config.cli, "archive", r.name]);
+        if (res.code !== 0) throw new Error((res.stderr || res.stdout).trim());
+      } catch (e) {
+        this.note = `Archive failed: ${e.message ?? e}`;
+      } finally {
+        this.requestReload(cx);
+      }
+    });
+    cx.notify();
+  }
+
   // @-mention list. Reads the draft on every change; completions write it back with the cursor after the id.
   draftChanged(cx) {
     const text = this.draft.value();
@@ -424,11 +455,19 @@ export default class Rooms extends View {
     return el
       .child(h_flex().flex_none().px(12).py(6).gap(10).flex_wrap().items_center().border_b(1).border_color(t.border)
         .children(presence.map((p) => h_flex().gap(4).items_center()
-          .child(div().size(7).rounded(4).bg(p.state === "working" ? t.working : p.state === "idle" ? t.idle ?? t.dim : t.ansi1))
-          .child(div().text_size(11).text_color(t.muted).child(`${p.id} ${p.state}`))))
-        .when(live.length > 0, (e) => e.child(div().flex_1()).child(div().id("rooms-window").px(8).py(2).rounded(6).border_1().border_color(t.border)
+          .child(div().size(7).rounded(4).bg(p.ended ? t.dim : p.state === "working" ? t.working : p.state === "idle" ? t.idle ?? t.dim
+            : p.state === "resuming" ? t.accent ?? t.dim : t.ansi1))
+          .child(div().text_size(11).text_color(p.ended ? t.dim : t.muted).child(p.label))))
+        .when(live.length > 0 || !current.archived, (e) => e.child(div().flex_1()))
+        .when(live.length > 0, (e) => e.child(div().id("rooms-window").px(8).py(2).rounded(6).border_1().border_color(t.border)
           .text_size(11).text_color(t.foreground).cursor_pointer().hover((st) => st.bg(t.hover))
-          .on_click(() => this.openWindow(current)).child("window"))))
+          .on_click(() => this.openWindow(current)).child("window")))
+        .when(!current.archived, (e) => {
+          const armed = this.armed?.key === current.key;
+          return e.child(div().id("rooms-archive").px(8).py(2).rounded(6).border_1().border_color(armed ? t.ansi1 : t.border)
+            .text_size(11).text_color(armed ? t.ansi1 : t.muted).cursor_pointer().hover((st) => st.bg(t.hover))
+            .on_click((_e, cx) => this.archive(current, cx)).child(armed ? "archive?" : "archive"));
+        }))
       .child(div().flex_1().min_h(0).relative()
         .child(v_flex().id("rooms-timeline").absolute().inset_0().overflow_y_scroll().py(4)
           .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t, current.members, ids, this.roles?.[current.root]))))

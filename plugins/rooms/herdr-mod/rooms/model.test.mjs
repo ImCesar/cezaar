@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyMention, createSaver, demoteHeadings, linkMentions, roleOf, rootRoles, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, memberLabel, presenceLive, createSaver, demoteHeadings, linkMentions, roleOf, rootRoles, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -37,7 +37,7 @@ test('presence is gone after 120 s without a heartbeat', () => {
     b: { id: 'b', state: 'idle', ts: new Date(now - 121_000).toISOString() },
   }
   const s = roomSummary([], members, presences, 'cesar', undefined, now)
-  assert.deepEqual(s.presence, [{ id: 'a', state: 'working' }, { id: 'b', state: 'gone' }, { id: 'c', state: 'gone' }])
+  assert.deepEqual(s.presence.map(p => [p.id, p.state, p.ended]), [['a', 'working', false], ['b', 'gone', false], ['c', 'gone', false]])
 })
 
 test('newOperatorMentions returns only new mentions of the operator by others', () => {
@@ -234,4 +234,40 @@ test('demoteHeadings keeps --- after a blank line (a rule) and leaves tables and
   assert.equal(demoteHeadings('| a | b |\n|---|---|'), '| a | b |\n|---|---|')
   assert.equal(demoteHeadings('```\nx\n---\n```'), '```\nx\n---\n```')
   assert.equal(demoteHeadings('---\nfirst line rule'), '---\nfirst line rule')
+})
+
+test('presenceLive: missing, gone, stale, fresh working, fresh and stale resuming', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const at = (state, ago) => ({ id: 'a', state, ts: new Date(now - ago * 1000).toISOString().replace('Z', '000Z') })
+  assert.equal(presenceLive(undefined, now), false)
+  assert.equal(presenceLive(null, now), false)
+  assert.equal(presenceLive(at('gone', 5), now), false)
+  assert.equal(presenceLive(at('working', 121), now), false)
+  assert.equal(presenceLive(at('working', 5), now), true)
+  assert.equal(presenceLive(at('resuming', 5), now), true)
+  assert.equal(presenceLive(at('resuming', 121), now), false)
+  assert.equal(presenceLive({ id: 'a', state: 'working', ts: 'garbage' }, now), false)
+  assert.equal(presenceLive({ id: 'a', state: 'idle', ts: '2026-11-23T05:09:30.123456Z' }, now), true)
+})
+
+test('memberLabel: ended only with resume; resuming shows as resuming', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const fresh = state => ({ id: 'a', state, ts: '2026-11-23T05:09:50.000000Z' })
+  const stale = { id: 'a', state: 'working', ts: '2026-11-23T05:00:00.000000Z' }
+  const plain = { id: 'a', role: 'builder' }
+  const res = { id: 'a', role: 'builder', session: 's1', resume: 'claude --resume s1' }
+  assert.equal(memberLabel(plain, fresh('working'), now), 'a working')
+  assert.equal(memberLabel(res, fresh('resuming'), now), 'a resuming')
+  assert.equal(memberLabel(res, stale, now), 'a ended · mention to resume')
+  assert.equal(memberLabel(res, undefined, now), 'a ended · mention to resume')
+  assert.equal(memberLabel(res, fresh('gone'), now), 'a ended · mention to resume')
+  assert.equal(memberLabel(plain, stale, now), 'a gone')
+  assert.equal(memberLabel(plain, undefined, now), 'a gone')
+})
+
+test('roomSummary marks a non-live member with resume as ended', () => {
+  const now = Date.parse('2026-11-23T05:10:00Z')
+  const members = [{ id: 'a', resume: 'x' }, { id: 'b' }]
+  const s = roomSummary([], members, {}, 'cesar', undefined, now)
+  assert.deepEqual(s.presence.map(p => [p.label, p.ended]), [['a ended · mention to resume', true], ['b gone', false]])
 })

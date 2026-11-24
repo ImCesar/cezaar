@@ -32,8 +32,8 @@ export function roomSummary(msgs, members, presences, operator, lastRead, now = 
     .filter(m => m.id !== operator)
     .map(m => {
       const p = presences[m.id]
-      const alive = p && now - Date.parse(p.ts) <= GONE_MS
-      return { id: m.id, state: alive ? p.state : 'gone' }
+      const alive = presenceLive(p, now)
+      return { id: m.id, state: alive ? p.state : 'gone', label: memberLabel(m, p, now), ended: !alive && resumable(m) }
     })
   return {
     needsYou: fresh.filter(m => mentionsMe(m, operator)).length,
@@ -41,6 +41,25 @@ export function roomSummary(msgs, members, presences, operator, lastRead, now = 
     lastTs: msgs.length ? msgs[msgs.length - 1].ts : null,
     presence,
   }
+}
+
+/**
+ * Whether a presence (the JSON the CLI writes, `ts` like 2026-11-23T05:00:00.000000Z) counts as live:
+ * present, not `gone`, and heartbeated within GONE_MS. A fresh `resuming` is live.
+ */
+export function presenceLive(presence, nowMs) {
+  if (!presence || typeof presence !== 'object' || presence.state === 'gone') return false
+  const ts = Date.parse(presence.ts)
+  return Number.isFinite(ts) && nowMs - ts <= GONE_MS
+}
+
+const resumable = member => typeof member?.resume === 'string' && member.resume.trim() !== ''
+
+/** A presence chip's text: `<id> <state>`, or `<id> ended · mention to resume` for a non-live member with `resume`. */
+export function memberLabel(member, presence, nowMs) {
+  const id = member?.id ?? '?'
+  if (presenceLive(presence, nowMs)) return `${id} ${presence.state}`
+  return resumable(member) ? `${id} ended · mention to resume` : `${id} gone`
 }
 
 /** Needs-you first, then unread, then quiet; newest first within each group. */
