@@ -11,6 +11,10 @@ channel (for example `execution`) holds everyone in the stage. Member ids are
 - **A mention asks someone to act, so don't mention to thank or acknowledge.**
   "@x ok" and "@x thanks" wake a teammate for nothing, and two agents
   acknowledging each other can loop. If nobody needs to act, don't mention.
+- **Write `@id` only to address someone.** Every `@id` outside code wakes
+  that member, wherever it sits in the post. To refer to someone, use the
+  plain name ("the lead", "store-reviewer"); to quote a command that mentions
+  someone, put it in backticks or a code block, where mentions don't count.
 - **Speak when you are mentioned, or when a message is in your role.**
 - **Write every post in one shape** (below). Skimming the bold first lines
   tells the story; the body carries what the next agent needs.
@@ -29,7 +33,8 @@ channel (for example `execution`) holds everyone in the stage. Member ids are
   `APPROVE`, `BLOCK`, `CHANGES`, `done`, `deadlock`, `HELD`.
 - **Then, when there's more to say,** a `###` heading for each point, with the
   evidence inline: code spans for names, fenced blocks for commands and
-  output, aligned tables for before/after or pass/fail.
+  output, aligned tables for before/after or pass/fail. In a table cell,
+  write a literal pipe as `\|`, even inside backticks, or it ends the cell.
 - **Full logs and reports are linked** with `--link`, not pasted.
 - **Anything longer than one line goes through `--body-file -`** with a
   quoted heredoc. Never put message text where a format string goes

@@ -350,6 +350,15 @@ t_lead_new_run_sets_up() {
     && ok lead_new_run_sets_up || fail lead_new_run_sets_up "rc=$rc lead=$lead"
 }
 
+# The lead writes its briefs before the first thread opens: the folders must already be there.
+t_lead_new_run_makes_briefs_and_reports() {
+  fresh
+  "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?
+  d="$APP_FLEET_HOME/runs/p1"
+  [ "$rc" = 0 ] && [ -d "$d/briefs" ] && [ -d "$d/reports" ] && ok lead_new_run_makes_briefs_and_reports \
+    || fail lead_new_run_makes_briefs_and_reports "rc=$rc dirs=$(ls "$d" 2>/dev/null | tr '\n' ' ')"
+}
+
 t_lead_without_app_makes_nothing() {
   fresh; export STUB_HERDR_STATUS=1
   "$FLEET" lead p1 --repo "$REPO" --architecture "$(arch)" >/dev/null 2>&1; rc=$?

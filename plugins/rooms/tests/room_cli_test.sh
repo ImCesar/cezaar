@@ -257,6 +257,26 @@ t_post_body_file_mentions() {
   [ "$rc" = 0 ] && [ "$got" = "['b', 'all']" ] && ok post_body_file_mentions || fail post_body_file_mentions "rc=$rc got=$got"
 }
 
+# A quoted command or log line names ids without meaning to wake them.
+t_post_mentions_skip_code() {
+  fresh
+  "$ROOM" create r --member a:builder --member b:reviewer >/dev/null 2>&1
+  cat > "$T/body.md" <<'EOF'
+@b — **ready.** Run `room post r "@lead done"` when you approve.
+
+```
+room post x "@c done"
+```
+~~~
+@d in a tilde fence
+~~~
+cc @e after the fences, and `@f` inline.
+EOF
+  "$ROOM" post r --as a --body-file "$T/body.md" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "d['mentions']")
+  [ "$rc" = 0 ] && [ "$got" = "['b', 'e']" ] && ok post_mentions_skip_code || fail post_mentions_skip_code "rc=$rc got=$got"
+}
+
 t_post_text_and_body_file_refused() {
   fresh
   "$ROOM" create r >/dev/null 2>&1

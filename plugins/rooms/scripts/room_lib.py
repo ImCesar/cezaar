@@ -62,9 +62,29 @@ def new_id(ts):
     return f"{compact(ts)}-{secrets.token_hex(3)}"
 
 
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+CODE_SPAN = re.compile(r"(`+)(?!`).*?(?<!`)\1(?!`)", re.S)
+
+
+def without_code(text):
+    """The text with fenced blocks and code spans removed: an id quoted in code wakes nobody."""
+    out, fence = [], None
+    for line in text.split("\n"):
+        m = FENCE.match(line)
+        if fence:
+            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+                fence = None
+            continue
+        if m:
+            fence = m.group(1)
+            continue
+        out.append(line)
+    return CODE_SPAN.sub(" ", "\n".join(out))
+
+
 def mentions_in(text):
     seen = []
-    for m in MENTION.findall(text):
+    for m in MENTION.findall(without_code(text)):
         if m not in seen:
             seen.append(m)
     return seen

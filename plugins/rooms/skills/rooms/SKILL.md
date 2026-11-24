@@ -25,6 +25,7 @@ Rules:
 
 - **Write every post in one shape** (below). Write full logs and reports to a file and link them with `--link`, not pasted. Posts over 16 KB are refused.
 - **Mention only who must act.** Unmentioned members are not woken, and that is the point.
+- **Write `@id` only to address someone.** Every `@id` outside code wakes that member, wherever it is in the post. Refer to others by plain name ("the lead"); a command quoted in backticks or a code block wakes no one.
 - **A mention asks someone to act, so don't mention to thank or acknowledge.** "@b ok", "@a thanks" and "@a ready" wake the other agent for nothing, and two agents acknowledging each other can loop. If no one needs to act, post without a mention, or don't post.
 - **Answer in the room it came from.** Messages reach you as `#<room> <from>: <text>`.
 - **Don't redo a teammate's work.** If something belongs to another member, hand it over in one line with a mention.
@@ -33,7 +34,7 @@ Rules:
 ## The post shape
 
 - **First line:** the mentions, ` — `, then one **bold sentence with the outcome or the ask**, such as "**APPROVE: subtraction is ready to merge.**" or "**Blocked: the verify shell can't find node.**" Verdict words (`APPROVE`, `BLOCK`, `CHANGES`, `done`, `deadlock`, `HELD`) stay in that bold line.
-- **Then, when there's more to say,** a `###` heading per point, with the evidence inline: code spans for names, fenced blocks for commands and output, aligned tables for before/after or pass/fail.
+- **Then, when there's more to say,** a `###` heading per point, with the evidence inline: code spans for names, fenced blocks for commands and output, aligned tables for before/after or pass/fail. In a table cell, write a literal pipe as `\|`, even inside backticks, or it ends the cell.
 - **Anything longer than one line goes through `--body-file -`** with a quoted heredoc. Never put message text where a format string goes (`printf "$text"`).
 - **One substantial post beats several small ones.**
 

@@ -234,11 +234,46 @@ function outsideFences(text, fn) {
 
 /** Demote `#` and `##` headings to `###` outside fenced code, so no heading outgrows the panel's text. */
 export function demoteHeadings(text) {
-  return outsideFences(text, line => line.replace(/^( {0,3})#{1,2}(?=\s|$)/, '$1###'))
+  const atx = outsideFences(text, line => line.replace(/^( {0,3})#{1,2}(?=\s|$)/, '$1###'))
+  // Underlined headings (Title, then === or ---) render large too. A --- after a blank line is a rule.
+  const out = []
+  let fence = null
+  for (const line of atx.split('\n')) {
+    const open = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      if (open && open[1][0] === fence[0] && open[1].length >= fence.length) fence = null
+      out.push(line)
+      continue
+    }
+    if (open) { fence = open[1]; out.push(line); continue }
+    const prev = out.length ? out[out.length - 1] : ''
+    if (/^ {0,3}(=+|-+)\s*$/.test(line) && prev.trim() && !/^\s*(#|\||[-*+] |>|`{3,}|~{3,})/.test(prev)) {
+      out[out.length - 1] = `### ${prev.trim()}`
+      continue
+    }
+    out.push(line)
+  }
+  return out.join('\n')
 }
 
 /** The role `members.json` gives `id`, or "unknown". */
-export function roleOf(members, id) {
+export function roleOf(members, id, fallback = {}) {
   const m = (Array.isArray(members) ? members : []).find(x => x?.id === id)
-  return typeof m?.role === 'string' && m.role ? m.role : 'unknown'
+  if (typeof m?.role === 'string' && m.role) return m.role
+  const r = fallback && typeof fallback === 'object' ? fallback[id] : undefined
+  return typeof r === 'string' && r ? r : 'unknown'
+}
+
+/**
+ * Each member id's role across every room of one root, the first room that lists it winning.
+ * roleOf falls back to it for an id a room doesn't list, such as app-fleet's lead posting in thread rooms.
+ */
+export function rootRoles(memberLists) {
+  const roles = {}
+  for (const list of Array.isArray(memberLists) ? memberLists : []) {
+    for (const m of Array.isArray(list) ? list : []) {
+      if (typeof m?.id === 'string' && typeof m?.role === 'string' && m.role && !(m.id in roles)) roles[m.id] = m.role
+    }
+  }
+  return roles
 }

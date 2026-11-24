@@ -7,11 +7,14 @@
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea, Scrollbar, TextView } from "gpui-base";
 import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, setShared, shared, terminals, theme, watchFolder, writeTextFile } from "herdr";
-import { applyMention, createSaver, demoteHeadings, groupByRoot, linkMentions, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roleOf, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
+import { applyMention, createSaver, demoteHeadings, groupByRoot, linkMentions, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roleOf, rootRoles, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
 const MOD = "rooms";
+// Herdr bundles only Geist's regular weight, so bold and italic in Geist render regular. The system
+// UI font (San Francisco) has every weight: the panel uses it so post headlines stay bold.
+const UI_FONT = ".SystemUIFont";
 const ROLE_COLOR = { operator: "accent", lead: "done", builder: "working", reviewer: "blocked" }; // theme colour per member role
 const MENTION_ROWS = 6; // the @-mention list shows at most this many rows
 const MENTION_KEYS = { tab: "rooms_mention_next", "shift-tab": "rooms_mention_prev", up: "rooms_mention_up", down: "rooms_mention_down", enter: "rooms_mention_accept", escape: "rooms_mention_close" };
@@ -132,8 +135,14 @@ export default class Rooms extends View {
     for (const r of roots) if (r && typeof r.path === "string" && (await exists(r.path))) alive.push(r.path);
     const live = liveRoots(roots, (p) => alive.includes(p));
     const rooms = [];
+    const roles = {};
     for (const root of live) {
       this.watch(root.path, cx);
+      // Roles across the whole root: a thread room doesn't list app-fleet's lead, the channel does.
+      const lists = [];
+      if (this.only) {
+        for (const other of await listDirs(root.path)) lists.push(await readJson(`${root.path}/${other}/members.json`, null));
+      }
       for (const name of this.only ? [this.only.room] : await listDirs(root.path)) {
         // One unreadable room must not stop the others from updating.
         try {
@@ -150,12 +159,15 @@ export default class Rooms extends View {
           const key = `${root.path}#${name}`;
           const summary = roomSummary(msgs, members, presences, this.config.operator, this.state.lastRead[key]);
           rooms.push({ key, root: root.path, name, msgs, members, presences, archived, summary });
+          if (!this.only) lists.push(members);
         } catch {
           continue;
         }
       }
+      roles[root.path] = rootRoles(lists);
     }
     this.rooms = rooms;
+    this.roles = roles;
     this.alert();
     if (this.selected) this.markRead(this.selected);
     cx.notify();
@@ -341,7 +353,7 @@ export default class Rooms extends View {
 
   renderTitle(t) {
     const p = props() ?? {};
-    return h_flex().id("room-title").size_full().px(12).gap(8).items_center().bg(t.surface ?? t.background).text_color(t.foreground).text_size(13)
+    return h_flex().id("room-title").font_family(UI_FONT).size_full().px(12).gap(8).items_center().bg(t.surface ?? t.background).text_color(t.foreground).text_size(13)
       .child(div().font_semibold().child(`#${p.room}`))
       .child(div().text_size(11).text_color(t.muted).child(runLabel(p.root)))
       .child(div().flex_1())
@@ -354,7 +366,7 @@ export default class Rooms extends View {
     const p = props() ?? {};
     const term = terminals().find((x) => x.address === p.address);
     const status = term ? (typeof term.status === "string" ? term.status : term.status?.state ?? "unknown") : "gone";
-    return h_flex().id(`member-${p.address}`).size_full().px(10).gap(6).items_center().bg(t.background).border_t(1).border_color(t.border).text_size(12)
+    return h_flex().id(`member-${p.address}`).font_family(UI_FONT).size_full().px(10).gap(6).items_center().bg(t.background).border_t(1).border_color(t.border).text_size(12)
       .child(div().size(7).rounded(4).flex_none().bg(statusColor(t, status)))
       .child(div().font_semibold().text_color(t.foreground).child(String(p.id)))
       .when(status !== "unknown", (e) => e.child(div().text_size(11).text_color(t.muted).child(status)));
@@ -377,10 +389,10 @@ export default class Rooms extends View {
         .on_click(() => this.openWindow(r)).child("window")));
   }
 
-  messageRow(m, t, members, ids) {
+  messageRow(m, t, members, ids, roles) {
     const label = KIND_LABEL[m.kind];
     const color = m.kind === "done" ? t.done : m.kind === "pause" || m.kind === "system" ? t.blocked : t.foreground;
-    const role = roleOf(members, m.from);
+    const role = roleOf(members, m.from, roles);
     const roleColor = t[ROLE_COLOR[role] ?? "dim"] ?? t.dim;
     return v_flex().w_full().min_w(0).flex_none().px(12).py(6).gap(4)
       .child(h_flex().gap(6).items_center()
@@ -419,7 +431,7 @@ export default class Rooms extends View {
           .on_click(() => this.openWindow(current)).child("window"))))
       .child(div().flex_1().min_h(0).relative()
         .child(v_flex().id("rooms-timeline").absolute().inset_0().overflow_y_scroll().py(4)
-          .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t, current.members, ids))))
+          .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t, current.members, ids, this.roles?.[current.root]))))
         .child(Scrollbar.vertical("rooms-timeline").absolute().inset_0()))
       .when(Boolean(this.note), (e) => e.child(div().px(12).py(4).text_size(11).text_color(t.ansi1).child(this.note)))
       .when(!current.archived && Boolean(this.mention), (e) => e.child(this.mentionList(t)))
@@ -439,13 +451,13 @@ export default class Rooms extends View {
     if (this.view === "member") return this.renderMember(t);
     if (this.only) {
       const current = this.rooms.find((r) => r.key === this.selected);
-      const el = v_flex().id("room-view").size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13);
+      const el = v_flex().id("room-view").font_family(UI_FONT).size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13);
       return current ? this.roomBody(el, current, t) : el.child(div().p(12).text_color(t.dim).child("Loading…"));
     }
     const visible = sortRooms(this.rooms.filter((r) => this.showArchived || !r.archived).map((r) => ({ ...r, ...r.summary })));
     const current = this.rooms.find((r) => r.key === this.selected);
     const terms = terminals();
-    return v_flex().id("rooms").size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
+    return v_flex().id("rooms").font_family(UI_FONT).size_full().min_h(0).overflow_hidden().bg(t.background).text_color(t.foreground).text_size(13)
       .child(h_flex().h(40).flex_none().px(12).gap(8).items_center().border_b(1).border_color(t.border)
         .child(div().font_semibold().child(this.rootFilter ? `Rooms · ${runLabel(this.rootFilter)}` : "Rooms"))
         .child(div().flex_1())

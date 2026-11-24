@@ -905,6 +905,8 @@ def cmd_lead(a):
     try:
         save_run(run)
         os.makedirs(rooms_root(run), exist_ok=True)
+        for sub in ("briefs", "reports"):  # the lead writes briefs before any thread opens
+            os.makedirs(os.path.join(run_dir(name), sub), exist_ok=True)
         exclude_worktrees(repo)
         room(run, "create", run["stage"], "--member", f"{operator()}:operator")
         room(run, "join", run["stage"], "lead", "--role", "lead", "--watch-all")

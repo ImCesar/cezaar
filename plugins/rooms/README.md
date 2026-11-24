@@ -25,7 +25,7 @@ ROOM_ID=b claude                            # a session that listens as b
 room post demo --as a "@b ready for review" # b wakes
 ```
 
-A post's text is capped at 16 KB. For longer output, write a file and post a link (`--link <path>`). For structured Markdown (headings, code blocks, tables), pass the text with `--body-file <path>`, or `--body-file -` to read stdin. The file is read as UTF-8, exactly as written, so it never goes through shell quoting. Mentions in it are parsed as usual. `--kind`, `--link` and `--as` work with it. Giving both positional text and `--body-file` is refused (exit 2).
+A post's text is capped at 16 KB. For longer output, write a file and post a link (`--link <path>`). For structured Markdown (headings, code blocks, tables), pass the text with `--body-file <path>`, or `--body-file -` to read stdin. The file is read as UTF-8, exactly as written, so it never goes through shell quoting. Mentions are parsed from the text, except inside code spans and fenced code blocks: a quoted command such as `` `room post x "@lead done"` `` wakes no one. `--kind`, `--link` and `--as` work with `--body-file`. Giving both positional text and `--body-file` is refused (exit 2). Positional text may sit before or after the options: `room post r --as a hello --kind done world` posts "hello world".
 
 ```sh
 room post demo --as a --kind done --body-file - <<'EOF'

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyMention, createSaver, demoteHeadings, linkMentions, roleOf, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, createSaver, demoteHeadings, linkMentions, roleOf, rootRoles, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -207,4 +207,31 @@ test('demoteHeadings turns # and ## into ### and leaves the rest', () => {
 
 test('demoteHeadings leaves fenced code alone', () => {
   assert.equal(demoteHeadings('```sh\n# comment\n```\n# T'), '```sh\n# comment\n```\n### T')
+})
+
+test('rootRoles maps ids to roles across rooms; the first room that lists an id wins', () => {
+  const execution = [{ id: 'cesar', role: 'operator' }, { id: 'lead', role: 'lead' }, { id: 't-builder', role: 'builder' }]
+  const thread = [{ id: 't-builder', role: 'reviewer' }, { id: 'x' }, null, { id: 7, role: 'builder' }]
+  assert.deepEqual(rootRoles([execution, thread, 'junk', null]), { cesar: 'operator', lead: 'lead', 't-builder': 'builder' })
+  assert.deepEqual(rootRoles(null), {})
+})
+
+test('roleOf falls back to the root-wide role for an id the room does not list (the lead in a thread)', () => {
+  const thread = [{ id: 'b', role: 'builder' }]
+  assert.equal(roleOf(thread, 'lead', { lead: 'lead', b: 'reviewer' }), 'lead')
+  assert.equal(roleOf(thread, 'b', { b: 'reviewer' }), 'builder')
+  assert.equal(roleOf(thread, 'nobody', { lead: 'lead' }), 'unknown')
+  assert.equal(roleOf(thread, 'lead', null), 'unknown')
+})
+
+test('demoteHeadings turns underlined (=== and ---) headings into ###', () => {
+  assert.equal(demoteHeadings('Title\n=====\nbody'), '### Title\nbody')
+  assert.equal(demoteHeadings('Sub\n---\nbody'), '### Sub\nbody')
+})
+
+test('demoteHeadings keeps --- after a blank line (a rule) and leaves tables and fences alone', () => {
+  assert.equal(demoteHeadings('para\n\n---\nmore'), 'para\n\n---\nmore')
+  assert.equal(demoteHeadings('| a | b |\n|---|---|'), '| a | b |\n|---|---|')
+  assert.equal(demoteHeadings('```\nx\n---\n```'), '```\nx\n---\n```')
+  assert.equal(demoteHeadings('---\nfirst line rule'), '---\nfirst line rule')
 })
