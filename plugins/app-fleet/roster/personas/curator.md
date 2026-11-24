@@ -78,5 +78,9 @@ Your report lists, per persona:
 Then:
 
 ```
-room post <task> --kind done "@lead done: memory curated — <n> added, <m> merged, <k> removed — report: <path>"
+room post <task> --kind done --body-file - <<'EOF'
+@lead done: — **Memory curated: <n> added, <m> merged, <k> removed.**
+
+Report: `<path>`
+EOF
 ```

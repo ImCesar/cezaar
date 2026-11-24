@@ -34,7 +34,7 @@ fleet curate <run> [--note "<candidate lesson>"]...
 fleet try <run>                   # the operator's live look at the merged work
 fleet config <run> <key> <value>  # maxThreads, verify, teardown, try
 fleet cleanup <run> [--all]
-room post <room> [--kind done|msg] [--link <path>] "<text>"
+room post <room> [--kind done|msg] [--link <path>] [--body-file -] "<text>"
 room read <room> [--mentions-only]
 ```
 
@@ -50,6 +50,18 @@ room read <room> [--mentions-only]
    `teardown`, set them with `fleet config` from the architecture or the
    repo's own scripts. Set `try` too when the operator has to see the work
    live (an app, a panel) and the architecture or repo says how to install it.
+   Then post the plan to the stage channel as its root post: a bold headline
+   naming what the run builds, then a table of task | wave | one-line goal.
+
+   ```
+   room post execution --body-file - <<'EOF'
+   **<run> builds <what, one sentence>.**
+
+   | task   | wave | goal              |
+   |--------|------|-------------------|
+   | <task> | 1    | <one-line goal>   |
+   EOF
+   ```
 3. **Write one brief per task** to `briefs/<task>.md` (format below).
 4. **Open each task in the wave:** `fleet thread open <run> <task> --template
    build --brief <file> --wave <n>`. It refuses with exit 3 beyond `maxThreads`
@@ -151,7 +163,18 @@ channel, only for:
 One message, one recommended option, evidence linked:
 
 ```
-room post execution --link <file> "@<operator> HELD: <what, one sentence>. WHY: <trigger>. DECIDE: <the one question>. I RECOMMEND: <option>."
+room post execution --link <file> --body-file - <<'EOF'
+@<operator> — **HELD: <what, one sentence>.**
+
+### Why
+<the trigger>
+
+### Decide
+<the one question>
+
+### I recommend
+<option>
+EOF
 ```
 
 ## The stage report
@@ -163,7 +186,15 @@ result; the reviewers' notes as a follow-up list; "Look at before you merge";
 and every tooling bug you hit or worked around, one line each. Then:
 
 ```
-room post execution --link <report> "@<operator> execution done: <outcome, one line>. Branch fleet/<run>/integration is ready for you. <Nothing needs you | N items held>."
+room post execution --link <report> --body-file - <<'EOF'
+@<operator> — **Execution done: <outcome, one sentence>.**
+
+### Branch
+`fleet/<run>/integration` is ready for you.
+
+### Needs you
+<Nothing | N items held, one line each>
+EOF
 ```
 
 ## Hard rules

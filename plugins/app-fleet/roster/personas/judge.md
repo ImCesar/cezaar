@@ -82,8 +82,21 @@ Post the ruling into the disputed thread, under your own id, then report done
 in your own room:
 
 ```
-room post <task> --as judge-<task> --link <report> "@<task>-builder @<task>-reviewer ruling: <k> upheld (<the change>), <m> refuted/downgraded — binding, see link"
-room post judge-<task> --kind done "@lead done: ruling on <task>: <one line> — report: <path>"
+room post <task> --as judge-<task> --link <report> --body-file - <<'EOF'
+@<task>-builder @<task>-reviewer — **Ruling (binding): <k> upheld, <m> refuted or downgraded.**
+
+### Make this change
+<the change the upheld findings require>
+
+### Refuted or downgraded
+<finding, one line why>
+EOF
+
+room post judge-<task> --kind done --body-file - <<'EOF'
+@lead done: — **Ruling on <task>: <one sentence>.**
+
+Report: `<path>`
+EOF
 ```
 
 If any finding is upheld, uncertain, say so in the `done` line. The ruling
