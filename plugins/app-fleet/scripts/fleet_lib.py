@@ -592,6 +592,16 @@ def remove_if_done(run, t):
     """Remove a thread's worktree only when its branch is merged and nothing in it is uncommitted."""
     if not t.get("branch") or not os.path.isdir(t.get("worktree") or ""):
         return ""
+    if not branch_exists(run["repo"], t["branch"]):
+        # Resume recreated it detached from the integration branch after cleanup deleted the task
+        # branch: remove it once nothing in it is uncommitted or newer than the integration branch.
+        wt = t["worktree"]
+        detached = not git(wt, "branch", "--show-current", check=False).stdout.strip()
+        head_in = git(wt, "merge-base", "--is-ancestor", "HEAD", run["integration"], check=False).returncode == 0
+        if detached and head_in and not changes(wt):
+            git(run["repo"], "worktree", "remove", wt, check=False)
+            return ""
+        return f" (worktree kept: {wt} has work not in {run['integration']})"
     if not is_merged(run, t["branch"]):
         return f" (worktree kept: {t['branch']} is unmerged)"
     if changes(t["worktree"]):

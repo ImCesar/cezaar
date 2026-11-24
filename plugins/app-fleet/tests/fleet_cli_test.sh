@@ -934,6 +934,22 @@ t_cleanup_ends_resumed_members_of_closed_threads() {
     || fail cleanup_ends_resumed_members_of_closed_threads "rc=$rc log=$(tr '\n' ';' < "$STUB_LOG")"
 }
 
+# A worktree that resume recreated detached (the task branch was gone) is removed by the next cleanup.
+t_cleanup_removes_a_detached_resume_worktree() {
+  fresh; seed_run r1 t9
+  "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
+  commit_in "$REPO/.worktrees/r1/t1" "feature one" one.txt
+  "$FLEET" merge r1 t1 >/dev/null 2>&1 && "$FLEET" thread close r1 t1 >/dev/null 2>&1
+  "$FLEET" cleanup r1 >/dev/null 2>&1   # deletes the merged task branch
+  printf 'tm1\ntm2\n' > "$STUB_DIR/hc.dead"
+  "$FLEET" thread resume r1 t1 t1-builder >/dev/null 2>&1
+  back=0; [ -d "$REPO/.worktrees/r1/t1" ] && back=1
+  echo tm3 >> "$STUB_DIR/hc.dead"
+  "$FLEET" cleanup r1 --all >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ "$back" = 1 ] && [ ! -e "$REPO/.worktrees/r1/t1" ] && ok cleanup_removes_a_detached_resume_worktree \
+    || fail cleanup_removes_a_detached_resume_worktree "rc=$rc back=$back left=$(git -C "$REPO" worktree list | tr '\n' ';')"
+}
+
 t_thread_resume_refuses_archived_room_and_old_thread() {
   fresh; seed_run r1 t9
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1
