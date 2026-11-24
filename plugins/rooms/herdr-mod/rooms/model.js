@@ -197,3 +197,38 @@ export function applyMention(text, start, end, id, trailingSpace) {
   const s = String(text ?? '')
   return { text: s.slice(0, start) + insert + s.slice(end), cursor: start + insert.length }
 }
+
+/**
+ * Turn each `@id` whose id is in `ids` into the Markdown link `[@id](rooms-member:id)`. Code spans and
+ * fenced code blocks are left as they are, and so is an `@` inside a word (an email address).
+ */
+export function linkMentions(text, ids) {
+  const known = new Set(Array.isArray(ids) ? ids : [])
+  const link = s => s.replace(/(^|[^\w@/[`-])@([\w-]+)/g, (all, pre, id) => {
+    let name = id
+    while (name && !known.has(name) && /-$/.test(name)) name = name.slice(0, -1)
+    return known.has(name) ? `${pre}[@${name}](rooms-member:${name})${id.slice(name.length)}` : all
+  })
+  const out = []
+  let fence = null
+  for (const line of String(text ?? '').split('\n')) {
+    const open = line.match(/^\s*(`{3,}|~{3,})/)
+    if (fence) {
+      if (open && open[1][0] === fence[0] && open[1].length >= fence.length && !line.trim().slice(open[1].length).trim()) fence = null
+      out.push(line)
+    } else if (open) {
+      fence = open[1]
+      out.push(line)
+    } else {
+      // Odd pieces between backtick runs are code spans.
+      out.push(line.split(/(`+[^`]*`+)/).map((p, i) => (i % 2 ? p : link(p))).join(''))
+    }
+  }
+  return out.join('\n')
+}
+
+/** The role `members.json` gives `id`, or "unknown". */
+export function roleOf(members, id) {
+  const m = (Array.isArray(members) ? members : []).find(x => x?.id === id)
+  return typeof m?.role === 'string' && m.role ? m.role : 'unknown'
+}

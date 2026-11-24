@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { applyMention, createSaver, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
+import { applyMention, createSaver, linkMentions, roleOf, mentionCandidates, mentionQuery, groupByRoot, mergeRead, roomTerminals, liveRoots, newOperatorMentions, parseLog, parseTail, roomSummary, shouldReload, sortRooms, toNotify } from './model.js'
 
 const m = (id, from, text, mentions = [], kind = 'msg') => ({ id, ts: `2026-11-23T05:00:0${id.slice(-1)}.000000Z`, room: 'r', from, kind, text, mentions })
 
@@ -169,4 +169,34 @@ test('mentionCandidates tolerates missing and bad entries', () => {
 test('applyMention replaces the query and places the cursor after it', () => {
   assert.deepEqual(applyMention('hi @su there', 3, 6, 'store', true), { text: 'hi @store  there', cursor: 10 })
   assert.deepEqual(applyMention('hi @su', 3, 6, 'store', false), { text: 'hi @store', cursor: 9 })
+})
+
+const ids = ['x', 'a-b', 'lead']
+test('linkMentions leaves plain text alone', () => {
+  assert.equal(linkMentions('no mentions here, mail a@x.com', ids), 'no mentions here, mail a@x.com')
+})
+
+test('linkMentions links known ids and leaves unknown ones', () => {
+  assert.equal(linkMentions('@lead see @nobody', ids), '[@lead](rooms-member:lead) see @nobody')
+})
+
+test('linkMentions handles hyphenated ids and trailing punctuation', () => {
+  assert.equal(linkMentions('hi @a-b.', ids), 'hi [@a-b](rooms-member:a-b).')
+  assert.equal(linkMentions('@x, and @x- ok', ids), '[@x](rooms-member:x), and [@x](rooms-member:x)- ok')
+  assert.equal(linkMentions('(@x)', ids), '([@x](rooms-member:x))')
+})
+
+test('linkMentions leaves code spans and fences alone', () => {
+  assert.equal(linkMentions('run `@x` then @x', ids), 'run `@x` then [@x](rooms-member:x)')
+  const fenced = '```\n@x here\n```\n@x'
+  assert.equal(linkMentions(fenced, ids), '```\n@x here\n```\n[@x](rooms-member:x)')
+  assert.equal(linkMentions('~~~sh\n@lead\n~~~', ids), '~~~sh\n@lead\n~~~')
+})
+
+test('roleOf finds the role or returns unknown', () => {
+  const members = [{ id: 'lead', role: 'lead' }, { id: 'b', role: 'builder' }, { id: 'n' }]
+  assert.equal(roleOf(members, 'b'), 'builder')
+  assert.equal(roleOf(members, 'n'), 'unknown')
+  assert.equal(roleOf(members, 'zz'), 'unknown')
+  assert.equal(roleOf(null, 'b'), 'unknown')
 })

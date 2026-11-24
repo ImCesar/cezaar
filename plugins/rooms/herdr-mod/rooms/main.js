@@ -5,13 +5,14 @@
 // "member" (one member's name and Herdr status) and "room" (one room's timeline and composer).
 // The window puts the room's live member terminals (labelled rooms.root/room/id) beside the room.
 import { View, div } from "gpui-kit";
-import { v_flex, h_flex, TextareaState, Textarea, Scrollbar } from "gpui-base";
+import { v_flex, h_flex, TextareaState, Textarea, Scrollbar, TextView } from "gpui-base";
 import { closeOverlay, exec, home, notify, openOverlay, props, readTextFile, setBadge, setShared, shared, terminals, theme, watchFolder, writeTextFile } from "herdr";
-import { applyMention, createSaver, groupByRoot, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
+import { applyMention, createSaver, groupByRoot, linkMentions, liveRoots, mentionCandidates, mentionQuery, mergeRead, parseLog, parseTail, roleOf, roomSummary, roomTerminals, shouldReload, sortRooms, toNotify } from "./model.js";
 
 const CONFIG_DIR = () => `${home()}/.config/rooms`;
 const KIND_LABEL = { done: "done", system: "system", pause: "paused" };
 const MOD = "rooms";
+const ROLE_COLOR = { operator: "accent", lead: "done", builder: "working", reviewer: "blocked" }; // theme colour per member role
 const MENTION_ROWS = 6; // the @-mention list shows at most this many rows
 const MENTION_KEYS = { tab: "rooms_mention_next", "shift-tab": "rooms_mention_prev", up: "rooms_mention_up", down: "rooms_mention_down", enter: "rooms_mention_accept", escape: "rooms_mention_close" };
 const READ_KEY = "rooms.read"; // read marks a room window shares with the panel: {"<root>#<room>": lastId}
@@ -376,17 +377,26 @@ export default class Rooms extends View {
         .on_click(() => this.openWindow(r)).child("window")));
   }
 
-  messageRow(m, t) {
+  messageRow(m, t, members, ids) {
     const label = KIND_LABEL[m.kind];
-    const mine = m.from === this.config.operator;
     const color = m.kind === "done" ? t.done : m.kind === "pause" || m.kind === "system" ? t.blocked : t.foreground;
-    return v_flex().w_full().flex_none().px(12).py(6).gap(2)
+    const role = roleOf(members, m.from);
+    const roleColor = t[ROLE_COLOR[role] ?? "dim"] ?? t.dim;
+    return v_flex().w_full().min_w(0).flex_none().px(12).py(6).gap(4)
       .child(h_flex().gap(6).items_center()
-        .child(div().font_semibold().text_size(12).text_color(mine ? t.accent : t.foreground).child(m.from))
-        .when(Boolean(label), (e) => e.child(div().px(5).rounded(4).border_1().border_color(color).text_size(10).text_color(color).child(label)))
-        .child(div().text_size(10).text_color(t.dim).child(String(m.ts ?? "").slice(11, 16))))
-      .child(div().text_size(12).text_color(t.foreground).child(m.text))
-      .when(Array.isArray(m.links) && m.links.length > 0, (e) => e.child(div().text_size(11).text_color(t.muted).child(m.links.join("  "))));
+        .child(div().size(22).flex_none().rounded_full().bg(roleColor).flex().items_center().justify_center()
+          .text_size(11).font_semibold().text_color(t.background).child(String(m.from ?? "?").slice(0, 1).toUpperCase()))
+        .child(div().font_semibold().text_size(12).text_color(t.foreground).child(m.from))
+        .child(div().text_size(10).text_color(t.muted).child(role))
+        .child(div().text_size(10).text_color(t.dim).child(String(m.ts ?? "").slice(11, 16)))
+        .when(Boolean(label), (e) => e.child(div().px(5).rounded(4).border_1().border_color(color).text_size(10).text_color(color).child(label))))
+      // TextView scrolls a wide code block or table inside itself; min_w(0) keeps it from widening the panel.
+      .child(div().w_full().min_w(0).overflow_x_hidden().text_size(12).text_color(t.foreground)
+        .child(TextView.markdown(`msg-${m.id}`, linkMentions(String(m.text ?? ""), ids)).selectable(true).w_full().min_w(0)
+          .on_link_click((url, cx) => { if (!url.startsWith("rooms-member:")) cx.open_url(url); })))
+      .when(Array.isArray(m.links) && m.links.length > 0, (e) => e.child(h_flex().gap(4).flex_wrap()
+        .children(m.links.map((path) => div().px(6).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted)
+          .tooltip(String(path)).child(String(path).split("/").filter(Boolean).at(-1) ?? String(path))))));
   }
 
   // The open room: presence, timeline, composer. The panel and a window's room view share it.
@@ -398,6 +408,7 @@ export default class Rooms extends View {
       const sel = this.draft.selected_range();
       if (sel.start !== sel.end || sel.end < this.mention.start + 1 || sel.end > this.mention.end) this.mention = null;
     }
+    const ids = [...new Set([...current.members.map((m) => m?.id), ...current.msgs.map((m) => m.from)].filter(Boolean))];
     return el
       .child(h_flex().flex_none().px(12).py(6).gap(10).flex_wrap().items_center().border_b(1).border_color(t.border)
         .children(presence.map((p) => h_flex().gap(4).items_center()
@@ -408,7 +419,7 @@ export default class Rooms extends View {
           .on_click(() => this.openWindow(current)).child("window"))))
       .child(div().flex_1().min_h(0).relative()
         .child(v_flex().id("rooms-timeline").absolute().inset_0().overflow_y_scroll().py(4)
-          .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t))))
+          .children(current.msgs.slice(-200).map((m) => this.messageRow(m, t, current.members, ids))))
         .child(Scrollbar.vertical("rooms-timeline").absolute().inset_0()))
       .when(Boolean(this.note), (e) => e.child(div().px(12).py(4).text_size(11).text_color(t.ansi1).child(this.note)))
       .when(!current.archived && Boolean(this.mention), (e) => e.child(this.mentionList(t)))
