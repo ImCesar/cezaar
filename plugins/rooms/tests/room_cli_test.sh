@@ -266,5 +266,24 @@ t_post_text_and_body_file_refused() {
   [ "$rc" = 2 ] && [ "${size:-0}" = 0 ] && ok post_text_and_body_file_refused || fail post_text_and_body_file_refused "rc=$rc size=$size"
 }
 
+t_post_body_file_path_exact() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  printf 'a\r\nb\rc  d\n' > "$T/crlf.txt"
+  "$ROOM" post r --as a --body-file "$T/crlf.txt" >/dev/null 2>&1; rc=$?
+  got=$(head -1 "$ROOMS_ROOT/r/log.jsonl" 2>/dev/null | jq_py "repr(d['text'])")
+  [ "$rc" = 0 ] && [ "$got" = "'a\\r\\nb\\rc  d\\n'" ] && ok post_body_file_path_exact || fail post_body_file_path_exact "rc=$rc got=$got"
+}
+
+t_post_dash_text_after_option() {
+  fresh
+  "$ROOM" create r >/dev/null 2>&1
+  "$ROOM" post r --as a "- item one" >/dev/null 2>&1 || { fail post_dash_text_after_option "bullet refused"; return; }
+  "$ROOM" post r --as a count -1 >/dev/null 2>&1 || { fail post_dash_text_after_option "negative refused"; return; }
+  "$ROOM" post r --as a hi --bogus >/dev/null 2>&1; brc=$?
+  got=$("$ROOM" read r --json 2>/dev/null | jq_py "[m['text'] for m in d]")
+  [ "$brc" = 2 ] && [ "$got" = "['- item one', 'count -1']" ] && ok post_dash_text_after_option || fail post_dash_text_after_option "brc=$brc got=$got"
+}
+
 for t in $(grep -o '^t_[a-z_0-9]*' "$0"); do "$t"; done
 [ "$FAILS" = 0 ]

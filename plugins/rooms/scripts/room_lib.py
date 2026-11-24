@@ -209,8 +209,8 @@ def cmd_post(a, root):
             if a.body_file == "-":
                 text = sys.stdin.buffer.read().decode("utf-8")
             else:
-                with open(a.body_file, encoding="utf-8") as f:
-                    text = f.read()
+                with open(a.body_file, "rb") as f:
+                    text = f.read().decode("utf-8")
         except (OSError, UnicodeDecodeError) as e:
             raise Refused(f"room: cannot read --body-file {a.body_file}: {e}")
     elif a.text:
@@ -428,6 +428,13 @@ def parser():
     return p
 
 
+def looks_like_option(word):
+    """Whether argparse would have read `word` as an option, not as text."""
+    if not word.startswith("-") or word == "-" or " " in word:
+        return False
+    return not re.match(r"^-\d+$|^-\d*\.\d+$", word)
+
+
 def main(argv):
     p = parser()
     a, extra = p.parse_known_args(argv)
@@ -435,7 +442,7 @@ def main(argv):
     # leaves words given after an option (`post r --as a hi`) unparsed.
     if extra and a.cmd == "post":
         words = extra[1:] if extra[0] == "--" else extra
-        if extra[0] != "--" and any(w.startswith("-") for w in words):
+        if extra[0] != "--" and any(looks_like_option(w) for w in words):
             p.error("unrecognized arguments: " + " ".join(extra))
         a.text += words
     elif extra:
