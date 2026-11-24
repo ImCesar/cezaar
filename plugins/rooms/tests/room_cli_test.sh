@@ -156,6 +156,69 @@ t_herdr_install_panel_only_leaves_link_and_config() {
     && ok herdr_install_panel_only_leaves_link_and_config || fail herdr_install_panel_only_leaves_link_and_config "cli=$cli link=$link files=$(ls "$dest" 2>/dev/null | tr '\n' ' ')"
 }
 
+# `room setup` runs at the start of the operator's Claude sessions. It sets up and refreshes an
+# install from Claude's plugin cache, and never touches a dev install (links into a checkout).
+# cache_copy <version>: this plugin copied into a fake plugin cache, with that version.
+cache_copy() {
+  C="$T/claude/plugins/cache/cezaar/rooms/$1"
+  mkdir -p "$C" && cp -R "$HERE/../scripts" "$HERE/../herdr-mod" "$HERE/../.claude-plugin" "$C/" 2>/dev/null
+  python3 -I -c "import json,sys; p=sys.argv[1]; d=json.load(open(p)); d['version']=sys.argv[2]; json.dump(d, open(p,'w'))" "$C/.claude-plugin/plugin.json" "$1"
+  CROOM="$(cd "$C/scripts" && pwd -P)/room"
+}
+
+t_setup_on_a_fresh_machine_links_and_installs_panel() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); stamp=$(cat "$HERDR_APP_HOME/mods/rooms/.rooms-version" 2>/dev/null)
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json" 2>/dev/null)
+  [ "$rc" = 0 ] && [ "$link" = "$CROOM" ] && [ "$stamp" = 0.3.0 ] && [ "$cli" = "$CROOM" ] && [ -f "$HERDR_APP_HOME/mods/rooms/main.js" ] \
+    && [ ! -e "$HERDR_APP_HOME/mods/rooms/RECIPE.md" ] && ok setup_on_a_fresh_machine_links_and_installs_panel \
+    || fail setup_on_a_fresh_machine_links_and_installs_panel "rc=$rc link=$link stamp=$stamp cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_refreshes_an_older_cache_install() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME/mods/rooms" "$ROOMS_BIN_DIR" "$ROOMS_CONFIG_DIR"
+  old="$T/claude/plugins/cache/cezaar/rooms/0.2.0/scripts/room"
+  ln -s "$old" "$ROOMS_BIN_DIR/room"; echo 0.2.0 > "$HERDR_APP_HOME/mods/rooms/.rooms-version"; echo old > "$HERDR_APP_HOME/mods/rooms/main.js"
+  printf '{"operator":"cesar","cli":"%s"}' "$old" > "$ROOMS_CONFIG_DIR/config.json"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); stamp=$(cat "$HERDR_APP_HOME/mods/rooms/.rooms-version")
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json"); main=$(head -c 3 "$HERDR_APP_HOME/mods/rooms/main.js")
+  [ "$rc" = 0 ] && [ "$link" = "$CROOM" ] && [ "$stamp" = 0.3.0 ] && [ "$cli" = "$CROOM" ] && [ "$main" != old ] \
+    && ok setup_refreshes_an_older_cache_install || fail setup_refreshes_an_older_cache_install "rc=$rc link=$link stamp=$stamp cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_leaves_a_dev_install_alone() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/herdr"; mkdir -p "$HERDR_APP_HOME/mods/rooms" "$ROOMS_BIN_DIR" "$ROOMS_CONFIG_DIR"
+  ln -s /repos/cezaar/plugins/rooms/scripts/room "$ROOMS_BIN_DIR/room"; echo dev > "$HERDR_APP_HOME/mods/rooms/main.js"
+  printf '{"operator":"cesar","cli":"/repos/cezaar/plugins/rooms/scripts/room"}' > "$ROOMS_CONFIG_DIR/config.json"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  link=$(readlink "$ROOMS_BIN_DIR/room"); main=$(cat "$HERDR_APP_HOME/mods/rooms/main.js")
+  cli=$(jq_py "d.get('cli')" < "$ROOMS_CONFIG_DIR/config.json")
+  [ "$rc" = 0 ] && [ "$link" = /repos/cezaar/plugins/rooms/scripts/room ] && [ "$main" = dev ] && [ "$cli" = /repos/cezaar/plugins/rooms/scripts/room ] \
+    && ok setup_leaves_a_dev_install_alone || fail setup_leaves_a_dev_install_alone "rc=$rc link=$link main=$main cli=$cli"
+  unset HERDR_APP_HOME
+}
+
+t_setup_without_herdr_skips_the_panel() {
+  fresh; cache_copy 0.3.0; export HERDR_APP_HOME="$T/no-herdr"
+  "$CROOM" setup --quiet >/dev/null 2>&1; rc=$?
+  [ "$rc" = 0 ] && [ ! -e "$HERDR_APP_HOME" ] && [ "$(readlink "$ROOMS_BIN_DIR/room")" = "$CROOM" ] \
+    && ok setup_without_herdr_skips_the_panel || fail setup_without_herdr_skips_the_panel "rc=$rc"
+  unset HERDR_APP_HOME
+}
+
+t_herdr_install_stamps_the_version_and_leaves_the_recipe_out() {
+  fresh
+  dest="$T/mods/rooms"
+  ROOMS_SKIP_HERDR_CHECK=1 "$ROOM" herdr-install --dest "$dest" >/dev/null 2>&1; rc=$?
+  want=$(jq_py "d['version']" < "$HERE/../.claude-plugin/plugin.json")
+  [ "$rc" = 0 ] && [ "$(cat "$dest/.rooms-version" 2>/dev/null)" = "$want" ] && [ ! -e "$dest/RECIPE.md" ] && [ ! -e "$dest/preview.png" ] \
+    && ok herdr_install_stamps_the_version_and_leaves_the_recipe_out || fail herdr_install_stamps_the_version_and_leaves_the_recipe_out "rc=$rc files=$(ls -a "$dest" | tr '\n' ' ')"
+}
+
 t_truncated_utf8_line_does_not_crash_or_eat_next() {
   fresh
   "$ROOM" create r >/dev/null 2>&1

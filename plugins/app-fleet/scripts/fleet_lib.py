@@ -1071,6 +1071,26 @@ def cmd_lead(a):
     print(f"started run {name}: switch to the lead tab in the {name} space")
 
 
+def cmd_setup(a):
+    """Run at the start of the operator's Claude sessions: link fleet for a plugin-cache install, and
+    repoint a link into an older cached version. A link into a checkout (a dev install) and anything
+    that isn't a symlink are never touched."""
+    target = os.path.realpath(os.environ.get("APP_FLEET_CLI_PATH") or os.path.join(os.path.dirname(__file__), "fleet"))
+    bindir = os.environ.get("APP_FLEET_BIN_DIR") or os.path.expanduser("~/.local/bin")
+    os.makedirs(bindir, exist_ok=True)
+    link = os.path.join(bindir, "fleet")
+    note = "fleet: already set up"
+    if not os.path.lexists(link):
+        os.symlink(target, link)
+        note = f"linked {link}"
+    elif os.path.islink(link) and os.readlink(link) != target and "/plugins/cache/" in os.readlink(link):
+        os.remove(link)
+        os.symlink(target, link)
+        note = f"relinked {link} to this version"
+    if not a.quiet:
+        print(note)
+
+
 def cmd_install(a):
     target = os.path.realpath(os.environ.get("APP_FLEET_CLI_PATH") or os.path.join(os.path.dirname(__file__), "fleet"))
     bindir = os.environ.get("APP_FLEET_BIN_DIR") or os.path.expanduser("~/.local/bin")
@@ -1220,6 +1240,10 @@ def parser():
     ld.add_argument("--teardown")
     ld.add_argument("--try", dest="try_", metavar="CMD", help="how the operator tries the merged work live (fleet try)")
     ld.set_defaults(fn=cmd_lead, locks=True)
+
+    se = sub.add_parser("setup", help="link fleet for a plugin install (leaves a dev link alone)")
+    se.add_argument("--quiet", action="store_true")
+    se.set_defaults(fn=cmd_setup)
 
     ins = sub.add_parser("install", help="put fleet on PATH (~/.local/bin)")
     ins.set_defaults(fn=cmd_install)

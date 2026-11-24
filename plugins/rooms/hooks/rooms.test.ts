@@ -87,13 +87,30 @@ const append = (w: World, text: string) => {
 const roomRuns = (w: World, verb: string) => w.runs.filter(a => a[1] === verb)
 const heartbeats = (w: World) => roomRuns(w, 'presence').filter(a => !a.includes('--delivered'))
 
-test('no ROOM_ID: no timers, no calls', async ($: any, on: any) => {
+test('no ROOM_ID: no timers and no room calls, only setup', async ($: any, on: any) => {
   const clock = mock.clock(on)
   const w = world(on, { env: { ROOMS_ROOT: '/rooms', ROOMS_CONFIG_DIR: '/cfg' }, log: line('20261123T050100.000000Z-aaaaaa', 'a', '@b hi', ['b']) })
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await clock.advance(10_000)
-  expect(w.runs.length).toBe(0)
+  expect(w.runs.filter(a => a[1] !== 'setup').length).toBe(0)
   expect(w.submits.length).toBe(0)
+})
+
+test("the operator's session runs room setup once: link room, install or refresh the panel", async ($: any, on: any) => {
+  mock.clock(on)
+  const w = world(on, { env: { ROOMS_CONFIG_DIR: '/cfg', HOME: '/home' } })
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  const setup = w.runs.filter(a => a[1] === 'setup')
+  expect(setup.length).toBe(1)
+  expect(setup[0]?.[0]?.endsWith('/scripts/room')).toBe(true)
+  expect(setup[0]?.slice(1)).toEqual(['setup', '--quiet'])
+})
+
+test('a member session (ROOM_ID set) does not run setup', async ($: any, on: any) => {
+  mock.clock(on)
+  const w = world(on)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  expect(w.runs.filter(a => a[1] === 'setup').length).toBe(0)
 })
 
 test('non-interactive session does nothing even with ROOM_ID', async ($: any, on: any) => {

@@ -452,18 +452,88 @@ def cmd_install(a, root):
     print(target)
 
 
+def plugin_version():
+    pj = os.path.join(os.path.dirname(os.path.dirname(cli_path())), ".claude-plugin", "plugin.json")
+    return str(read_json(pj, {}).get("version") or "")
+
+
+def in_plugin_cache(path):
+    """A path inside Claude's plugin cache, which updates replace: safe for setup to repoint."""
+    return "/plugins/cache/" in (path or "")
+
+
+def herdr_home():
+    return os.environ.get("HERDR_APP_HOME") or os.path.expanduser("~/.config/herdr-app")
+
+
+PANEL_LEFT_OUT = ("package.json", "RECIPE.md", "preview.png")  # Herdr's sharing guide: leave recipe and preview out
+VERSION_STAMP = ".rooms-version"
+
+
+def copy_panel(dest):
+    """Copy the panel into a Herdr mods folder and stamp it with this plugin's version."""
+    import shutil
+    src = os.path.join(os.path.dirname(os.path.dirname(cli_path())), "herdr-mod", "rooms")
+    os.makedirs(dest, exist_ok=True)
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".test.mjs") or name in PANEL_LEFT_OUT:
+            continue
+        shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+    with open(os.path.join(dest, VERSION_STAMP), "w") as fh:
+        fh.write(plugin_version() + "\n")
+
+
+def set_config_cli(path):
+    cfg_path = os.path.join(config_dir(), "config.json")
+    with locked(os.path.join(config_dir(), ".lock")):
+        cfg = {**DEFAULT_CONFIG, **read_json(cfg_path, {})}
+        cfg["cli"] = path
+        write_atomic(cfg_path, cfg)
+
+
+def cmd_setup(a, root):
+    """Run at the start of the operator's Claude sessions: link `room` and install or refresh the Herdr
+    panel for a plugin-cache install. A link or panel that points into a checkout (a dev install) is
+    never touched; neither is anything that isn't a symlink."""
+    target = cli_path()
+    notes = []
+    bindir = os.environ.get("ROOMS_BIN_DIR") or os.path.expanduser("~/.local/bin")
+    os.makedirs(bindir, exist_ok=True)
+    link = os.path.join(bindir, "room")
+    if not os.path.lexists(link):
+        os.symlink(target, link)
+        notes.append(f"linked {link}")
+    elif os.path.islink(link) and os.readlink(link) != target and in_plugin_cache(os.readlink(link)):
+        os.remove(link)
+        os.symlink(target, link)
+        notes.append(f"relinked {link} to this version")
+    cfg_path = os.path.join(config_dir(), "config.json")
+    if not os.path.exists(cfg_path):
+        write_atomic(cfg_path, DEFAULT_CONFIG)
+    home = herdr_home()
+    if os.path.isdir(home):
+        dest = os.path.join(home, "mods", "rooms")
+        cli = read_json(cfg_path, {}).get("cli")
+        try:
+            stamp = open(os.path.join(dest, VERSION_STAMP)).read().strip()
+        except OSError:
+            stamp = None
+        dev = bool(cli) and not in_plugin_cache(cli)
+        if not dev and (not os.path.isdir(dest) or stamp != plugin_version() or cli != target):
+            copy_panel(dest)
+            set_config_cli(target)
+            notes.append(f"installed the Rooms panel {plugin_version()} in {dest}")
+    if not a.quiet:
+        print("\n".join(notes) or "room: already set up")
+
+
 def cmd_herdr_install(a, root):
     import shutil
     import subprocess
     if not a.panel_only:  # --panel-only: try a worktree's panel without repointing `room` at it
         cmd_install(a, root)
-    src = os.path.join(os.path.dirname(os.path.dirname(cli_path())), "herdr-mod", "rooms")
-    dest = a.dest or os.path.expanduser("~/.config/herdr-app/mods/rooms")
-    os.makedirs(dest, exist_ok=True)
-    for name in sorted(os.listdir(src)):
-        if name.endswith(".test.mjs") or name == "package.json":
-            continue
-        shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+    dest = a.dest or os.path.join(herdr_home(), "mods", "rooms")
+    copy_panel(dest)
     if not a.panel_only:
         cfg_path = os.path.join(config_dir(), "config.json")
         with locked(os.path.join(config_dir(), ".lock")):
@@ -550,6 +620,10 @@ def parser():
     ins = sub.add_parser("install", help="put room on PATH and write default config")
     ins.set_defaults(fn=cmd_install)
 
+    su = sub.add_parser("setup", help="link room and install or refresh the Herdr panel (for a plugin install; leaves a dev install alone)")
+    su.add_argument("--quiet", action="store_true")
+    su.set_defaults(fn=cmd_setup)
+
     hi = sub.add_parser("herdr-install", help="install, then copy the Rooms panel into the Herdr app")
     hi.add_argument("--dest", metavar="dir", help="default ~/.config/herdr-app/mods/rooms")
     hi.add_argument("--panel-only", action="store_true",
@@ -578,7 +652,7 @@ def main(argv):
     elif extra:
         p.error("unrecognized arguments: " + " ".join(extra))
     try:
-        if a.cmd in ("install", "herdr-install"):
+        if a.cmd in ("install", "herdr-install", "setup"):
             a.fn(a, None)
             return 0
         root = rooms_root(create=a.cmd == "create")

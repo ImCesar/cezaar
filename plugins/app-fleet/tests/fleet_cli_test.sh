@@ -950,6 +950,27 @@ t_cleanup_removes_a_detached_resume_worktree() {
     || fail cleanup_removes_a_detached_resume_worktree "rc=$rc back=$back left=$(git -C "$REPO" worktree list | tr '\n' ';')"
 }
 
+# `fleet setup` runs at the start of the operator's Claude sessions: it links fleet for a plugin-cache
+# install, refreshes a link into an older cached version, and never touches a dev link or a file.
+t_setup_links_refreshes_and_leaves_dev_alone() {
+  fresh; B="$T/bin"; mkdir -p "$B"
+  C="$T/claude/plugins/cache/cezaar/app-fleet/0.3.0"; mkdir -p "$C" && cp -R "$PLUGIN/scripts" "$C/"
+  target="$(cd "$C/scripts" && pwd -P)/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; a=$?
+  fresh_link=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; ln -s "$T/claude/plugins/cache/cezaar/app-fleet/0.2.0/scripts/fleet" "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; b=$?
+  refreshed=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; ln -s /repos/cezaar/plugins/app-fleet/scripts/fleet "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; c=$?
+  dev=$(readlink "$B/fleet")
+  rm -f "$B/fleet"; echo mine > "$B/fleet"
+  APP_FLEET_BIN_DIR="$B" "$target" setup --quiet >/dev/null 2>&1; d=$?
+  [ "$a$b$c$d" = 0000 ] && [ "$fresh_link" = "$target" ] && [ "$refreshed" = "$target" ] \
+    && [ "$dev" = /repos/cezaar/plugins/app-fleet/scripts/fleet ] && [ "$(cat "$B/fleet")" = mine ] \
+    && ok setup_links_refreshes_and_leaves_dev_alone || fail setup_links_refreshes_and_leaves_dev_alone "rc=$a$b$c$d fresh=$fresh_link refreshed=$refreshed dev=$dev"
+}
+
 t_thread_resume_refuses_archived_room_and_old_thread() {
   fresh; seed_run r1 t9
   "$FLEET" thread open r1 t1 --template build --brief "$(brief t1)" >/dev/null 2>&1

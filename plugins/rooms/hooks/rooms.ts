@@ -310,6 +310,15 @@ function unblock(s: State | undefined) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const id = await $.env.get('ROOM_ID')
+    // The operator's own sessions keep the install current: link `room` and install or refresh the
+    // Herdr panel after a plugin update. Member sessions skip it, so a team doesn't race on it.
+    if (e.isInteractive && !id) {
+      try {
+        await $.process.run([`${$.plugin.root}/scripts/room`, 'setup', '--quiet'])
+      } catch {
+        // best effort: `room setup` can always be run by hand
+      }
+    }
     if (!e.isInteractive || !id) return next(e)
     const root = (await $.env.get('ROOMS_ROOT')) ?? `${(await $.env.get('HOME')) ?? ''}/.rooms/default`
     const only = await $.env.get('ROOMS')
